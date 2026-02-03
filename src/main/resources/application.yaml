@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: khi_backend
+
+  # ===============================
+  # DATASOURCE (PostgreSQL)
+  # ===============================
+  datasource:
+    url: jdbc:postgresql://localhost:5432/khi_web_db
+    username: khi
+    password: ""
+    driver-class-name: org.postgresql.Driver
+
+  # ===============================
+  # JPA / HIBERNATE
+  # ===============================
+  jpa:
+    open-in-view: false
+    show-sql: true
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          time_zone: UTC
+
+  # ===============================
+  # WEB MVC / I18N
+  # ===============================
+  web:
+    locale: ckb
+    locale-resolver: fixed
+
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+
+  mvc:
+    format:
+      date: yyyy-MM-dd
+      date-time: yyyy-MM-dd HH:mm:ss
+
+  # ===============================
+  # JACKSON (JSON)
+  # ===============================
+  jackson:
+    serialization:
+      indent_output: true
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+  # ===============================
+  # DEVTOOLS
+  # ===============================
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+  # ===============================
+  # MULTIPART UPLOAD LIMITS
+  # ===============================
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 200MB
+      file-size-threshold: 2MB
+
+  # ===============================
+  # SECURITY (TEMP – DEV ONLY)
+  # ===============================
+  security:
+    user:
+      name: admin
+      password: admin
+
+# ===============================
+# AWS S3
+# ===============================
+aws:
+  s3:
+    region: us-east-1
+    bucket: s3-khiwebsite
+    base-folder: khi-web-folders
+
+# ===============================
+# SERVER / TOMCAT LIMITS
+# ===============================
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
+  tomcat:
+    max-swallow-size: 200MB
+    max-http-form-post-size: 200MB
+
+# ===============================
+# LOGGING
+# ===============================
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId}] %-5level %logger{36} - %msg%n"
+
+  level:
+    root: INFO
+    ak.dev.khi_backend: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.web.servlet: DEBUG
+    org.springframework.security: INFO
