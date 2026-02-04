@@ -1,20 +1,19 @@
 package ak.dev.khi_backend.repository;
 
 import ak.dev.khi_backend.model.Project;
-import ak.dev.khi_backend.enums.ProjectLanguage;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
-
-import java.time.LocalDate;
-import java.util.List;
 
 public interface ProjectRepository
         extends JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
 
+    // ✅ Keep your existing methods (NO change)
     @Query("""
         select distinct p from Project p
         where lower(p.title) like lower(concat('%', :q, '%'))
@@ -41,4 +40,13 @@ public interface ProjectRepository
         where lower(k.name) = lower(:keyword)
     """)
     Page<Project> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+    /**
+     * ✅ Important addition:
+     * This makes Specification-based queries fetch relations so JSON mapping won't crash.
+     * It does NOT break your custom @Query methods.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"contents", "tags", "keywords", "media"})
+    Page<Project> findAll(Specification<Project> spec, Pageable pageable);
 }
