@@ -1,4 +1,4 @@
-package ak.dev.khi_backend.dto;
+package ak.dev.khi_backend.dto.project;
 
 import lombok.*;
 

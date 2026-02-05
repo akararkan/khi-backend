@@ -1,7 +1,7 @@
-package ak.dev.khi_backend.repository;
+package ak.dev.khi_backend.repository.project;
 
 
-import ak.dev.khi_backend.model.ProjectKeyword;
+import ak.dev.khi_backend.model.project.ProjectKeyword;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

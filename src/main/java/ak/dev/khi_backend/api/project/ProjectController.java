@@ -1,10 +1,10 @@
-package ak.dev.khi_backend.api;
+package ak.dev.khi_backend.api.project;
 
-import ak.dev.khi_backend.dto.ApiResponse;
-import ak.dev.khi_backend.dto.ProjectCreateRequest;
-import ak.dev.khi_backend.dto.ProjectResponse;
-import ak.dev.khi_backend.model.Project;
-import ak.dev.khi_backend.service.ProjectService;
+import ak.dev.khi_backend.dto.project.ApiResponse;
+import ak.dev.khi_backend.dto.project.ProjectCreateRequest;
+import ak.dev.khi_backend.dto.project.ProjectResponse;
+import ak.dev.khi_backend.model.project.Project;
+import ak.dev.khi_backend.service.project.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

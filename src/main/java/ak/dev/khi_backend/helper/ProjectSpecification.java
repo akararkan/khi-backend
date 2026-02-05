@@ -1,6 +1,6 @@
 package ak.dev.khi_backend.helper;
 
-import ak.dev.khi_backend.model.Project;
+import ak.dev.khi_backend.model.project.Project;
 import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 

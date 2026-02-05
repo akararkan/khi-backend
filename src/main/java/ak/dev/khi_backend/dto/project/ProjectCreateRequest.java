@@ -1,6 +1,6 @@
-package ak.dev.khi_backend.dto;
+package ak.dev.khi_backend.dto.project;
 
-import ak.dev.khi_backend.enums.ProjectLanguage;
+import ak.dev.khi_backend.enums.project.ProjectLanguage;
 import lombok.*;
 
 import java.time.LocalDate;

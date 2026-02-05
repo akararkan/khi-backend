@@ -1,6 +1,6 @@
-package ak.dev.khi_backend.model;
+package ak.dev.khi_backend.model.project;
 
-import ak.dev.khi_backend.enums.ProjectLanguage;
+import ak.dev.khi_backend.enums.project.ProjectLanguage;
 import jakarta.persistence.*;
 import lombok.*;
 

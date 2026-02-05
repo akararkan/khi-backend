@@ -1,6 +1,6 @@
 package ak.dev.khi_backend.service;
 
-import ak.dev.khi_backend.enums.ProjectMediaType;
+import ak.dev.khi_backend.enums.project.ProjectMediaType;
 import ak.dev.khi_backend.exceptions.BadRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

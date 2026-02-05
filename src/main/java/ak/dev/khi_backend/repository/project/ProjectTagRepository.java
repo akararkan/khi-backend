@@ -1,6 +1,6 @@
-package ak.dev.khi_backend.repository;
+package ak.dev.khi_backend.repository.project;
 
-import ak.dev.khi_backend.model.ProjectTag;
+import ak.dev.khi_backend.model.project.ProjectTag;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

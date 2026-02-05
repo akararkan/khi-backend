@@ -1,4 +1,4 @@
-package ak.dev.khi_backend.model;
+package ak.dev.khi_backend.model.project;
 
 import jakarta.persistence.*;
 import lombok.*;

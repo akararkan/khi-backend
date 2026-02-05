@@ -1,8 +1,8 @@
-package ak.dev.khi_backend.repository;
+package ak.dev.khi_backend.repository.project;
 
-import ak.dev.khi_backend.enums.ProjectMediaType;
-import ak.dev.khi_backend.model.Project;
-import ak.dev.khi_backend.model.ProjectMedia;
+import ak.dev.khi_backend.enums.project.ProjectMediaType;
+import ak.dev.khi_backend.model.project.Project;
+import ak.dev.khi_backend.model.project.ProjectMedia;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

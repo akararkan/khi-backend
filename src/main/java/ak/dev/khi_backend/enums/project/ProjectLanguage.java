@@ -1,4 +1,4 @@
-package ak.dev.khi_backend.enums;
+package ak.dev.khi_backend.enums.project;
 
 public enum ProjectLanguage {
     CKB,  // Kurdish Central (Sorani)

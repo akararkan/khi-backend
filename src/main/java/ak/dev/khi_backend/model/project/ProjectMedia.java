@@ -1,6 +1,6 @@
-package ak.dev.khi_backend.model;
+package ak.dev.khi_backend.model.project;
 
-import ak.dev.khi_backend.enums.ProjectMediaType;
+import ak.dev.khi_backend.enums.project.ProjectMediaType;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;

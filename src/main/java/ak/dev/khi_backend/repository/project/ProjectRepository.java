@@ -1,6 +1,6 @@
-package ak.dev.khi_backend.repository;
+package ak.dev.khi_backend.repository.project;
 
-import ak.dev.khi_backend.model.Project;
+import ak.dev.khi_backend.model.project.Project;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
