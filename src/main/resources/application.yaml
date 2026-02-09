@@ -80,6 +80,14 @@ spring:
       password: admin
 
 # ===============================
+# JWT (ENV SECRET ONLY)
+# ===============================
+jwt:
+  secret: ${JWT_SECRET:9vKpB3Qk4wGmYxJ7mT2sHn8pL5rZ1cN0dF6aS3qW9eU2iO7tP4yX1bV8kM6jH3s}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+
+# ===============================
 # AWS S3
 # ===============================
 aws:
