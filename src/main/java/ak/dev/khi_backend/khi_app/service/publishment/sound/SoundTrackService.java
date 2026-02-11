@@ -38,7 +38,7 @@ public class SoundTrackService {
      */
     @Transactional
     public Response addSoundTrack(CreateRequest request, List<MultipartFile> audioFiles,
-                                  MultipartFile coverImage, String actorId, String actorName) {
+                                  MultipartFile coverImage) {
         log.info("Adding SoundTrack: {} with {} audio files", request.getTitle(), audioFiles.size());
 
         // Validate SINGLE state should have only 1 file
@@ -69,7 +69,7 @@ public class SoundTrackService {
                 .reading(request.getReading())
                 .soundType(request.getSoundType())
                 .language(request.getLanguage())
-                .location(request.getLocation())
+                .locations(Optional.ofNullable(request.getLocations()).orElse(new HashSet<>())) // CHANGED
                 .director(request.getDirector())
                 .isThisProjectOfInstitute(request.isThisProjectOfInstitute())
                 .trackState(request.getTrackState())
@@ -117,7 +117,7 @@ public class SoundTrackService {
         SoundTrack savedTrack = soundTrackRepository.save(soundTrack);
 
         // Log to SoundTrackLog table
-        logAction(savedTrack, "CREATED", actorId, actorName,
+        logAction(savedTrack, "CREATED",
                 String.format("SoundTrack '%s' created with %d files",
                         savedTrack.getTitle(), savedTrack.getFiles().size()));
 
@@ -143,7 +143,7 @@ public class SoundTrackService {
      */
     @Transactional
     public Response updateSoundTrack(Long id, UpdateRequest request, List<MultipartFile> audioFiles,
-                                     MultipartFile coverImage, String actorId, String actorName) {
+                                     MultipartFile coverImage) {
         log.info("Updating SoundTrack with ID: {}", id);
 
         SoundTrack soundTrack = soundTrackRepository.findById(id)
@@ -191,8 +191,9 @@ public class SoundTrackService {
             soundTrack.setLanguage(request.getLanguage());
         }
 
-        if (request.getLocation() != null) {
-            soundTrack.setLocation(request.getLocation());
+        // CHANGED: Update locations collection
+        if (request.getLocations() != null) {
+            soundTrack.setLocations(request.getLocations());
         }
 
         if (request.getDirector() != null) {
@@ -265,10 +266,10 @@ public class SoundTrackService {
         if (!changes.isEmpty()) {
             try {
                 String changesJson = objectMapper.writeValueAsString(changes);
-                logAction(updatedTrack, "UPDATED", actorId, actorName, changesJson);
+                logAction(updatedTrack, "UPDATED", changesJson);
             } catch (Exception e) {
                 log.error("Failed to serialize changes", e);
-                logAction(updatedTrack, "UPDATED", actorId, actorName, "SoundTrack updated");
+                logAction(updatedTrack, "UPDATED", "SoundTrack updated");
             }
         }
 
@@ -280,7 +281,7 @@ public class SoundTrackService {
      * DELETE - Remove SoundTrack
      */
     @Transactional
-    public void deleteSoundTrack(Long id, String actorId, String actorName) {
+    public void deleteSoundTrack(Long id) {
         log.info("Deleting SoundTrack with ID: {}", id);
 
         SoundTrack soundTrack = soundTrackRepository.findById(id)
@@ -289,8 +290,7 @@ public class SoundTrackService {
         String trackTitle = soundTrack.getTitle();
 
         // Log to SoundTrackLog table BEFORE deletion
-        logAction(soundTrack, "DELETED", actorId, actorName,
-                String.format("SoundTrack '%s' deleted", trackTitle));
+        logAction(soundTrack, "DELETED", String.format("SoundTrack '%s' deleted", trackTitle));
 
         soundTrackRepository.delete(soundTrack);
 
@@ -321,6 +321,20 @@ public class SoundTrackService {
         return soundTrackRepository.findAll().stream()
                 .filter(track -> track.getKeywords().stream()
                         .anyMatch(k -> k.equalsIgnoreCase(keyword)))
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * SEARCH BY LOCATION - Find tracks by location (NEW)
+     */
+    @Transactional(readOnly = true)
+    public List<Response> searchByLocation(String location) {
+        log.info("Searching SoundTracks by location: {}", location);
+
+        return soundTrackRepository.findAll().stream()
+                .filter(track -> track.getLocations().stream()
+                        .anyMatch(loc -> loc.equalsIgnoreCase(location)))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -386,7 +400,7 @@ public class SoundTrackService {
                 .reading(soundTrack.getReading())
                 .soundType(soundTrack.getSoundType())
                 .language(soundTrack.getLanguage())
-                .location(soundTrack.getLocation())
+                .locations(soundTrack.getLocations()) // CHANGED
                 .director(soundTrack.getDirector())
                 .isThisProjectOfInstitute(soundTrack.isThisProjectOfInstitute())
                 .trackState(soundTrack.getTrackState())
@@ -401,20 +415,19 @@ public class SoundTrackService {
     }
 
     /**
-     * Log action to SoundTrackLog table (FIXED: removed incorrect .debug() call)
+     * Log action to SoundTrackLog table
      */
-    private void logAction(SoundTrack soundTrack, String action, String actorId,
-                           String actorName, String details) {
+    private void logAction(SoundTrack soundTrack, String action, String details) {
         SoundTrackLog logEntry = SoundTrackLog.builder()
                 .soundTrack(soundTrack)
                 .action(action)
-                .actorId(actorId)
-                .actorName(actorName)
+                .actorId("system")
+                .actorName("System")
                 .details(details)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         soundTrackLogRepository.save(logEntry);
-        log.debug("Logged action '{}' for SoundTrack ID: {}", action, soundTrack.getId()); // FIXED: Use log, not entity
+        log.debug("Logged action '{}' for SoundTrack ID: {}", action, soundTrack.getId());
     }
 }

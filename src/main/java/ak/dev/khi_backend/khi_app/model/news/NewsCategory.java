@@ -17,8 +17,13 @@ public class NewsCategory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 120)
-    private String name;
+    // ✅ CKB (Sorani) Name
+    @Column(name = "name_ckb", nullable = false, unique = true, length = 120)
+    private String nameCkb;
+
+    // ✅ KMR (Kurmanji) Name
+    @Column(name = "name_kmr", nullable = false, length = 120)
+    private String nameKmr;
 
     @Builder.Default
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)

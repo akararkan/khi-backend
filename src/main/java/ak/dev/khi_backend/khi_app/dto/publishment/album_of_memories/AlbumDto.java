@@ -1,9 +1,10 @@
-package ak.dev.khi_backend.khi_app.dto.news;
+package ak.dev.khi_backend.khi_app.dto.publishment.album_of_memories;
 
-import ak.dev.khi_backend.khi_app.enums.news.NewsMediaType;
+
+import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.publishment.AlbumType;
 import lombok.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -12,32 +13,39 @@ import java.util.Set;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
 @Builder
-public class NewsDto {
+public class AlbumDto {
 
     private Long id;
     private String coverUrl;
-    private LocalDate datePublished;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
-    // ✅ Bilingual Category
-    private CategoryDto category;
-
-    // ✅ Bilingual SubCategory
-    private SubCategoryDto subCategory;
-
-    // ✅ Bilingual Content
+    // Bilingual Content
     private LanguageContentDto ckbContent;
     private LanguageContentDto kmrContent;
 
-    // ✅ Bilingual Tags
+    // Album metadata
+    private AlbumType albumType;
+    private String fileFormat;
+    private Integer cdNumber;
+    private Integer numberOfTracks;
+    private Integer yearOfPublishment;
+
+    // Languages of album content (CKB, KMR, or both)
+    private Set<Language> contentLanguages;
+
+    // Bilingual Tags
     private BilingualSet tags;
 
-    // ✅ Bilingual Keywords
+    // Bilingual Keywords
     private BilingualSet keywords;
 
     // Media files
     private List<MediaDto> media;
+
+    // Attachment (demonstration/advertisement)
+    private AttachmentDto attachment;
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     // ============================================================
     // NESTED DTOs
@@ -46,25 +54,10 @@ public class NewsDto {
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
-    public static class CategoryDto {
-        private String ckbName;
-        private String kmrName;
-    }
-
-    @Getter @Setter
-    @NoArgsConstructor @AllArgsConstructor
-    @Builder
-    public static class SubCategoryDto {
-        private String ckbName;
-        private String kmrName;
-    }
-
-    @Getter @Setter
-    @NoArgsConstructor @AllArgsConstructor
-    @Builder
     public static class LanguageContentDto {
         private String title;
         private String description;
+        private String location;
     }
 
     @Getter @Setter
@@ -82,9 +75,21 @@ public class NewsDto {
     @Builder
     public static class MediaDto {
         private Long id;
-        private NewsMediaType type;
         private String url;
-        private Integer sortOrder;
+        private String trackTitleCkb;
+        private String trackTitleKmr;
+        private Integer trackNumber;
+        private Integer durationSeconds;
+        private String fileFormat;
+        private Long fileSizeBytes;
         private LocalDateTime createdAt;
+    }
+
+    @Getter @Setter
+    @NoArgsConstructor @AllArgsConstructor
+    @Builder
+    public static class AttachmentDto {
+        private String url;
+        private String type;
     }
 }

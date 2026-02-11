@@ -58,8 +58,16 @@ public class SoundTrack {
     @Column(nullable = false, length = 10)
     private Language language; // CKB, KMR
 
-    @Column(length = 255)
-    private String location;
+    /**
+     * Locations (collection of strings) - CHANGED FROM SINGLE STRING TO COLLECTION
+     */
+    @ElementCollection
+    @CollectionTable(
+            name = "sound_track_locations",
+            joinColumns = @JoinColumn(name = "sound_track_id")
+    )
+    @Column(name = "location", nullable = false, length = 255)
+    private Set<String> locations = new HashSet<>();
 
     @Column(length = 255)
     private String director;

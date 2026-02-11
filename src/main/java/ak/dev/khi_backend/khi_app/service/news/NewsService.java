@@ -8,8 +8,6 @@ import ak.dev.khi_backend.khi_app.repository.news.NewsAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsCategoryRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsSubCategoryRepository;
-import ak.dev.khi_backend.khi_app.model.news.*;
-import ak.dev.khi_backend.khi_app.repository.news.*;
 import ak.dev.khi_backend.khi_app.service.S3Service;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +32,9 @@ public class NewsService {
     private final S3Service s3Service;
 
     @Transactional
-    public NewsDto addNews(NewsDto dto, MultipartFile coverImage, List<MultipartFile> mediaFiles, String performedBy) {
-        log.info("📰 Creating single news - Category: {}, SubCategory: {}", dto.getCategoryName(), dto.getSubCategoryName());
+    public NewsDto addNews(NewsDto dto, MultipartFile coverImage, List<MultipartFile> mediaFiles) {
+        log.info("📰 Creating single news - Category: {}/{}",
+                dto.getCategory().getCkbName(), dto.getCategory().getKmrName());
 
         try {
             if (coverImage == null || coverImage.isEmpty()) {
@@ -51,16 +50,18 @@ public class NewsService {
             );
             log.info("✅ Cover image uploaded to S3: {}", coverUrl);
 
-            NewsCategory category = getOrCreateCategory(dto.getCategoryName());
-            NewsSubCategory subCategory = getOrCreateSubCategory(dto.getSubCategoryName(), category);
+            NewsCategory category = getOrCreateCategory(dto.getCategory());
+            NewsSubCategory subCategory = getOrCreateSubCategory(dto.getSubCategory(), category);
 
             News news = News.builder()
                     .coverUrl(coverUrl)
                     .datePublished(dto.getDatePublished())
                     .category(category)
                     .subCategory(subCategory)
-                    .tags(Optional.ofNullable(dto.getTags()).orElse(new LinkedHashSet<>()))
-                    .keywords(Optional.ofNullable(dto.getKeywords()).orElse(new LinkedHashSet<>()))
+                    .tagsCkb(Optional.ofNullable(dto.getTags()).map(t -> t.getCkb()).orElse(new LinkedHashSet<>()))
+                    .tagsKmr(Optional.ofNullable(dto.getTags()).map(t -> t.getKmr()).orElse(new LinkedHashSet<>()))
+                    .keywordsCkb(Optional.ofNullable(dto.getKeywords()).map(k -> k.getCkb()).orElse(new LinkedHashSet<>()))
+                    .keywordsKmr(Optional.ofNullable(dto.getKeywords()).map(k -> k.getKmr()).orElse(new LinkedHashSet<>()))
                     .build();
 
             setBilingualContent(news, dto);
@@ -75,7 +76,7 @@ public class NewsService {
             News savedNews = newsRepository.save(news);
             log.info("✅ News created successfully - ID: {}", savedNews.getId());
 
-            createAuditLog(savedNews, "CREATE", performedBy, "News created with S3 media");
+            createAuditLog(savedNews, "CREATE", "News created with S3 media");
 
             return convertToDto(savedNews);
 
@@ -86,7 +87,7 @@ public class NewsService {
     }
 
     @Transactional
-    public List<NewsDto> addNewsBulk(List<NewsDto> newsDtoList, String performedBy) {
+    public List<NewsDto> addNewsBulk(List<NewsDto> newsDtoList) {
         log.info("📰 Starting bulk news creation - Count: {}", newsDtoList.size());
 
         if (newsDtoList == null || newsDtoList.isEmpty()) {
@@ -104,16 +105,18 @@ public class NewsService {
         List<News> savedNewsList = new ArrayList<>();
 
         for (NewsDto dto : newsDtoList) {
-            NewsCategory category = getOrCreateCategory(dto.getCategoryName());
-            NewsSubCategory subCategory = getOrCreateSubCategory(dto.getSubCategoryName(), category);
+            NewsCategory category = getOrCreateCategory(dto.getCategory());
+            NewsSubCategory subCategory = getOrCreateSubCategory(dto.getSubCategory(), category);
 
             News news = News.builder()
                     .coverUrl(dto.getCoverUrl())
                     .datePublished(dto.getDatePublished())
                     .category(category)
                     .subCategory(subCategory)
-                    .tags(Optional.ofNullable(dto.getTags()).orElse(new LinkedHashSet<>()))
-                    .keywords(Optional.ofNullable(dto.getKeywords()).orElse(new LinkedHashSet<>()))
+                    .tagsCkb(Optional.ofNullable(dto.getTags()).map(t -> t.getCkb()).orElse(new LinkedHashSet<>()))
+                    .tagsKmr(Optional.ofNullable(dto.getTags()).map(t -> t.getKmr()).orElse(new LinkedHashSet<>()))
+                    .keywordsCkb(Optional.ofNullable(dto.getKeywords()).map(k -> k.getCkb()).orElse(new LinkedHashSet<>()))
+                    .keywordsKmr(Optional.ofNullable(dto.getKeywords()).map(k -> k.getKmr()).orElse(new LinkedHashSet<>()))
                     .build();
 
             setBilingualContent(news, dto);
@@ -132,7 +135,7 @@ public class NewsService {
         log.info("✅ Successfully saved {} news items", saved.size());
 
         List<NewsAuditLog> auditLogs = saved.stream()
-                .map(news -> buildAuditLog(news, "CREATE", performedBy, "News created in bulk"))
+                .map(news -> buildAuditLog(news, "CREATE", "News created in bulk"))
                 .collect(Collectors.toList());
 
         newsAuditLogRepository.saveAll(auditLogs);
@@ -151,10 +154,40 @@ public class NewsService {
         List<News> newsList = newsRepository.findAllOrderedByDate();
         log.info("✅ Retrieved {} news items", newsList.size());
 
-        // Convert to DTOs within transaction - this initializes lazy-loaded media
         return newsList.stream()
                 .map(news -> {
-                    // Force initialization of media collection
+                    news.getMedia().size(); // Force initialization
+                    return convertToDto(news);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<NewsDto> searchByKeyword(String keyword, String language) {
+        log.info("🔍 Searching news by keyword: '{}' in language: {}", keyword, language);
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            log.warn("⚠️ Empty keyword provided for search");
+            return Collections.emptyList();
+        }
+
+        List<News> results;
+        if ("ckb".equalsIgnoreCase(language)) {
+            results = newsRepository.searchByKeywordCkb(keyword.trim());
+        } else if ("kmr".equalsIgnoreCase(language)) {
+            results = newsRepository.searchByKeywordKmr(keyword.trim());
+        } else {
+            // Search both languages
+            Set<News> combinedResults = new HashSet<>();
+            combinedResults.addAll(newsRepository.searchByKeywordCkb(keyword.trim()));
+            combinedResults.addAll(newsRepository.searchByKeywordKmr(keyword.trim()));
+            results = new ArrayList<>(combinedResults);
+        }
+
+        log.info("✅ Found {} news items matching keyword '{}'", results.size(), keyword);
+
+        return results.stream()
+                .map(news -> {
                     news.getMedia().size();
                     return convertToDto(news);
                 })
@@ -162,48 +195,40 @@ public class NewsService {
     }
 
     @Transactional(readOnly = true)
-    public List<NewsDto> searchByKeyword(String keyword) {
-        log.info("🔍 Searching news by keyword: '{}'", keyword);
-
-        if (keyword == null || keyword.trim().isEmpty()) {
-            log.warn("⚠️ Empty keyword provided for search");
-            return Collections.emptyList();
-        }
-
-        List<News> results = newsRepository.searchByKeyword(keyword.trim());
-        log.info("✅ Found {} news items matching keyword '{}'", results.size(), keyword);
-
-        return results.stream()
-                .map(news -> {
-                    news.getMedia().size(); // Initialize media
-                    return convertToDto(news);
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<NewsDto> searchByTag(String tag) {
-        log.info("🏷️ Searching news by tag: '{}'", tag);
+    public List<NewsDto> searchByTag(String tag, String language) {
+        log.info("🏷️ Searching news by tag: '{}' in language: {}", tag, language);
 
         if (tag == null || tag.trim().isEmpty()) {
             log.warn("⚠️ Empty tag provided for search");
             return Collections.emptyList();
         }
 
-        List<News> results = newsRepository.findByTag(tag.trim());
+        List<News> results;
+        if ("ckb".equalsIgnoreCase(language)) {
+            results = newsRepository.findByTagCkb(tag.trim());
+        } else if ("kmr".equalsIgnoreCase(language)) {
+            results = newsRepository.findByTagKmr(tag.trim());
+        } else {
+            // Search both languages
+            Set<News> combinedResults = new HashSet<>();
+            combinedResults.addAll(newsRepository.findByTagCkb(tag.trim()));
+            combinedResults.addAll(newsRepository.findByTagKmr(tag.trim()));
+            results = new ArrayList<>(combinedResults);
+        }
+
         log.info("✅ Found {} news items with tag '{}'", results.size(), tag);
 
         return results.stream()
                 .map(news -> {
-                    news.getMedia().size(); // Initialize media
+                    news.getMedia().size();
                     return convertToDto(news);
                 })
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<NewsDto> searchByTags(Set<String> tags) {
-        log.info("🏷️ Searching news by tags: {}", tags);
+    public List<NewsDto> searchByTags(Set<String> tags, String language) {
+        log.info("🏷️ Searching news by tags: {} in language: {}", tags, language);
 
         if (tags == null || tags.isEmpty()) {
             log.warn("⚠️ Empty tags set provided for search");
@@ -212,15 +237,26 @@ public class NewsService {
 
         List<String> searchTags = tags.stream()
                 .map(String::trim)
-                .map(String::toLowerCase)
                 .collect(Collectors.toList());
 
-        List<News> results = newsRepository.findByTags(searchTags);
+        List<News> results;
+        if ("ckb".equalsIgnoreCase(language)) {
+            results = newsRepository.findByTagsCkb(searchTags);
+        } else if ("kmr".equalsIgnoreCase(language)) {
+            results = newsRepository.findByTagsKmr(searchTags);
+        } else {
+            // Search both languages
+            Set<News> combinedResults = new HashSet<>();
+            combinedResults.addAll(newsRepository.findByTagsCkb(searchTags));
+            combinedResults.addAll(newsRepository.findByTagsKmr(searchTags));
+            results = new ArrayList<>(combinedResults);
+        }
+
         log.info("✅ Found {} news items matching tags", results.size());
 
         return results.stream()
                 .map(news -> {
-                    news.getMedia().size(); // Initialize media
+                    news.getMedia().size();
                     return convertToDto(news);
                 })
                 .collect(Collectors.toList());
@@ -228,7 +264,7 @@ public class NewsService {
 
     @Transactional
     public NewsDto updateNews(Long newsId, NewsDto dto, MultipartFile newCoverImage,
-                              List<MultipartFile> newMediaFiles, String performedBy) {
+                              List<MultipartFile> newMediaFiles) {
         log.info("✏️ Updating news - ID: {}", newsId);
 
         News news = newsRepository.findById(newsId)
@@ -257,7 +293,7 @@ public class NewsService {
             News updatedNews = newsRepository.save(news);
             log.info("✅ News updated successfully - ID: {}", updatedNews.getId());
 
-            createAuditLog(updatedNews, "UPDATE", performedBy, "News updated");
+            createAuditLog(updatedNews, "UPDATE", "News updated");
 
             return convertToDto(updatedNews);
 
@@ -268,19 +304,19 @@ public class NewsService {
     }
 
     @Transactional
-    public void deleteNews(Long newsId, String performedBy) {
+    public void deleteNews(Long newsId) {
         log.info("🗑️ Deleting news - ID: {}", newsId);
 
         News news = newsRepository.findById(newsId)
                 .orElseThrow(() -> new EntityNotFoundException("News not found: " + newsId));
 
-        createAuditLog(news, "DELETE", performedBy, "News deleted");
+        createAuditLog(news, "DELETE", "News deleted");
         newsRepository.delete(news);
         log.info("✅ News deleted successfully - ID: {}", newsId);
     }
 
     @Transactional
-    public void deleteNewsBulk(List<Long> newsIds, String performedBy) {
+    public void deleteNewsBulk(List<Long> newsIds) {
         log.info("🗑️ Bulk deleting {} news items", newsIds.size());
 
         List<News> newsToDelete = newsRepository.findAllById(newsIds);
@@ -291,7 +327,7 @@ public class NewsService {
         }
 
         List<NewsAuditLog> auditLogs = newsToDelete.stream()
-                .map(news -> buildAuditLog(news, "DELETE", performedBy, "News deleted in bulk"))
+                .map(news -> buildAuditLog(news, "DELETE", "News deleted in bulk"))
                 .collect(Collectors.toList());
 
         newsAuditLogRepository.saveAll(auditLogs);
@@ -303,29 +339,41 @@ public class NewsService {
     // HELPER METHODS
     // ============================================================
 
-    private NewsCategory getOrCreateCategory(String categoryName) {
-        if (categoryName == null || categoryName.trim().isEmpty()) {
-            throw new BadRequestException("category.required", "Category name is required");
+    private NewsCategory getOrCreateCategory(NewsDto.CategoryDto categoryDto) {
+        if (categoryDto == null ||
+                categoryDto.getCkbName() == null || categoryDto.getCkbName().trim().isEmpty() ||
+                categoryDto.getKmrName() == null || categoryDto.getKmrName().trim().isEmpty()) {
+            throw new BadRequestException("category.required", "Category names in both languages are required");
         }
 
-        String trimmedName = categoryName.trim();
-        return newsCategoryRepository.findByName(trimmedName)
+        String ckbName = categoryDto.getCkbName().trim();
+        String kmrName = categoryDto.getKmrName().trim();
+
+        return newsCategoryRepository.findByNameCkb(ckbName)
                 .orElseGet(() -> {
-                    NewsCategory newCategory = NewsCategory.builder().name(trimmedName).build();
+                    NewsCategory newCategory = NewsCategory.builder()
+                            .nameCkb(ckbName)
+                            .nameKmr(kmrName)
+                            .build();
                     return newsCategoryRepository.save(newCategory);
                 });
     }
 
-    private NewsSubCategory getOrCreateSubCategory(String subCategoryName, NewsCategory category) {
-        if (subCategoryName == null || subCategoryName.trim().isEmpty()) {
-            throw new BadRequestException("subcategory.required", "SubCategory name is required");
+    private NewsSubCategory getOrCreateSubCategory(NewsDto.SubCategoryDto subCategoryDto, NewsCategory category) {
+        if (subCategoryDto == null ||
+                subCategoryDto.getCkbName() == null || subCategoryDto.getCkbName().trim().isEmpty() ||
+                subCategoryDto.getKmrName() == null || subCategoryDto.getKmrName().trim().isEmpty()) {
+            throw new BadRequestException("subcategory.required", "SubCategory names in both languages are required");
         }
 
-        String trimmedName = subCategoryName.trim();
-        return newsSubCategoryRepository.findByCategoryAndName(category, trimmedName)
+        String ckbName = subCategoryDto.getCkbName().trim();
+        String kmrName = subCategoryDto.getKmrName().trim();
+
+        return newsSubCategoryRepository.findByCategoryAndNameCkb(category, ckbName)
                 .orElseGet(() -> {
                     NewsSubCategory newSubCategory = NewsSubCategory.builder()
-                            .name(trimmedName)
+                            .nameCkb(ckbName)
+                            .nameKmr(kmrName)
                             .category(category)
                             .build();
                     return newsSubCategoryRepository.save(newSubCategory);
@@ -367,26 +415,38 @@ public class NewsService {
     }
 
     private void updateCategoryAndSubCategory(News news, NewsDto dto) {
-        if (dto.getCategoryName() != null && !dto.getCategoryName().trim().isEmpty()) {
-            NewsCategory category = getOrCreateCategory(dto.getCategoryName());
+        if (dto.getCategory() != null) {
+            NewsCategory category = getOrCreateCategory(dto.getCategory());
             news.setCategory(category);
         }
 
-        if (dto.getSubCategoryName() != null && !dto.getSubCategoryName().trim().isEmpty()) {
-            NewsSubCategory subCategory = getOrCreateSubCategory(dto.getSubCategoryName(), news.getCategory());
+        if (dto.getSubCategory() != null) {
+            NewsSubCategory subCategory = getOrCreateSubCategory(dto.getSubCategory(), news.getCategory());
             news.setSubCategory(subCategory);
         }
     }
 
     private void updateCollections(News news, NewsDto dto) {
         if (dto.getTags() != null) {
-            news.getTags().clear();
-            news.getTags().addAll(dto.getTags());
+            if (dto.getTags().getCkb() != null) {
+                news.getTagsCkb().clear();
+                news.getTagsCkb().addAll(dto.getTags().getCkb());
+            }
+            if (dto.getTags().getKmr() != null) {
+                news.getTagsKmr().clear();
+                news.getTagsKmr().addAll(dto.getTags().getKmr());
+            }
         }
 
         if (dto.getKeywords() != null) {
-            news.getKeywords().clear();
-            news.getKeywords().addAll(dto.getKeywords());
+            if (dto.getKeywords().getCkb() != null) {
+                news.getKeywordsCkb().clear();
+                news.getKeywordsCkb().addAll(dto.getKeywords().getCkb());
+            }
+            if (dto.getKeywords().getKmr() != null) {
+                news.getKeywordsKmr().clear();
+                news.getKeywordsKmr().addAll(dto.getKeywords().getKmr());
+            }
         }
     }
 
@@ -445,16 +505,16 @@ public class NewsService {
         return NewsMediaType.DOCUMENT;
     }
 
-    private void createAuditLog(News news, String action, String performedBy, String note) {
-        NewsAuditLog auditLog = buildAuditLog(news, action, performedBy, note);
+    private void createAuditLog(News news, String action, String note) {
+        NewsAuditLog auditLog = buildAuditLog(news, action, note);
         newsAuditLogRepository.save(auditLog);
     }
 
-    private NewsAuditLog buildAuditLog(News news, String action, String performedBy, String note) {
+    private NewsAuditLog buildAuditLog(News news, String action, String note) {
         return NewsAuditLog.builder()
                 .news(news)
                 .action(action)
-                .performedBy(performedBy)
+                .performedBy("system")
                 .note(note)
                 .build();
     }
@@ -466,12 +526,25 @@ public class NewsService {
                 .datePublished(news.getDatePublished())
                 .createdAt(news.getCreatedAt())
                 .updatedAt(news.getUpdatedAt())
-                .tags(new LinkedHashSet<>(news.getTags()))
-                .keywords(new LinkedHashSet<>(news.getKeywords()))
-                .categoryName(news.getCategory().getName())
-                .subCategoryName(news.getSubCategory().getName())
                 .build();
 
+        // Category
+        if (news.getCategory() != null) {
+            dto.setCategory(NewsDto.CategoryDto.builder()
+                    .ckbName(news.getCategory().getNameCkb())
+                    .kmrName(news.getCategory().getNameKmr())
+                    .build());
+        }
+
+        // SubCategory
+        if (news.getSubCategory() != null) {
+            dto.setSubCategory(NewsDto.SubCategoryDto.builder()
+                    .ckbName(news.getSubCategory().getNameCkb())
+                    .kmrName(news.getSubCategory().getNameKmr())
+                    .build());
+        }
+
+        // Content
         if (news.getCkbContent() != null) {
             dto.setCkbContent(NewsDto.LanguageContentDto.builder()
                     .title(news.getCkbContent().getTitle())
@@ -486,7 +559,19 @@ public class NewsService {
                     .build());
         }
 
-        // Media is already initialized via .size() call before this method
+        // Tags
+        dto.setTags(NewsDto.BilingualSet.builder()
+                .ckb(new LinkedHashSet<>(news.getTagsCkb()))
+                .kmr(new LinkedHashSet<>(news.getTagsKmr()))
+                .build());
+
+        // Keywords
+        dto.setKeywords(NewsDto.BilingualSet.builder()
+                .ckb(new LinkedHashSet<>(news.getKeywordsCkb()))
+                .kmr(new LinkedHashSet<>(news.getKeywordsKmr()))
+                .build());
+
+        // Media
         if (news.getMedia() != null && !news.getMedia().isEmpty()) {
             List<NewsDto.MediaDto> mediaDtos = news.getMedia().stream()
                     .map(media -> NewsDto.MediaDto.builder()

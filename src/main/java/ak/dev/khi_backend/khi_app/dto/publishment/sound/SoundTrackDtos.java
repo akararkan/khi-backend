@@ -54,8 +54,8 @@ public final class SoundTrackDtos {
         @NotNull
         private Language language;
 
-        @Size(max = 255)
-        private String location;
+        // CHANGED: locations as comma-separated string (easier for form-data)
+        private String locations; // e.g., "Sulaymaniyah,Erbil,Duhok"
 
         @Size(max = 255)
         private String director;
@@ -73,6 +73,11 @@ public final class SoundTrackDtos {
         private String tags;     // e.g., "audio,culture"
 
         // Helper methods to convert to Set
+        public Set<String> getLocationsSet() {
+            if (locations == null || locations.isBlank()) return Set.of();
+            return Set.of(locations.split(","));
+        }
+
         public Set<String> getKeywordsSet() {
             if (keywords == null || keywords.isBlank()) return Set.of();
             return Set.of(keywords.split(","));
@@ -84,6 +89,10 @@ public final class SoundTrackDtos {
         }
 
         // Renamed to avoid confusion
+        public Set<String> getLocations() {
+            return getLocationsSet();
+        }
+
         public Set<String> getKeywords() {
             return getKeywordsSet();
         }
@@ -113,8 +122,8 @@ public final class SoundTrackDtos {
         private SoundType soundType;
         private Language language;
 
-        @Size(max = 255)
-        private String location;
+        // CHANGED: locations as comma-separated string
+        private String locations; // comma-separated
 
         @Size(max = 255)
         private String director;
@@ -127,6 +136,11 @@ public final class SoundTrackDtos {
         private String keywords; // comma-separated
         private String tags;     // comma-separated
 
+        public Set<String> getLocationsSet() {
+            if (locations == null || locations.isBlank()) return null;
+            return Set.of(locations.split(","));
+        }
+
         public Set<String> getKeywordsSet() {
             if (keywords == null || keywords.isBlank()) return null;
             return Set.of(keywords.split(","));
@@ -135,6 +149,10 @@ public final class SoundTrackDtos {
         public Set<String> getTagsSet() {
             if (tags == null || tags.isBlank()) return null;
             return Set.of(tags.split(","));
+        }
+
+        public Set<String> getLocations() {
+            return getLocationsSet();
         }
 
         public Set<String> getKeywords() {
@@ -164,7 +182,8 @@ public final class SoundTrackDtos {
         private SoundType soundType;
         private Language language;
 
-        private String location;
+        // CHANGED: locations as Set
+        private Set<String> locations;
         private String director;
 
         private boolean isThisProjectOfInstitute;

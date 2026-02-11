@@ -42,25 +42,45 @@ public class News {
     })
     private NewsContent kmrContent;
 
-    // ✅ EAGER FETCH - tags as collection (stored in table news_tags)
+    // ✅ EAGER FETCH - CKB tags
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
-            name = "news_tags",
+            name = "news_tags_ckb",
             joinColumns = @JoinColumn(name = "news_id")
     )
-    @Column(name = "tag", nullable = false, length = 80)
-    private Set<String> tags = new LinkedHashSet<>();
+    @Column(name = "tag_ckb", nullable = false, length = 80)
+    private Set<String> tagsCkb = new LinkedHashSet<>();
 
-    // ✅ EAGER FETCH - keywords as collection (stored in table news_keywords)
+    // ✅ EAGER FETCH - KMR tags
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
-            name = "news_keywords",
+            name = "news_tags_kmr",
             joinColumns = @JoinColumn(name = "news_id")
     )
-    @Column(name = "keyword", nullable = false, length = 120)
-    private Set<String> keywords = new LinkedHashSet<>();
+    @Column(name = "tag_kmr", nullable = false, length = 80)
+    private Set<String> tagsKmr = new LinkedHashSet<>();
+
+    // ✅ EAGER FETCH - CKB keywords
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "news_keywords_ckb",
+            joinColumns = @JoinColumn(name = "news_id")
+    )
+    @Column(name = "keyword_ckb", nullable = false, length = 120)
+    private Set<String> keywordsCkb = new LinkedHashSet<>();
+
+    // ✅ EAGER FETCH - KMR keywords
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "news_keywords_kmr",
+            joinColumns = @JoinColumn(name = "news_id")
+    )
+    @Column(name = "keyword_kmr", nullable = false, length = 120)
+    private Set<String> keywordsKmr = new LinkedHashSet<>();
 
     // ✅ Both category and subcategory
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -71,7 +91,7 @@ public class News {
     @JoinColumn(name = "sub_category_id", nullable = false)
     private NewsSubCategory subCategory;
 
-    // ✅ LAZY FETCH - One news contains many media (we'll handle this separately)
+    // ✅ LAZY FETCH - One news contains many media
     @Builder.Default
     @OneToMany(mappedBy = "news", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private java.util.List<NewsMedia> media = new java.util.ArrayList<>();
