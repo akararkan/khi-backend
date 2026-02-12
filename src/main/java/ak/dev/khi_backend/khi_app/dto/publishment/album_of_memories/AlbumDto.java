@@ -1,6 +1,5 @@
 package ak.dev.khi_backend.khi_app.dto.publishment.album_of_memories;
 
-
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.AlbumType;
 import lombok.*;
@@ -38,7 +37,7 @@ public class AlbumDto {
     // Bilingual Keywords
     private BilingualSet keywords;
 
-    // Media files
+    // Media files (tracks)
     private List<MediaDto> media;
 
     // Attachment (demonstration/advertisement)
@@ -75,7 +74,16 @@ public class AlbumDto {
     @Builder
     public static class MediaDto {
         private Long id;
+
+        /** hosted file url */
         private String url;
+
+        /** external link */
+        private String externalUrl;
+
+        /** embed link */
+        private String embedUrl;
+
         private String trackTitleCkb;
         private String trackTitleKmr;
         private Integer trackNumber;
@@ -89,7 +97,16 @@ public class AlbumDto {
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class AttachmentDto {
+        /** hosted file url (pdf/mp4/etc) */
         private String url;
+
+        /** external link */
+        private String externalUrl;
+
+        /** embed link */
+        private String embedUrl;
+
+        /** pdf/mp4/... */
         private String type;
     }
 }

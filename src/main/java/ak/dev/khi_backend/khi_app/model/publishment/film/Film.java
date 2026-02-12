@@ -1,6 +1,5 @@
 package ak.dev.khi_backend.khi_app.model.publishment.film;
 
-
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.FilmType;
 import jakarta.persistence.*;
@@ -8,9 +7,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -58,38 +55,49 @@ public class Film {
     private FilmContent kmrContent;
 
     // ─── Film Metadata ────────────────────────────────────────────────
-
     @Enumerated(EnumType.STRING)
     @Column(name = "film_type", nullable = false, length = 30)
     private FilmType filmType;
 
     @Column(name = "file_format", length = 20)
-    private String fileFormat;     // mp4, mkv, avi, etc.
+    private String fileFormat;
 
     @Column(name = "duration_seconds")
-    private Integer durationSeconds;  // total duration in seconds
+    private Integer durationSeconds;
 
     @Column(name = "publishment_date")
     private LocalDate publishmentDate;
 
     // ─── Extra Important Fields ───────────────────────────────────────
-
     @Column(name = "resolution", length = 20)
-    private String resolution;     // 480p, 720p, 1080p, 4K
+    private String resolution;
 
     @Column(name = "file_size_mb")
-    private Double fileSizeMb;     // file size in megabytes
+    private Double fileSizeMb;
 
+    /**
+     * ✅ hosted direct url (S3/CDN).
+     * OPTIONAL now (you can provide external/embed instead).
+     */
     @Column(name = "source_url", columnDefinition = "TEXT")
-    private String sourceUrl;      // original source or stream URL
+    private String sourceUrl;
 
-    // ─── Languages of the film content ────────────────────────────────
+    /**
+     * ✅ NEW: external page link (youtube watch, vimeo page...)
+     */
+    @Column(name = "source_external_url", columnDefinition = "TEXT")
+    private String sourceExternalUrl;
+
+    /**
+     * ✅ NEW: embed iframe link (youtube embed...)
+     */
+    @Column(name = "source_embed_url", columnDefinition = "TEXT")
+    private String sourceEmbedUrl;
+
+    // ─── Languages ────────────────────────────────────────────────────
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "film_content_languages",
-            joinColumns = @JoinColumn(name = "film_id")
-    )
+    @CollectionTable(name = "film_content_languages", joinColumns = @JoinColumn(name = "film_id"))
     @Enumerated(EnumType.STRING)
     @Column(name = "language", nullable = false, length = 10)
     private Set<Language> contentLanguages = new LinkedHashSet<>();
@@ -97,45 +105,32 @@ public class Film {
     // ─── CKB Tags ─────────────────────────────────────────────────────
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "film_tags_ckb",
-            joinColumns = @JoinColumn(name = "film_id")
-    )
+    @CollectionTable(name = "film_tags_ckb", joinColumns = @JoinColumn(name = "film_id"))
     @Column(name = "tag_ckb", nullable = false, length = 100)
     private Set<String> tagsCkb = new LinkedHashSet<>();
 
     // ─── KMR Tags ─────────────────────────────────────────────────────
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "film_tags_kmr",
-            joinColumns = @JoinColumn(name = "film_id")
-    )
+    @CollectionTable(name = "film_tags_kmr", joinColumns = @JoinColumn(name = "film_id"))
     @Column(name = "tag_kmr", nullable = false, length = 100)
     private Set<String> tagsKmr = new LinkedHashSet<>();
 
     // ─── CKB Keywords ─────────────────────────────────────────────────
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "film_keywords_ckb",
-            joinColumns = @JoinColumn(name = "film_id")
-    )
+    @CollectionTable(name = "film_keywords_ckb", joinColumns = @JoinColumn(name = "film_id"))
     @Column(name = "keyword_ckb", nullable = false, length = 150)
     private Set<String> keywordsCkb = new LinkedHashSet<>();
 
     // ─── KMR Keywords ─────────────────────────────────────────────────
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "film_keywords_kmr",
-            joinColumns = @JoinColumn(name = "film_id")
-    )
+    @CollectionTable(name = "film_keywords_kmr", joinColumns = @JoinColumn(name = "film_id"))
     @Column(name = "keyword_kmr", nullable = false, length = 150)
     private Set<String> keywordsKmr = new LinkedHashSet<>();
 
     // ─── Timestamps ───────────────────────────────────────────────────
-
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

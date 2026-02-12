@@ -1,12 +1,12 @@
 package ak.dev.khi_backend.khi_app.model.news;
 
+import ak.dev.khi_backend.khi_app.enums.Language;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(name = "news")
@@ -25,6 +25,17 @@ public class News {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // ✅ LIKE Project: which languages are active
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "news_content_languages",
+            joinColumns = @JoinColumn(name = "news_id")
+    )
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language", nullable = false, length = 10)
+    private Set<Language> contentLanguages = new LinkedHashSet<>();
 
     // ✅ CKB (Sorani) Content
     @Embedded
@@ -45,40 +56,28 @@ public class News {
     // ✅ EAGER FETCH - CKB tags
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "news_tags_ckb",
-            joinColumns = @JoinColumn(name = "news_id")
-    )
+    @CollectionTable(name = "news_tags_ckb", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "tag_ckb", nullable = false, length = 80)
     private Set<String> tagsCkb = new LinkedHashSet<>();
 
     // ✅ EAGER FETCH - KMR tags
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "news_tags_kmr",
-            joinColumns = @JoinColumn(name = "news_id")
-    )
+    @CollectionTable(name = "news_tags_kmr", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "tag_kmr", nullable = false, length = 80)
     private Set<String> tagsKmr = new LinkedHashSet<>();
 
     // ✅ EAGER FETCH - CKB keywords
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "news_keywords_ckb",
-            joinColumns = @JoinColumn(name = "news_id")
-    )
+    @CollectionTable(name = "news_keywords_ckb", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "keyword_ckb", nullable = false, length = 120)
     private Set<String> keywordsCkb = new LinkedHashSet<>();
 
     // ✅ EAGER FETCH - KMR keywords
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "news_keywords_kmr",
-            joinColumns = @JoinColumn(name = "news_id")
-    )
+    @CollectionTable(name = "news_keywords_kmr", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "keyword_kmr", nullable = false, length = 120)
     private Set<String> keywordsKmr = new LinkedHashSet<>();
 
@@ -94,7 +93,7 @@ public class News {
     // ✅ LAZY FETCH - One news contains many media
     @Builder.Default
     @OneToMany(mappedBy = "news", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private java.util.List<NewsMedia> media = new java.util.ArrayList<>();
+    private List<NewsMedia> media = new ArrayList<>();
 
     @PrePersist
     public void prePersist() {

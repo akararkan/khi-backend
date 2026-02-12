@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.khi_app.api.news;
 
+import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.news.NewsDto;
 import ak.dev.khi_backend.khi_app.service.news.NewsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,175 +24,116 @@ public class NewsController {
     private final NewsService newsService;
     private final ObjectMapper objectMapper;
 
-    /**
-     * ✅ CREATE SINGLE NEWS with form data
-     * Files: coverImage, mediaFiles (form-data)
-     * Data: news (JSON string in form-data)
-     *
-     * Expected JSON format:
-     * {
-     *   "category": {"ckbName": "ئابووری", "kmrName": "Aborî"},
-     *   "subCategory": {"ckbName": "بازاڕ", "kmrName": "Bazar"},
-     *   "ckbContent": {"title": "...", "description": "..."},
-     *   "kmrContent": {"title": "...", "description": "..."},
-     *   "tags": {"ckb": ["..."], "kmr": ["..."]},
-     *   "keywords": {"ckb": ["..."], "kmr": ["..."]}
-     * }
-     */
+    // ============================================================
+    // CREATE (multipart: news + coverImage + mediaFiles[])
+    // ============================================================
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<NewsDto> createNews(
+    public ResponseEntity<ApiResponse<NewsDto>> createNews(
             @RequestPart("news") String newsJson,
-            @RequestPart("coverImage") MultipartFile coverImage,
-            @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles) {
+            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
+            @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles
+    ) throws Exception {
 
-        log.info("📰 Received request to create bilingual news");
+        // keep String parsing to be compatible with Postman "text" part
+        NewsDto newsDto = objectMapper.readValue(newsJson, NewsDto.class);
 
-        try {
-            NewsDto newsDto = objectMapper.readValue(newsJson, NewsDto.class);
-            NewsDto created = newsService.addNews(newsDto, coverImage, mediaFiles);
-            return ResponseEntity.status(HttpStatus.CREATED).body(created);
-        } catch (Exception e) {
-            log.error("❌ Failed to create news", e);
-            throw new RuntimeException("Failed to create news: " + e.getMessage(), e);
-        }
+        NewsDto created = newsService.addNews(newsDto, coverImage, mediaFiles);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(created, "News created successfully"));
     }
 
-    /**
-     * ✅ CREATE NEWS IN BULK (without files - URLs already in S3)
-     *
-     * Expected JSON format: Array of news objects with bilingual structure
-     */
-    @PostMapping("/bulk")
-    public ResponseEntity<List<NewsDto>> createNewsBulk(@RequestBody List<NewsDto> newsDtoList) {
-        log.info("📰 Received bulk news creation request - Count: {}", newsDtoList.size());
+    // ============================================================
+    // CREATE BULK (json only)
+    // ============================================================
+    @PostMapping(value = "/bulk", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<List<NewsDto>>> createNewsBulk(
+            @RequestBody List<NewsDto> newsDtoList
+    ) {
         List<NewsDto> created = newsService.addNewsBulk(newsDtoList);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(created, "News created successfully (bulk)"));
     }
 
-    /**
-     * ✅ GET ALL NEWS
-     * Returns all news with bilingual content
-     */
+    // ============================================================
+    // GET ALL
+    // ============================================================
     @GetMapping(value = {"", "/", "/all"})
-    public ResponseEntity<List<NewsDto>> getAllNews() {
-        log.info("📋 Fetching all news");
+    public ResponseEntity<ApiResponse<List<NewsDto>>> getAllNews() {
         List<NewsDto> newsList = newsService.getAllNews();
-        return ResponseEntity.ok(newsList);
+        return ResponseEntity.ok(ApiResponse.success(newsList, "News fetched successfully"));
     }
 
-    /**
-     * ✅ SEARCH BY KEYWORD (Language-Specific)
-     *
-     * @param keyword - Search term
-     * @param language - "ckb" (Sorani), "kmr" (Kurmanji), or "both" (default: both)
-     *
-     * Examples:
-     * - /api/v1/news/search/keyword?keyword=ئابووری&language=ckb
-     * - /api/v1/news/search/keyword?keyword=Aborî&language=kmr
-     * - /api/v1/news/search/keyword?keyword=economy (searches both languages)
-     */
+    // ============================================================
+    // SEARCH KEYWORD
+    // ============================================================
     @GetMapping("/search/keyword")
-    public ResponseEntity<List<NewsDto>> searchByKeyword(
+    public ResponseEntity<ApiResponse<List<NewsDto>>> searchByKeyword(
             @RequestParam String keyword,
-            @RequestParam(defaultValue = "both") String language) {
-
-        log.info("🔍 Searching news by keyword: '{}' in language: {}", keyword, language);
+            @RequestParam(defaultValue = "both") String language
+    ) {
         List<NewsDto> results = newsService.searchByKeyword(keyword, language);
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(ApiResponse.success(results, "Search by keyword completed"));
     }
 
-    /**
-     * ✅ SEARCH BY TAG (Language-Specific)
-     *
-     * @param tag - Tag to search for
-     * @param language - "ckb" (Sorani), "kmr" (Kurmanji), or "both" (default: both)
-     *
-     * Examples:
-     * - /api/v1/news/search/tag?tag=بازاڕ&language=ckb
-     * - /api/v1/news/search/tag?tag=Bazar&language=kmr
-     * - /api/v1/news/search/tag?tag=market (searches both languages)
-     */
+    // ============================================================
+    // SEARCH TAG
+    // ============================================================
     @GetMapping("/search/tag")
-    public ResponseEntity<List<NewsDto>> searchByTag(
+    public ResponseEntity<ApiResponse<List<NewsDto>>> searchByTag(
             @RequestParam String tag,
-            @RequestParam(defaultValue = "both") String language) {
-
-        log.info("🏷️ Searching news by tag: '{}' in language: {}", tag, language);
+            @RequestParam(defaultValue = "both") String language
+    ) {
         List<NewsDto> results = newsService.searchByTag(tag, language);
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(ApiResponse.success(results, "Search by tag completed"));
     }
 
-    /**
-     * ✅ SEARCH BY MULTIPLE TAGS (Language-Specific)
-     *
-     * @param tags - Set of tags to search for
-     * @param language - "ckb" (Sorani), "kmr" (Kurmanji), or "both" (default: both)
-     *
-     * Request Body: ["tag1", "tag2", "tag3"]
-     *
-     * Examples:
-     * - POST /api/v1/news/search/tags?language=ckb
-     *   Body: ["ئابووری", "بازاڕ"]
-     * - POST /api/v1/news/search/tags?language=kmr
-     *   Body: ["Aborî", "Bazar"]
-     * - POST /api/v1/news/search/tags (searches both languages)
-     *   Body: ["economy", "market"]
-     */
-    @PostMapping("/search/tags")
-    public ResponseEntity<List<NewsDto>> searchByTags(
+    // ============================================================
+    // SEARCH MULTI TAGS
+    // ============================================================
+    @PostMapping(value = "/search/tags", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<List<NewsDto>>> searchByTags(
             @RequestBody Set<String> tags,
-            @RequestParam(defaultValue = "both") String language) {
-
-        log.info("🏷️ Searching news by {} tags in language: {}", tags.size(), language);
+            @RequestParam(defaultValue = "both") String language
+    ) {
         List<NewsDto> results = newsService.searchByTags(tags, language);
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(ApiResponse.success(results, "Search by tags completed"));
     }
 
-    /**
-     * ✅ UPDATE NEWS with form data
-     * Files: coverImage, mediaFiles (optional, form-data)
-     * Data: news (JSON string in form-data)
-     *
-     * All fields are optional - only provided fields will be updated
-     */
+    // ============================================================
+    // UPDATE (multipart)
+    // ============================================================
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<NewsDto> updateNews(
+    public ResponseEntity<ApiResponse<NewsDto>> updateNews(
             @PathVariable Long id,
             @RequestPart("news") String newsJson,
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles) {
+            @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles
+    ) throws Exception {
 
-        log.info("✏️ Updating news - ID: {}", id);
+        NewsDto dto = objectMapper.readValue(newsJson, NewsDto.class);
 
-        try {
-            NewsDto newsDto = objectMapper.readValue(newsJson, NewsDto.class);
-            NewsDto updated = newsService.updateNews(id, newsDto, coverImage, mediaFiles);
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            log.error("❌ Failed to update news", e);
-            throw new RuntimeException("Failed to update news: " + e.getMessage(), e);
-        }
+        NewsDto updated = newsService.updateNews(id, dto, coverImage, mediaFiles);
+
+        return ResponseEntity.ok(ApiResponse.success(updated, "News updated successfully"));
     }
 
-    /**
-     * ✅ DELETE NEWS
-     */
+    // ============================================================
+    // DELETE
+    // ============================================================
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNews(@PathVariable Long id) {
-        log.info("🗑️ Deleting news - ID: {}", id);
+    public ResponseEntity<ApiResponse<Void>> deleteNews(@PathVariable Long id) {
         newsService.deleteNews(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully"));
     }
 
-    /**
-     * ✅ BULK DELETE
-     *
-     * Request Body: [1, 2, 3, 4, 5]
-     */
-    @DeleteMapping("/bulk")
-    public ResponseEntity<Void> deleteNewsBulk(@RequestBody List<Long> newsIds) {
-        log.info("🗑️ Bulk deleting {} news items", newsIds.size());
+    // ============================================================
+    // BULK DELETE
+    // ============================================================
+    @DeleteMapping(value = "/bulk", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Void>> deleteNewsBulk(@RequestBody List<Long> newsIds) {
         newsService.deleteNewsBulk(newsIds);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully (bulk)"));
     }
 }

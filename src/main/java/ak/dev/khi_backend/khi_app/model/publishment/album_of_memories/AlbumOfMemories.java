@@ -1,6 +1,5 @@
 package ak.dev.khi_backend.khi_app.model.publishment.album_of_memories;
 
-
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.AlbumType;
 import jakarta.persistence.*;
@@ -69,10 +68,7 @@ public class AlbumOfMemories {
     // Languages of the album content (CKB, KMR, or both)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "album_content_languages",
-            joinColumns = @JoinColumn(name = "album_id")
-    )
+    @CollectionTable(name = "album_content_languages", joinColumns = @JoinColumn(name = "album_id"))
     @Enumerated(EnumType.STRING)
     @Column(name = "language", nullable = false, length = 10)
     private Set<Language> contentLanguages = new LinkedHashSet<>();
@@ -80,40 +76,28 @@ public class AlbumOfMemories {
     // ✅ EAGER FETCH - CKB tags
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "album_tags_ckb",
-            joinColumns = @JoinColumn(name = "album_id")
-    )
+    @CollectionTable(name = "album_tags_ckb", joinColumns = @JoinColumn(name = "album_id"))
     @Column(name = "tag_ckb", nullable = false, length = 80)
     private Set<String> tagsCkb = new LinkedHashSet<>();
 
     // ✅ EAGER FETCH - KMR tags
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "album_tags_kmr",
-            joinColumns = @JoinColumn(name = "album_id")
-    )
+    @CollectionTable(name = "album_tags_kmr", joinColumns = @JoinColumn(name = "album_id"))
     @Column(name = "tag_kmr", nullable = false, length = 80)
     private Set<String> tagsKmr = new LinkedHashSet<>();
 
     // ✅ EAGER FETCH - CKB keywords
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "album_keywords_ckb",
-            joinColumns = @JoinColumn(name = "album_id")
-    )
+    @CollectionTable(name = "album_keywords_ckb", joinColumns = @JoinColumn(name = "album_id"))
     @Column(name = "keyword_ckb", nullable = false, length = 120)
     private Set<String> keywordsCkb = new LinkedHashSet<>();
 
     // ✅ EAGER FETCH - KMR keywords
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "album_keywords_kmr",
-            joinColumns = @JoinColumn(name = "album_id")
-    )
+    @CollectionTable(name = "album_keywords_kmr", joinColumns = @JoinColumn(name = "album_id"))
     @Column(name = "keyword_kmr", nullable = false, length = 120)
     private Set<String> keywordsKmr = new LinkedHashSet<>();
 
@@ -126,6 +110,14 @@ public class AlbumOfMemories {
     // Attachment URL (for demonstration/advertisement - PDF or video)
     @Column(name = "attachment_url", columnDefinition = "TEXT")
     private String attachmentUrl;
+
+    // ✅ NEW: Attachment external link
+    @Column(name = "attachment_external_url", columnDefinition = "TEXT")
+    private String attachmentExternalUrl;
+
+    // ✅ NEW: Attachment embed link
+    @Column(name = "attachment_embed_url", columnDefinition = "TEXT")
+    private String attachmentEmbedUrl;
 
     // Attachment type (pdf, mp4, etc.)
     @Column(name = "attachment_type", length = 20)

@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.khi_app.dto.news;
 
+import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.news.NewsMediaType;
 import lombok.*;
 
@@ -20,6 +21,10 @@ public class NewsDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // ✅ Which languages are active (LIKE Project)
+    @Builder.Default
+    private Set<Language> contentLanguages = new LinkedHashSet<>();
+
     // ✅ Bilingual Category
     private CategoryDto category;
 
@@ -36,7 +41,7 @@ public class NewsDto {
     // ✅ Bilingual Keywords
     private BilingualSet keywords;
 
-    // Media files
+    // Media
     private List<MediaDto> media;
 
     // ============================================================
@@ -83,7 +88,16 @@ public class NewsDto {
     public static class MediaDto {
         private Long id;
         private NewsMediaType type;
+
+        /** Direct file url (S3/server). Optional for AUDIO/VIDEO if externalUrl/embedUrl is provided. */
         private String url;
+
+        /** Normal link to third-party page (e.g., youtube watch link). Optional. */
+        private String externalUrl;
+
+        /** Embeddable link for iframe (e.g., youtube embed link). Optional. */
+        private String embedUrl;
+
         private Integer sortOrder;
         private LocalDateTime createdAt;
     }

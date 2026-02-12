@@ -7,16 +7,12 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(
         name = "sound_tracks",
         indexes = {
-                @Index(name = "idx_soundtrack_language", columnList = "language"),
                 @Index(name = "idx_soundtrack_type", columnList = "sound_type"),
                 @Index(name = "idx_soundtrack_state", columnList = "track_state"),
                 @Index(name = "idx_soundtrack_created_at", columnList = "created_at"),
@@ -33,41 +29,51 @@ public class SoundTrack {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Basic info
-    @Column(nullable = false, length = 200)
-    private String title;
-
     @Column(name = "cover_url", length = 1000)
     private String coverUrl;
-
-    @Column(length = 4000)
-    private String description;
-
-    /**
-     * reading: "group of people" or "single person" or a name.
-     * keep it as string as you requested.
-     */
-    @Column(length = 255)
-    private String reading;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "sound_type", nullable = false, length = 20)
     private SoundType soundType; // LAWK, HAIRAN
 
+    // ✅ BILINGUAL SUPPORT: Which languages are active
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "sound_track_content_languages",
+            joinColumns = @JoinColumn(name = "sound_track_id")
+    )
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private Language language; // CKB, KMR
+    @Column(name = "language", nullable = false, length = 10)
+    private Set<Language> contentLanguages = new LinkedHashSet<>();
 
-    /**
-     * Locations (collection of strings) - CHANGED FROM SINGLE STRING TO COLLECTION
-     */
-    @ElementCollection
+    // ✅ CKB (Sorani) Content
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "title", column = @Column(name = "title_ckb", length = 200)),
+            @AttributeOverride(name = "description", column = @Column(name = "description_ckb", columnDefinition = "TEXT")),
+            @AttributeOverride(name = "reading", column = @Column(name = "reading_ckb", length = 255))
+    })
+    private SoundTrackContent ckbContent;
+
+    // ✅ KMR (Kurmanji) Content
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "title", column = @Column(name = "title_kmr", length = 200)),
+            @AttributeOverride(name = "description", column = @Column(name = "description_kmr", columnDefinition = "TEXT")),
+            @AttributeOverride(name = "reading", column = @Column(name = "reading_kmr", length = 255))
+    })
+    private SoundTrackContent kmrContent;
+
+    // ✅ Shared fields (not language-specific)
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "sound_track_locations",
             joinColumns = @JoinColumn(name = "sound_track_id")
     )
     @Column(name = "location", nullable = false, length = 255)
-    private Set<String> locations = new HashSet<>();
+    @Builder.Default
+    private Set<String> locations = new LinkedHashSet<>();
 
     @Column(length = 255)
     private String director;
@@ -79,36 +85,41 @@ public class SoundTrack {
     @Column(name = "track_state", nullable = false, length = 10)
     private TrackState trackState; // SINGLE, MULTI
 
-    /**
-     * Keywords (collection of strings)
-     */
-    @ElementCollection
-    @CollectionTable(
-            name = "sound_track_keywords",
-            joinColumns = @JoinColumn(name = "sound_track_id")
-    )
-    @Column(name = "keyword", nullable = false, length = 100)
-    private Set<String> keywords = new HashSet<>();
+    // ✅ CKB Keywords
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "sound_track_keywords_ckb", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @Column(name = "keyword_ckb", nullable = false, length = 100)
+    private Set<String> keywordsCkb = new LinkedHashSet<>();
 
-    /**
-     * Tags (collection of strings)
-     */
-    @ElementCollection
-    @CollectionTable(
-            name = "sound_track_tags",
-            joinColumns = @JoinColumn(name = "sound_track_id")
-    )
-    @Column(name = "tag", nullable = false, length = 60)
-    private Set<String> tags = new HashSet<>();
+    // ✅ KMR Keywords
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "sound_track_keywords_kmr", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @Column(name = "keyword_kmr", nullable = false, length = 100)
+    private Set<String> keywordsKmr = new LinkedHashSet<>();
 
-    /**
-     * Files: for SINGLE -> 1 row in sound_track_files
-     * for MULTI  -> many rows in sound_track_files
-     */
+    // ✅ CKB Tags
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "sound_track_tags_ckb", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @Column(name = "tag_ckb", nullable = false, length = 60)
+    private Set<String> tagsCkb = new LinkedHashSet<>();
+
+    // ✅ KMR Tags
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "sound_track_tags_kmr", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @Column(name = "tag_kmr", nullable = false, length = 60)
+    private Set<String> tagsKmr = new LinkedHashSet<>();
+
+    // ✅ Audio files
+    @Builder.Default
     @OneToMany(
             mappedBy = "soundTrack",
             cascade = CascadeType.ALL,
-            orphanRemoval = true
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
     )
     @OrderColumn(name = "file_order")
     private List<SoundTrackFile> files = new ArrayList<>();
@@ -131,7 +142,7 @@ public class SoundTrack {
         updatedAt = LocalDateTime.now();
     }
 
-    // Helper methods (clean add/remove)
+    // Helper methods
     public void addFile(SoundTrackFile file) {
         files.add(file);
         file.setSoundTrack(this);

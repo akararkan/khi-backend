@@ -6,23 +6,24 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
 @Table(
         name = "projects",
         indexes = {
-                @Index(name = "idx_projects_title", columnList = "title"),
+                @Index(name = "idx_projects_title_ckb", columnList = "title_ckb"),
+                @Index(name = "idx_projects_title_kmr", columnList = "title_kmr"),
                 @Index(name = "idx_projects_type", columnList = "project_type"),
-                @Index(name = "idx_projects_lang", columnList = "language"),
                 @Index(name = "idx_projects_date", columnList = "project_date")
         }
 )
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Project {
 
     @Id
@@ -33,63 +34,113 @@ public class Project {
     @Column(name = "cover_url", length = 1024)
     private String coverUrl;
 
+    // ✅ CKB (Sorani) Content
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "title", column = @Column(name = "title_ckb", length = 255)),
+            @AttributeOverride(name = "description", column = @Column(name = "description_ckb", columnDefinition = "TEXT")),
+            @AttributeOverride(name = "location", column = @Column(name = "location_ckb", length = 255))
+    })
+    private ProjectContentBlock ckbContent;
 
-    @Column(nullable = false, length = 255)
-    private String title;
-
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
+    // ✅ KMR (Kurmanji) Content
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "title", column = @Column(name = "title_kmr", length = 255)),
+            @AttributeOverride(name = "description", column = @Column(name = "description_kmr", columnDefinition = "TEXT")),
+            @AttributeOverride(name = "location", column = @Column(name = "location_kmr", length = 255))
+    })
+    private ProjectContentBlock kmrContent;
 
     @Column(name = "project_type", nullable = false, length = 64)
     private String projectType;
 
-    // content: dynamic values (many-to-many)
+    // ✅ Which languages are available for this project
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "project_content_languages",
+            joinColumns = @JoinColumn(name = "project_id")
+    )
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language", nullable = false, length = 10)
+    private Set<Language> contentLanguages = new LinkedHashSet<>();
+
+    // ----------------------------
+    // ✅ CONTENTS (per language)
+    // ----------------------------
+
     @ManyToMany
     @JoinTable(
-            name = "project_content_map",
+            name = "project_content_map_ckb",
             joinColumns = @JoinColumn(name = "project_id"),
             inverseJoinColumns = @JoinColumn(name = "content_id")
     )
     @Builder.Default
-    private Set<ProjectContent> contents = new HashSet<>();
+    private Set<ProjectContent> contentsCkb = new LinkedHashSet<>();
 
-    // tags: multi strings
     @ManyToMany
     @JoinTable(
-            name = "project_tag_map",
+            name = "project_content_map_kmr",
+            joinColumns = @JoinColumn(name = "project_id"),
+            inverseJoinColumns = @JoinColumn(name = "content_id")
+    )
+    @Builder.Default
+    private Set<ProjectContent> contentsKmr = new LinkedHashSet<>();
+
+    // ----------------------------
+    // ✅ TAGS (per language)
+    // ----------------------------
+
+    @ManyToMany
+    @JoinTable(
+            name = "project_tag_map_ckb",
             joinColumns = @JoinColumn(name = "project_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id")
     )
     @Builder.Default
-    private Set<ProjectTag> tags = new HashSet<>();
+    private Set<ProjectTag> tagsCkb = new LinkedHashSet<>();
 
-    // keywords: multi strings for search variations
     @ManyToMany
     @JoinTable(
-            name = "project_keyword_map",
+            name = "project_tag_map_kmr",
+            joinColumns = @JoinColumn(name = "project_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    @Builder.Default
+    private Set<ProjectTag> tagsKmr = new LinkedHashSet<>();
+
+    // ----------------------------
+    // ✅ KEYWORDS (per language)
+    // ----------------------------
+
+    @ManyToMany
+    @JoinTable(
+            name = "project_keyword_map_ckb",
             joinColumns = @JoinColumn(name = "project_id"),
             inverseJoinColumns = @JoinColumn(name = "keyword_id")
     )
     @Builder.Default
-    private Set<ProjectKeyword> keywords = new HashSet<>();
+    private Set<ProjectKeyword> keywordsCkb = new LinkedHashSet<>();
+
+    @ManyToMany
+    @JoinTable(
+            name = "project_keyword_map_kmr",
+            joinColumns = @JoinColumn(name = "project_id"),
+            inverseJoinColumns = @JoinColumn(name = "keyword_id")
+    )
+    @Builder.Default
+    private Set<ProjectKeyword> keywordsKmr = new LinkedHashSet<>();
 
     // date
     @Column(name = "project_date")
     private LocalDate projectDate;
 
-
-    @Column(length = 255)
-    private String location;
-
-    @Column(nullable = false, length = 10)
-    private Language language;
-
     // media: 1 project -> many media items
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC, id ASC")
     @Builder.Default
-    private Set<ProjectMedia> media = new HashSet<>();
+    private Set<ProjectMedia> media = new LinkedHashSet<>();
 
     // timestamps
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -110,7 +161,7 @@ public class Project {
         updatedAt = LocalDateTime.now();
     }
 
-    // Helper methods (optional but useful)
+    // Helper methods
     public void addMedia(ProjectMedia m) {
         media.add(m);
         m.setProject(this);

@@ -16,8 +16,24 @@ public class AlbumMedia {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    /**
+     * Direct hosted file URL (S3/CDN/local).
+     * OPTIONAL now (because you can provide externalUrl/embedUrl instead)
+     */
+    @Column(nullable = true, columnDefinition = "TEXT")
     private String url;
+
+    /**
+     * External page link (youtube watch, soundcloud page, etc.)
+     */
+    @Column(name = "external_url", columnDefinition = "TEXT")
+    private String externalUrl;
+
+    /**
+     * Embeddable iframe link (youtube embed, etc.)
+     */
+    @Column(name = "embed_url", columnDefinition = "TEXT")
+    private String embedUrl;
 
     // Track title in both languages
     @Column(name = "track_title_ckb", length = 250)
@@ -50,6 +66,6 @@ public class AlbumMedia {
 
     @PrePersist
     public void prePersist() {
-        this.createdAt = LocalDateTime.now();
+        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
     }
 }

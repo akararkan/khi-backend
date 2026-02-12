@@ -37,6 +37,13 @@ public class ProjectMedia {
     @Column(length = 1024)
     private String url;
 
+    // Optional external link (e.g., YouTube, SoundCloud, etc.)
+    @Column(name = "external_url", length = 2048)
+    private String externalUrl;
+
+    // Optional embeddable link (e.g., iframe src)
+    @Column(name = "embed_url", length = 2048)
+    private String embedUrl;
 
     @Column(length = 255)
     private String caption;

@@ -14,40 +14,36 @@ import java.util.Set;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class FilmDTO {
 
-    // ─── Response only ────────────────────────────────────────────────
     private Long id;
 
-    // ─── Bilingual content ────────────────────────────────────────────
     private FilmContentDTO ckbContent;
     private FilmContentDTO kmrContent;
 
-    // ─── Film metadata ────────────────────────────────────────────────
-    private String filmType;          // DOCUMENTARY, EVIDENCE, SHORT_FILM, etc.
-    private String fileFormat;        // mp4, mkv, avi
+    private String filmType;
+    private String fileFormat;
     private Integer durationSeconds;
     private LocalDate publishmentDate;
 
-    // ─── Extra fields ─────────────────────────────────────────────────
-    private String resolution;        // 720p, 1080p, 4K
+    private String resolution;
     private Double fileSizeMb;
 
-    // ─── S3 URLs (set by service after upload, returned in response) ──
+    // cover (upload OR direct url)
     private String coverUrl;
-    private String sourceUrl;
 
-    // ─── Response only — formatted duration ───────────────────────────
+    // ✅ film source: upload/direct OR external OR embed
+    private String sourceUrl;
+    private String sourceExternalUrl;
+    private String sourceEmbedUrl;
+
     private String durationFormatted;
 
-    // ─── Languages ────────────────────────────────────────────────────
     private Set<Language> contentLanguages;
 
-    // ─── Tags & Keywords (bilingual) ──────────────────────────────────
     private Set<String> tagsCkb;
     private Set<String> tagsKmr;
     private Set<String> keywordsCkb;
     private Set<String> keywordsKmr;
 
-    // ─── Response only — timestamps ───────────────────────────────────
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

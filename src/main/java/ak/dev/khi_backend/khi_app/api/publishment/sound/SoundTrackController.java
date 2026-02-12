@@ -20,38 +20,31 @@ public class SoundTrackController {
     private final SoundTrackService soundTrackService;
 
     /**
-     * ADD - Create new SoundTrack with file upload
+     * ADD - Create new SoundTrack with BILINGUAL content
      * POST /api/v1/soundtracks
      * Content-Type: multipart/form-data
      *
-     * Form Fields:
-     * - title (required)
-     * - soundType (required): LAWK or HAIRAN
-     * - language (required): CKB or KMR
-     * - trackState (required): SINGLE or MULTI
-     * - description (optional)
-     * - reading (optional)
-     * - locations (optional): comma-separated, e.g., "Sulaymaniyah,Erbil,Duhok"
-     * - director (optional)
-     * - isThisProjectOfInstitute (optional): true/false
-     * - keywords (optional): comma-separated, e.g., "story,folklore,kurdish"
-     * - tags (optional): comma-separated, e.g., "audio,culture"
-     * - readerNames (optional): For MULTI tracks, comma-separated reader names
-     * - coverImage (optional): Image file for cover
-     * - audioFiles (required): One or more audio files (MP3, WAV, OGG, etc.)
+     * Parts:
+     * - data (JSON): CreateRequest
+     * - coverImage (optional): image file
+     * - audioFiles (optional): list of audio files
+     *
+     * NOTE:
+     * - audioFiles is OPTIONAL now.
+     * - You can create SoundTrack using ONLY links inside data.files (externalUrl/embedUrl/fileUrl)
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Response> addSoundTrack(
-            @Valid @ModelAttribute CreateRequest request,
-            @RequestPart(value = "audioFiles", required = true) List<MultipartFile> audioFiles,
-            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage) {
-
+            @Valid @RequestPart("data") CreateRequest request,
+            @RequestPart(value = "audioFiles", required = false) List<MultipartFile> audioFiles,
+            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage
+    ) {
         Response response = soundTrackService.addSoundTrack(request, audioFiles, coverImage);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**
-     * GET ALL - Retrieve all SoundTracks
+     * GET ALL - Retrieve all SoundTracks with bilingual content
      * GET /api/v1/soundtracks
      */
     @GetMapping
@@ -61,20 +54,22 @@ public class SoundTrackController {
     }
 
     /**
-     * UPDATE - Update existing SoundTrack with optional file upload
+     * UPDATE - Update existing SoundTrack with bilingual content
      * PUT /api/v1/soundtracks/{id}
      * Content-Type: multipart/form-data
      *
-     * All fields are optional. Only send what you want to update.
-     * If audioFiles are sent, they will REPLACE all existing audio files.
+     * Parts:
+     * - data (JSON): UpdateRequest
+     * - coverImage (optional): image file
+     * - audioFiles (optional): list of audio files
      */
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Response> updateSoundTrack(
             @PathVariable Long id,
-            @Valid @ModelAttribute UpdateRequest request,
+            @Valid @RequestPart("data") UpdateRequest request,
             @RequestPart(value = "audioFiles", required = false) List<MultipartFile> audioFiles,
-            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage) {
-
+            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage
+    ) {
         Response response = soundTrackService.updateSoundTrack(id, request, audioFiles, coverImage);
         return ResponseEntity.ok(response);
     }
@@ -90,27 +85,37 @@ public class SoundTrackController {
     }
 
     /**
-     * SEARCH BY TAG
-     * GET /api/v1/soundtracks/search/tag?value=folklore
+     * SEARCH BY TAG - Bilingual search
+     * GET /api/v1/soundtracks/search/tag?value=folklore&language=ckb
+     *
+     * language: "ckb" (Sorani only), "kmr" (Kurmanji only), or omit for both
      */
     @GetMapping("/search/tag")
-    public ResponseEntity<List<Response>> searchByTag(@RequestParam String value) {
-        List<Response> response = soundTrackService.searchByTag(value);
+    public ResponseEntity<List<Response>> searchByTag(
+            @RequestParam String value,
+            @RequestParam(required = false) String language
+    ) {
+        List<Response> response = soundTrackService.searchByTag(value, language);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * SEARCH BY KEYWORD
-     * GET /api/v1/soundtracks/search/keyword?value=story
+     * SEARCH BY KEYWORD - Bilingual search
+     * GET /api/v1/soundtracks/search/keyword?value=story&language=kmr
+     *
+     * language: "ckb" (Sorani only), "kmr" (Kurmanji only), or omit for both
      */
     @GetMapping("/search/keyword")
-    public ResponseEntity<List<Response>> searchByKeyword(@RequestParam String value) {
-        List<Response> response = soundTrackService.searchByKeyword(value);
+    public ResponseEntity<List<Response>> searchByKeyword(
+            @RequestParam String value,
+            @RequestParam(required = false) String language
+    ) {
+        List<Response> response = soundTrackService.searchByKeyword(value, language);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * SEARCH BY LOCATION (NEW)
+     * SEARCH BY LOCATION
      * GET /api/v1/soundtracks/search/location?value=Sulaymaniyah
      */
     @GetMapping("/search/location")

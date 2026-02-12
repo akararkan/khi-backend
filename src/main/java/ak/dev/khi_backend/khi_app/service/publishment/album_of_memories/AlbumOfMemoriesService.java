@@ -1,12 +1,8 @@
 package ak.dev.khi_backend.khi_app.service.publishment.album_of_memories;
 
-
 import ak.dev.khi_backend.khi_app.dto.publishment.album_of_memories.AlbumDto;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
-import ak.dev.khi_backend.khi_app.model.publishment.album_of_memories.AlbumAuditLog;
-import ak.dev.khi_backend.khi_app.model.publishment.album_of_memories.AlbumContent;
-import ak.dev.khi_backend.khi_app.model.publishment.album_of_memories.AlbumMedia;
-import ak.dev.khi_backend.khi_app.model.publishment.album_of_memories.AlbumOfMemories;
+import ak.dev.khi_backend.khi_app.model.publishment.album_of_memories.*;
 import ak.dev.khi_backend.khi_app.repository.publishment.album_of_memories.AlbumAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.album_of_memories.AlbumOfMemoriesRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
@@ -16,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,31 +25,38 @@ public class AlbumOfMemoriesService {
     private final AlbumAuditLogRepository auditLogRepository;
     private final S3Service s3Service;
 
+    // ============================================================
+    // CREATE
+    // ============================================================
+
     /**
-     * ✅ ADD ALBUM - Create a new album with file uploads
+     * ✅ ADD ALBUM - Create a new album with optional tracks (upload or links) + optional attachment (upload or links)
      */
     @Transactional
-    public AlbumDto addAlbum(AlbumDto dto, MultipartFile coverImage,
-                             List<MultipartFile> mediaFiles, MultipartFile attachment) {
+    public AlbumDto addAlbum(
+            AlbumDto dto,
+            MultipartFile coverImage,
+            List<MultipartFile> mediaFiles,
+            MultipartFile attachment
+    ) {
         log.info("🎵 Creating album: {}/{}",
                 dto.getCkbContent() != null ? dto.getCkbContent().getTitle() : "N/A",
                 dto.getKmrContent() != null ? dto.getKmrContent().getTitle() : "N/A");
 
+        validateAlbumDto(dto);
+
         try {
-            // Upload cover image
+            // cover is required (you can also change this rule if you want coverUrl allowed)
             if (coverImage == null || coverImage.isEmpty()) {
                 throw new BadRequestException("cover.required", "Cover image is required");
             }
 
-            log.debug("📤 Uploading cover image to S3: {}", coverImage.getOriginalFilename());
             String coverUrl = s3Service.upload(
                     coverImage.getBytes(),
                     coverImage.getOriginalFilename(),
                     coverImage.getContentType()
             );
-            log.info("✅ Cover image uploaded: {}", coverUrl);
 
-            // Build album entity
             AlbumOfMemories album = AlbumOfMemories.builder()
                     .coverUrl(coverUrl)
                     .albumType(dto.getAlbumType())
@@ -63,40 +65,32 @@ public class AlbumOfMemoriesService {
                     .numberOfTracks(dto.getNumberOfTracks())
                     .yearOfPublishment(dto.getYearOfPublishment())
                     .contentLanguages(Optional.ofNullable(dto.getContentLanguages()).orElse(new LinkedHashSet<>()))
-                    .tagsCkb(Optional.ofNullable(dto.getTags()).map(t -> t.getCkb()).orElse(new LinkedHashSet<>()))
-                    .tagsKmr(Optional.ofNullable(dto.getTags()).map(t -> t.getKmr()).orElse(new LinkedHashSet<>()))
-                    .keywordsCkb(Optional.ofNullable(dto.getKeywords()).map(k -> k.getCkb()).orElse(new LinkedHashSet<>()))
-                    .keywordsKmr(Optional.ofNullable(dto.getKeywords()).map(k -> k.getKmr()).orElse(new LinkedHashSet<>()))
+                    .tagsCkb(Optional.ofNullable(dto.getTags()).map(AlbumDto.BilingualSet::getCkb).orElse(new LinkedHashSet<>()))
+                    .tagsKmr(Optional.ofNullable(dto.getTags()).map(AlbumDto.BilingualSet::getKmr).orElse(new LinkedHashSet<>()))
+                    .keywordsCkb(Optional.ofNullable(dto.getKeywords()).map(AlbumDto.BilingualSet::getCkb).orElse(new LinkedHashSet<>()))
+                    .keywordsKmr(Optional.ofNullable(dto.getKeywords()).map(AlbumDto.BilingualSet::getKmr).orElse(new LinkedHashSet<>()))
                     .build();
 
-            // Set bilingual content
             setBilingualContent(album, dto);
 
-            // Upload and attach media files (audio/video tracks)
+            // ✅ 1) Tracks from uploads (optional)
+            List<AlbumMedia> tracks = new ArrayList<>();
             if (mediaFiles != null && !mediaFiles.isEmpty()) {
-                log.info("📤 Uploading {} media files to S3", mediaFiles.size());
-                List<AlbumMedia> mediaList = processMediaFiles(mediaFiles, album, dto.getMedia());
-                album.setMedia(mediaList);
-                log.info("✅ {} media files uploaded", mediaList.size());
+                tracks.addAll(processMediaFiles(mediaFiles, album, dto.getMedia()));
             }
 
-            // Upload attachment if provided
-            if (attachment != null && !attachment.isEmpty()) {
-                log.debug("📤 Uploading attachment to S3: {}", attachment.getOriginalFilename());
-                String attachmentUrl = s3Service.upload(
-                        attachment.getBytes(),
-                        attachment.getOriginalFilename(),
-                        attachment.getContentType()
-                );
-                album.setAttachmentUrl(attachmentUrl);
-                album.setAttachmentType(getFileExtension(attachment.getOriginalFilename()));
-                log.info("✅ Attachment uploaded: {}", attachmentUrl);
+            // ✅ 2) Tracks from DTO links (optional)
+            attachMediaLinksFromDto(album, dto.getMedia(), tracks);
+
+            if (!tracks.isEmpty()) {
+                album.setMedia(tracks);
             }
+
+            // ✅ Attachment: allow upload OR dto.attachment link/embed/external
+            applyAttachment(album, dto.getAttachment(), attachment);
 
             AlbumOfMemories saved = albumRepository.save(album);
-            log.info("✅ Album created successfully - ID: {}", saved.getId());
-
-            createAuditLog(saved, "CREATE", "Album created with S3 media");
+            createAuditLog(saved, "CREATE", "Album created (uploads + links supported)");
 
             return convertToDto(saved);
 
@@ -106,34 +100,32 @@ public class AlbumOfMemoriesService {
         }
     }
 
-    /**
-     * ✅ GET ALL ALBUMS - With lazy-loaded media initialized
-     */
+    // ============================================================
+    // GET ALL
+    // ============================================================
+
     @Transactional(readOnly = true)
     public List<AlbumDto> getAllAlbums() {
         log.info("📋 Fetching all albums");
         List<AlbumOfMemories> albums = albumRepository.findAllOrderedByYear();
-        log.info("✅ Retrieved {} albums", albums.size());
 
         return albums.stream()
                 .map(album -> {
-                    album.getMedia().size(); // Force initialization
+                    album.getMedia().size(); // init
                     return convertToDto(album);
                 })
                 .collect(Collectors.toList());
     }
 
-    /**
-     * ✅ SEARCH BY KEYWORD (Language-specific)
-     */
+    // ============================================================
+    // SEARCH
+    // ============================================================
+
     @Transactional(readOnly = true)
     public List<AlbumDto> searchByKeyword(String keyword, String language) {
         log.info("🔍 Searching albums by keyword: '{}' in language: {}", keyword, language);
 
-        if (keyword == null || keyword.trim().isEmpty()) {
-            log.warn("⚠️ Empty keyword provided for search");
-            return Collections.emptyList();
-        }
+        if (keyword == null || keyword.trim().isEmpty()) return Collections.emptyList();
 
         List<AlbumOfMemories> results;
         if ("ckb".equalsIgnoreCase(language)) {
@@ -141,22 +133,12 @@ public class AlbumOfMemoriesService {
         } else if ("kmr".equalsIgnoreCase(language)) {
             results = albumRepository.searchByKeywordKmr(keyword.trim());
         } else {
-            // Search both languages
-            Set<AlbumOfMemories> combinedResults = new HashSet<>();
-            combinedResults.addAll(albumRepository.searchByKeywordCkb(keyword.trim()));
-            combinedResults.addAll(albumRepository.searchByKeywordKmr(keyword.trim()));
-            results = new ArrayList<>(combinedResults);
-            // Sort by year
-            results.sort((a, b) -> {
-                int yearCompare = Integer.compare(
-                        b.getYearOfPublishment() != null ? b.getYearOfPublishment() : 0,
-                        a.getYearOfPublishment() != null ? a.getYearOfPublishment() : 0
-                );
-                return yearCompare != 0 ? yearCompare : b.getCreatedAt().compareTo(a.getCreatedAt());
-            });
+            Set<AlbumOfMemories> combined = new HashSet<>();
+            combined.addAll(albumRepository.searchByKeywordCkb(keyword.trim()));
+            combined.addAll(albumRepository.searchByKeywordKmr(keyword.trim()));
+            results = new ArrayList<>(combined);
+            sortAlbums(results);
         }
-
-        log.info("✅ Found {} albums matching keyword '{}'", results.size(), keyword);
 
         return results.stream()
                 .map(album -> {
@@ -166,17 +148,11 @@ public class AlbumOfMemoriesService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * ✅ SEARCH BY TAG (Language-specific)
-     */
     @Transactional(readOnly = true)
     public List<AlbumDto> searchByTag(String tag, String language) {
         log.info("🏷️ Searching albums by tag: '{}' in language: {}", tag, language);
 
-        if (tag == null || tag.trim().isEmpty()) {
-            log.warn("⚠️ Empty tag provided for search");
-            return Collections.emptyList();
-        }
+        if (tag == null || tag.trim().isEmpty()) return Collections.emptyList();
 
         List<AlbumOfMemories> results;
         if ("ckb".equalsIgnoreCase(language)) {
@@ -184,21 +160,12 @@ public class AlbumOfMemoriesService {
         } else if ("kmr".equalsIgnoreCase(language)) {
             results = albumRepository.findByTagKmr(tag.trim());
         } else {
-            // Search both languages
-            Set<AlbumOfMemories> combinedResults = new HashSet<>();
-            combinedResults.addAll(albumRepository.findByTagCkb(tag.trim()));
-            combinedResults.addAll(albumRepository.findByTagKmr(tag.trim()));
-            results = new ArrayList<>(combinedResults);
-            results.sort((a, b) -> {
-                int yearCompare = Integer.compare(
-                        b.getYearOfPublishment() != null ? b.getYearOfPublishment() : 0,
-                        a.getYearOfPublishment() != null ? a.getYearOfPublishment() : 0
-                );
-                return yearCompare != 0 ? yearCompare : b.getCreatedAt().compareTo(a.getCreatedAt());
-            });
+            Set<AlbumOfMemories> combined = new HashSet<>();
+            combined.addAll(albumRepository.findByTagCkb(tag.trim()));
+            combined.addAll(albumRepository.findByTagKmr(tag.trim()));
+            results = new ArrayList<>(combined);
+            sortAlbums(results);
         }
-
-        log.info("✅ Found {} albums with tag '{}'", results.size(), tag);
 
         return results.stream()
                 .map(album -> {
@@ -208,19 +175,37 @@ public class AlbumOfMemoriesService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * ✅ UPDATE ALBUM
-     */
+    private void sortAlbums(List<AlbumOfMemories> results) {
+        results.sort((a, b) -> {
+            int yearCompare = Integer.compare(
+                    b.getYearOfPublishment() != null ? b.getYearOfPublishment() : 0,
+                    a.getYearOfPublishment() != null ? a.getYearOfPublishment() : 0
+            );
+            return yearCompare != 0 ? yearCompare : b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+    }
+
+    // ============================================================
+    // UPDATE
+    // ============================================================
+
     @Transactional
-    public AlbumDto updateAlbum(Long albumId, AlbumDto dto, MultipartFile newCoverImage,
-                                List<MultipartFile> newMediaFiles, MultipartFile newAttachment) {
+    public AlbumDto updateAlbum(
+            Long albumId,
+            AlbumDto dto,
+            MultipartFile newCoverImage,
+            List<MultipartFile> newMediaFiles,
+            MultipartFile newAttachment
+    ) {
         log.info("✏️ Updating album - ID: {}", albumId);
 
         AlbumOfMemories album = albumRepository.findById(albumId)
                 .orElseThrow(() -> new EntityNotFoundException("Album not found: " + albumId));
 
+        validateAlbumDto(dto);
+
         try {
-            // Update cover image if provided
+            // cover optional on update
             if (newCoverImage != null && !newCoverImage.isEmpty()) {
                 String newCoverUrl = s3Service.upload(
                         newCoverImage.getBytes(),
@@ -228,61 +213,51 @@ public class AlbumOfMemoriesService {
                         newCoverImage.getContentType()
                 );
                 album.setCoverUrl(newCoverUrl);
-                log.info("✅ Cover image updated: {}", newCoverUrl);
             }
 
-            // Update metadata
-            if (dto.getAlbumType() != null) {
-                album.setAlbumType(dto.getAlbumType());
-            }
-            if (dto.getFileFormat() != null) {
-                album.setFileFormat(dto.getFileFormat());
-            }
-            if (dto.getCdNumber() != null) {
-                album.setCdNumber(dto.getCdNumber());
-            }
-            if (dto.getNumberOfTracks() != null) {
-                album.setNumberOfTracks(dto.getNumberOfTracks());
-            }
-            if (dto.getYearOfPublishment() != null) {
-                album.setYearOfPublishment(dto.getYearOfPublishment());
-            }
+            // metadata
+            if (dto.getAlbumType() != null) album.setAlbumType(dto.getAlbumType());
+            if (dto.getFileFormat() != null) album.setFileFormat(dto.getFileFormat());
+            if (dto.getCdNumber() != null) album.setCdNumber(dto.getCdNumber());
+            if (dto.getNumberOfTracks() != null) album.setNumberOfTracks(dto.getNumberOfTracks());
+            if (dto.getYearOfPublishment() != null) album.setYearOfPublishment(dto.getYearOfPublishment());
 
-            // Update content languages
+            // languages
             if (dto.getContentLanguages() != null) {
                 album.getContentLanguages().clear();
                 album.getContentLanguages().addAll(dto.getContentLanguages());
             }
 
-            // Update bilingual content
+            // content
             updateBilingualContent(album, dto);
 
-            // Update tags and keywords
+            // tags/keywords
             updateCollections(album, dto);
 
-            // Update media if provided
-            if (newMediaFiles != null && !newMediaFiles.isEmpty()) {
+            // ✅ TRACKS UPDATE RULE:
+            // if user sends new uploads OR sends dto.media (even only links) => replace tracks with combined list
+            boolean hasUploads = newMediaFiles != null && newMediaFiles.stream().anyMatch(f -> f != null && !f.isEmpty());
+            boolean hasDtoMedia = dto.getMedia() != null; // if provided -> user wants to change tracks
+
+            if (hasUploads || hasDtoMedia) {
                 album.getMedia().clear();
-                List<AlbumMedia> newMedia = processMediaFiles(newMediaFiles, album, dto.getMedia());
-                album.getMedia().addAll(newMedia);
+
+                List<AlbumMedia> tracks = new ArrayList<>();
+
+                if (hasUploads) {
+                    tracks.addAll(processMediaFiles(newMediaFiles, album, dto.getMedia()));
+                }
+
+                attachMediaLinksFromDto(album, dto.getMedia(), tracks);
+
+                album.getMedia().addAll(tracks);
             }
 
-            // Update attachment if provided
-            if (newAttachment != null && !newAttachment.isEmpty()) {
-                String attachmentUrl = s3Service.upload(
-                        newAttachment.getBytes(),
-                        newAttachment.getOriginalFilename(),
-                        newAttachment.getContentType()
-                );
-                album.setAttachmentUrl(attachmentUrl);
-                album.setAttachmentType(getFileExtension(newAttachment.getOriginalFilename()));
-                log.info("✅ Attachment updated: {}", attachmentUrl);
-            }
+            // ✅ Attachment update: upload OR dto.attachment links
+            applyAttachment(album, dto.getAttachment(), newAttachment);
 
             AlbumOfMemories updated = albumRepository.save(album);
-            log.info("✅ Album updated successfully - ID: {}", updated.getId());
-
-            createAuditLog(updated, "UPDATE", "Album updated");
+            createAuditLog(updated, "UPDATE", "Album updated (uploads + links supported)");
 
             return convertToDto(updated);
 
@@ -292,24 +267,122 @@ public class AlbumOfMemoriesService {
         }
     }
 
-    /**
-     * ✅ DELETE ALBUM
-     */
+    // ============================================================
+    // DELETE
+    // ============================================================
+
     @Transactional
     public void deleteAlbum(Long albumId) {
-        log.info("🗑️ Deleting album - ID: {}", albumId);
-
         AlbumOfMemories album = albumRepository.findById(albumId)
                 .orElseThrow(() -> new EntityNotFoundException("Album not found: " + albumId));
-
         createAuditLog(album, "DELETE", "Album deleted");
         albumRepository.delete(album);
-        log.info("✅ Album deleted successfully - ID: {}", albumId);
     }
 
     // ============================================================
-    // HELPER METHODS
+    // HELPERS
     // ============================================================
+
+    private void validateAlbumDto(AlbumDto dto) {
+        if (dto == null) throw new BadRequestException("album.required", "Album body is required");
+        if (dto.getAlbumType() == null) throw new BadRequestException("album.type.required", "albumType is required");
+        if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty()) {
+            throw new BadRequestException("album.languages.required", "contentLanguages is required");
+        }
+    }
+
+    /**
+     * ✅ Tracks from DTO links (url/external/embed)
+     * - MEDIA TRACK: must have at least one of: url OR externalUrl OR embedUrl
+     */
+    private void attachMediaLinksFromDto(AlbumOfMemories album, List<AlbumDto.MediaDto> dtoMedia, List<AlbumMedia> out) {
+        if (dtoMedia == null || dtoMedia.isEmpty()) return;
+
+        Set<String> existing = new HashSet<>();
+        for (AlbumMedia m : out) {
+            String key = mediaKey(m.getUrl(), m.getEmbedUrl(), m.getExternalUrl(), m.getTrackNumber());
+            if (key != null) existing.add(key);
+        }
+
+        for (int i = 0; i < dtoMedia.size(); i++) {
+            AlbumDto.MediaDto m = dtoMedia.get(i);
+            if (m == null) continue;
+
+            String url = trimOrNull(m.getUrl());
+            String ext = trimOrNull(m.getExternalUrl());
+            String emb = trimOrNull(m.getEmbedUrl());
+
+            if (isBlank(url) && isBlank(ext) && isBlank(emb)) {
+                // user might send only metadata for uploaded track -> ignore if no link
+                continue;
+            }
+
+            Integer trackNumber = m.getTrackNumber() != null ? m.getTrackNumber() : (i + 1);
+
+            String key = mediaKey(url, emb, ext, trackNumber);
+            if (key != null && existing.contains(key)) continue;
+
+            AlbumMedia media = AlbumMedia.builder()
+                    .url(url)
+                    .externalUrl(ext)
+                    .embedUrl(emb)
+                    .trackNumber(trackNumber)
+                    .trackTitleCkb(m.getTrackTitleCkb())
+                    .trackTitleKmr(m.getTrackTitleKmr())
+                    .durationSeconds(m.getDurationSeconds())
+                    .fileFormat(m.getFileFormat())
+                    .fileSizeBytes(m.getFileSizeBytes())
+                    .album(album)
+                    .build();
+
+            out.add(media);
+            if (key != null) existing.add(key);
+        }
+    }
+
+    private String mediaKey(String url, String embed, String external, Integer trackNo) {
+        String best = trimOrNull(url);
+        if (best == null) best = trimOrNull(embed);
+        if (best == null) best = trimOrNull(external);
+        if (best == null) return null;
+        return (trackNo != null ? trackNo : 0) + "|" + best;
+    }
+
+    /**
+     * ✅ Attachment can be:
+     * - uploaded file (attachment param) OR
+     * - dtoAttachment.url/externalUrl/embedUrl
+     */
+    private void applyAttachment(AlbumOfMemories album, AlbumDto.AttachmentDto dtoAttachment, MultipartFile attachmentFile) throws IOException {
+        // upload wins
+        if (attachmentFile != null && !attachmentFile.isEmpty()) {
+            String url = s3Service.upload(
+                    attachmentFile.getBytes(),
+                    attachmentFile.getOriginalFilename(),
+                    attachmentFile.getContentType()
+            );
+            album.setAttachmentUrl(url);
+            album.setAttachmentExternalUrl(null);
+            album.setAttachmentEmbedUrl(null);
+            album.setAttachmentType(getFileExtension(attachmentFile.getOriginalFilename()));
+            return;
+        }
+
+        // dto attachment (optional)
+        if (dtoAttachment != null) {
+            String url = trimOrNull(dtoAttachment.getUrl());
+            String ext = trimOrNull(dtoAttachment.getExternalUrl());
+            String emb = trimOrNull(dtoAttachment.getEmbedUrl());
+
+            boolean hasAny = !isBlank(url) || !isBlank(ext) || !isBlank(emb);
+            if (hasAny) {
+                album.setAttachmentUrl(url);
+                album.setAttachmentExternalUrl(ext);
+                album.setAttachmentEmbedUrl(emb);
+                album.setAttachmentType(trimOrNull(dtoAttachment.getType()));
+            }
+        }
+    }
 
     private void setBilingualContent(AlbumOfMemories album, AlbumDto dto) {
         if (dto.getCkbContent() != null) {
@@ -319,7 +392,6 @@ public class AlbumOfMemoriesService {
                     .location(dto.getCkbContent().getLocation())
                     .build());
         }
-
         if (dto.getKmrContent() != null) {
             album.setKmrContent(AlbumContent.builder()
                     .title(dto.getKmrContent().getTitle())
@@ -331,33 +403,17 @@ public class AlbumOfMemoriesService {
 
     private void updateBilingualContent(AlbumOfMemories album, AlbumDto dto) {
         if (dto.getCkbContent() != null) {
-            if (album.getCkbContent() == null) {
-                album.setCkbContent(new AlbumContent());
-            }
-            if (dto.getCkbContent().getTitle() != null) {
-                album.getCkbContent().setTitle(dto.getCkbContent().getTitle());
-            }
-            if (dto.getCkbContent().getDescription() != null) {
-                album.getCkbContent().setDescription(dto.getCkbContent().getDescription());
-            }
-            if (dto.getCkbContent().getLocation() != null) {
-                album.getCkbContent().setLocation(dto.getCkbContent().getLocation());
-            }
+            if (album.getCkbContent() == null) album.setCkbContent(new AlbumContent());
+            if (dto.getCkbContent().getTitle() != null) album.getCkbContent().setTitle(dto.getCkbContent().getTitle());
+            if (dto.getCkbContent().getDescription() != null) album.getCkbContent().setDescription(dto.getCkbContent().getDescription());
+            if (dto.getCkbContent().getLocation() != null) album.getCkbContent().setLocation(dto.getCkbContent().getLocation());
         }
 
         if (dto.getKmrContent() != null) {
-            if (album.getKmrContent() == null) {
-                album.setKmrContent(new AlbumContent());
-            }
-            if (dto.getKmrContent().getTitle() != null) {
-                album.getKmrContent().setTitle(dto.getKmrContent().getTitle());
-            }
-            if (dto.getKmrContent().getDescription() != null) {
-                album.getKmrContent().setDescription(dto.getKmrContent().getDescription());
-            }
-            if (dto.getKmrContent().getLocation() != null) {
-                album.getKmrContent().setLocation(dto.getKmrContent().getLocation());
-            }
+            if (album.getKmrContent() == null) album.setKmrContent(new AlbumContent());
+            if (dto.getKmrContent().getTitle() != null) album.getKmrContent().setTitle(dto.getKmrContent().getTitle());
+            if (dto.getKmrContent().getDescription() != null) album.getKmrContent().setDescription(dto.getKmrContent().getDescription());
+            if (dto.getKmrContent().getLocation() != null) album.getKmrContent().setLocation(dto.getKmrContent().getLocation());
         }
     }
 
@@ -391,7 +447,7 @@ public class AlbumOfMemoriesService {
 
         for (int i = 0; i < files.size(); i++) {
             MultipartFile file = files.get(i);
-            if (file.isEmpty()) continue;
+            if (file == null || file.isEmpty()) continue;
 
             String mediaUrl = s3Service.upload(
                     file.getBytes(),
@@ -399,13 +455,14 @@ public class AlbumOfMemoriesService {
                     file.getContentType()
             );
 
-            // Get additional metadata from DTO if provided
             AlbumDto.MediaDto mediaDto = (mediaDtos != null && i < mediaDtos.size())
                     ? mediaDtos.get(i) : null;
 
             AlbumMedia media = AlbumMedia.builder()
                     .url(mediaUrl)
-                    .trackNumber(mediaDto != null ? mediaDto.getTrackNumber() : i + 1)
+                    .externalUrl(null)
+                    .embedUrl(null)
+                    .trackNumber(mediaDto != null && mediaDto.getTrackNumber() != null ? mediaDto.getTrackNumber() : i + 1)
                     .trackTitleCkb(mediaDto != null ? mediaDto.getTrackTitleCkb() : null)
                     .trackTitleKmr(mediaDto != null ? mediaDto.getTrackTitleKmr() : null)
                     .durationSeconds(mediaDto != null ? mediaDto.getDurationSeconds() : null)
@@ -421,9 +478,7 @@ public class AlbumOfMemoriesService {
     }
 
     private String getFileExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return null;
-        }
+        if (filename == null || !filename.contains(".")) return null;
         return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
     }
 
@@ -437,6 +492,7 @@ public class AlbumOfMemoriesService {
         auditLogRepository.save(auditLog);
     }
 
+    // ✅ UPDATED: includes external/embed in response
     private AlbumDto convertToDto(AlbumOfMemories album) {
         AlbumDto dto = AlbumDto.builder()
                 .id(album.getId())
@@ -451,7 +507,6 @@ public class AlbumOfMemoriesService {
                 .updatedAt(album.getUpdatedAt())
                 .build();
 
-        // CKB Content
         if (album.getCkbContent() != null) {
             dto.setCkbContent(AlbumDto.LanguageContentDto.builder()
                     .title(album.getCkbContent().getTitle())
@@ -460,7 +515,6 @@ public class AlbumOfMemoriesService {
                     .build());
         }
 
-        // KMR Content
         if (album.getKmrContent() != null) {
             dto.setKmrContent(AlbumDto.LanguageContentDto.builder()
                     .title(album.getKmrContent().getTitle())
@@ -469,24 +523,24 @@ public class AlbumOfMemoriesService {
                     .build());
         }
 
-        // Tags
         dto.setTags(AlbumDto.BilingualSet.builder()
                 .ckb(new LinkedHashSet<>(album.getTagsCkb()))
                 .kmr(new LinkedHashSet<>(album.getTagsKmr()))
                 .build());
 
-        // Keywords
         dto.setKeywords(AlbumDto.BilingualSet.builder()
                 .ckb(new LinkedHashSet<>(album.getKeywordsCkb()))
                 .kmr(new LinkedHashSet<>(album.getKeywordsKmr()))
                 .build());
 
-        // Media files
         if (album.getMedia() != null && !album.getMedia().isEmpty()) {
             List<AlbumDto.MediaDto> mediaDtos = album.getMedia().stream()
+                    .sorted(Comparator.comparingInt(m -> m.getTrackNumber() != null ? m.getTrackNumber() : 0))
                     .map(media -> AlbumDto.MediaDto.builder()
                             .id(media.getId())
                             .url(media.getUrl())
+                            .externalUrl(media.getExternalUrl())
+                            .embedUrl(media.getEmbedUrl())
                             .trackTitleCkb(media.getTrackTitleCkb())
                             .trackTitleKmr(media.getTrackTitleKmr())
                             .trackNumber(media.getTrackNumber())
@@ -499,14 +553,31 @@ public class AlbumOfMemoriesService {
             dto.setMedia(mediaDtos);
         }
 
-        // Attachment
-        if (album.getAttachmentUrl() != null) {
+        // Attachment (updated)
+        boolean hasAttach =
+                (album.getAttachmentUrl() != null && !album.getAttachmentUrl().isBlank()) ||
+                        (album.getAttachmentExternalUrl() != null && !album.getAttachmentExternalUrl().isBlank()) ||
+                        (album.getAttachmentEmbedUrl() != null && !album.getAttachmentEmbedUrl().isBlank());
+
+        if (hasAttach) {
             dto.setAttachment(AlbumDto.AttachmentDto.builder()
                     .url(album.getAttachmentUrl())
+                    .externalUrl(album.getAttachmentExternalUrl())
+                    .embedUrl(album.getAttachmentEmbedUrl())
                     .type(album.getAttachmentType())
                     .build());
         }
 
         return dto;
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    private String trimOrNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 }

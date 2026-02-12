@@ -1,4 +1,5 @@
 package ak.dev.khi_backend.khi_app.dto.publishment.film;
+
 import ak.dev.khi_backend.khi_app.enums.publishment.FilmType;
 import ak.dev.khi_backend.khi_app.model.publishment.film.Film;
 import ak.dev.khi_backend.khi_app.model.publishment.film.FilmContent;
@@ -11,7 +12,7 @@ public class FilmMapper {
 
     private FilmMapper() {}
 
-    // ─── DTO → Entity (coverUrl & sourceUrl set by service after S3 upload) ──
+    // DTO → Entity (coverUrl/source fields are applied by service)
     public static Film toEntity(FilmDTO dto) {
         return Film.builder()
                 .ckbContent(toContentEntity(dto.getCkbContent()))
@@ -30,12 +31,14 @@ public class FilmMapper {
                 .build();
     }
 
-    // ─── Entity → DTO ─────────────────────────────────────────────────
+    // Entity → DTO
     public static FilmDTO toDTO(Film film) {
         return FilmDTO.builder()
                 .id(film.getId())
                 .coverUrl(film.getCoverUrl())
                 .sourceUrl(film.getSourceUrl())
+                .sourceExternalUrl(film.getSourceExternalUrl())
+                .sourceEmbedUrl(film.getSourceEmbedUrl())
                 .ckbContent(toContentDTO(film.getCkbContent()))
                 .kmrContent(toContentDTO(film.getKmrContent()))
                 .filmType(film.getFilmType().name())
@@ -55,7 +58,7 @@ public class FilmMapper {
                 .build();
     }
 
-    // ─── Update entity from DTO (preserves existing S3 URLs if not re-uploaded) ──
+    // Update entity from DTO (does not override urls unless service sets them)
     public static void updateEntity(Film film, FilmDTO dto) {
         film.setCkbContent(toContentEntity(dto.getCkbContent()));
         film.setKmrContent(toContentEntity(dto.getKmrContent()));
@@ -73,7 +76,7 @@ public class FilmMapper {
         updateSet(film.getKeywordsKmr(), dto.getKeywordsKmr());
     }
 
-    // ─── FilmLog → DTO ───────────────────────────────────────────────
+    // FilmLog → DTO
     public static FilmLogDTO toLogDTO(FilmLog log) {
         return FilmLogDTO.builder()
                 .id(log.getId())
@@ -86,8 +89,7 @@ public class FilmMapper {
                 .build();
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────
-
+    // Helpers
     private static FilmContent toContentEntity(FilmContentDTO dto) {
         if (dto == null) return null;
         return FilmContent.builder()

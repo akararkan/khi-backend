@@ -1,6 +1,5 @@
 package ak.dev.khi_backend.khi_app.service.publishment.film;
 
-
 import ak.dev.khi_backend.khi_app.dto.publishment.film.FilmDTO;
 import ak.dev.khi_backend.khi_app.dto.publishment.film.FilmLogDTO;
 import ak.dev.khi_backend.khi_app.dto.publishment.film.FilmMapper;
@@ -12,10 +11,7 @@ import ak.dev.khi_backend.khi_app.service.S3Service;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,14 +39,23 @@ public class FilmService {
     public FilmDTO addFilm(FilmDTO dto, MultipartFile coverFile, MultipartFile filmFile) {
         Film film = FilmMapper.toEntity(dto);
 
+        // ✅ cover required (upload OR dto.coverUrl)
+        String coverUrl = null;
         if (coverFile != null && !coverFile.isEmpty()) {
-            film.setCoverUrl(uploadToS3(coverFile));
+            coverUrl = uploadToS3(coverFile);
+        } else if (!isBlank(dto.getCoverUrl())) {
+            coverUrl = dto.getCoverUrl().trim();
         }
-        if (filmFile != null && !filmFile.isEmpty()) {
-            film.setSourceUrl(uploadToS3(filmFile));
+        if (isBlank(coverUrl)) {
+            throw new IllegalArgumentException("cover is required (coverFile OR coverUrl)");
         }
+        film.setCoverUrl(coverUrl);
+
+        // ✅ film source optional (upload OR sourceUrl OR sourceExternalUrl OR sourceEmbedUrl)
+        applyFilmSource(film, dto, filmFile);
 
         Film saved = filmRepository.save(film);
+
         logAction(saved.getId(), getFilmTitle(saved), ACTION_CREATED,
                 "Film created with type: " + saved.getFilmType().name());
 
@@ -92,12 +97,15 @@ public class FilmService {
         Film film = findFilmOrThrow(id);
         FilmMapper.updateEntity(film, dto);
 
+        // cover optional update
         if (coverFile != null && !coverFile.isEmpty()) {
             film.setCoverUrl(uploadToS3(coverFile));
+        } else if (!isBlank(dto.getCoverUrl())) {
+            film.setCoverUrl(dto.getCoverUrl().trim());
         }
-        if (filmFile != null && !filmFile.isEmpty()) {
-            film.setSourceUrl(uploadToS3(filmFile));
-        }
+
+        // ✅ film source: upload OR dto links OR keep old if dto didn't send any source fields and no upload
+        applyFilmSourceForUpdate(film, dto, filmFile);
 
         Film updated = filmRepository.save(film);
         logAction(updated.getId(), getFilmTitle(updated), ACTION_UPDATED, "Film updated");
@@ -160,12 +168,70 @@ public class FilmService {
     }
 
     private String getFilmTitle(Film film) {
-        if (film.getCkbContent() != null && film.getCkbContent().getTitle() != null) {
-            return film.getCkbContent().getTitle();
-        }
-        if (film.getKmrContent() != null && film.getKmrContent().getTitle() != null) {
-            return film.getKmrContent().getTitle();
-        }
+        if (film.getCkbContent() != null && film.getCkbContent().getTitle() != null) return film.getCkbContent().getTitle();
+        if (film.getKmrContent() != null && film.getKmrContent().getTitle() != null) return film.getKmrContent().getTitle();
         return "Untitled Film";
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    /**
+     * ✅ Create: film source is optional.
+     * - If uploaded file exists => set sourceUrl and clear external/embed
+     * - Else if dto has any source fields => set them
+     * - Else => leave all null
+     */
+    private void applyFilmSource(Film film, FilmDTO dto, MultipartFile filmFile) {
+        if (filmFile != null && !filmFile.isEmpty()) {
+            film.setSourceUrl(uploadToS3(filmFile));
+            film.setSourceExternalUrl(null);
+            film.setSourceEmbedUrl(null);
+            return;
+        }
+
+        String url = dto != null ? trimOrNull(dto.getSourceUrl()) : null;
+        String ext = dto != null ? trimOrNull(dto.getSourceExternalUrl()) : null;
+        String emb = dto != null ? trimOrNull(dto.getSourceEmbedUrl()) : null;
+
+        if (!isBlank(url) || !isBlank(ext) || !isBlank(emb)) {
+            film.setSourceUrl(url);
+            film.setSourceExternalUrl(ext);
+            film.setSourceEmbedUrl(emb);
+        }
+    }
+
+    /**
+     * ✅ Update: if user sends any source fields OR uploads film, we update.
+     * If user sends nothing for source, keep existing.
+     */
+    private void applyFilmSourceForUpdate(Film film, FilmDTO dto, MultipartFile filmFile) {
+        if (filmFile != null && !filmFile.isEmpty()) {
+            film.setSourceUrl(uploadToS3(filmFile));
+            film.setSourceExternalUrl(null);
+            film.setSourceEmbedUrl(null);
+            return;
+        }
+
+        boolean dtoTouchedSource =
+                dto != null && (dto.getSourceUrl() != null || dto.getSourceExternalUrl() != null || dto.getSourceEmbedUrl() != null);
+
+        if (!dtoTouchedSource) return;
+
+        String url = trimOrNull(dto.getSourceUrl());
+        String ext = trimOrNull(dto.getSourceExternalUrl());
+        String emb = trimOrNull(dto.getSourceEmbedUrl());
+
+        // if user intentionally sends empty strings => we treat as null (clear)
+        film.setSourceUrl(url);
+        film.setSourceExternalUrl(ext);
+        film.setSourceEmbedUrl(emb);
+    }
+
+    private String trimOrNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 }

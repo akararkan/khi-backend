@@ -1,10 +1,7 @@
-package ak.dev.khi_backend.khi_app.dto.project;
+package ak.dev.khi_backend.khi_app.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Data
 @Builder
@@ -25,7 +22,7 @@ public class ApiResponse<T> {
                 .build();
     }
 
-    public static <T> ApiResponse<T> error(String message) {
+    public static <T> ApiResponse<T> fail(String message) {
         return ApiResponse.<T>builder()
                 .success(false)
                 .message(message)

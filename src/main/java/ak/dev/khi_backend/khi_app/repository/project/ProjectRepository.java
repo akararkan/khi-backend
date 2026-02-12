@@ -5,48 +5,86 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
 
-public interface ProjectRepository
-        extends JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
+public interface ProjectRepository extends JpaRepository<Project, Long> {
 
-    // ✅ Keep your existing methods (NO change)
-    @Query("""
-        select distinct p from Project p
-        where lower(p.title) like lower(concat('%', :q, '%'))
-    """)
-    Page<Project> searchByTitle(@Param("q") String q, Pageable pageable);
+    // ============================================================
+    // SEARCH BY TAG (CKB or KMR)
+    // ============================================================
 
-    @Query("""
-        select distinct p from Project p
-        join p.tags t
-        where lower(t.name) = lower(:tag)
-    """)
+    @Query(
+            value = """
+            select distinct p from Project p
+            left join fetch p.tagsCkb tckb
+            left join fetch p.tagsKmr tkmr
+            left join fetch p.contentsCkb
+            left join fetch p.contentsKmr
+            left join fetch p.keywordsCkb
+            left join fetch p.keywordsKmr
+            left join fetch p.media
+            left join fetch p.contentLanguages
+            where
+                (tckb is not null and lower(tckb.name) = lower(:tag))
+                or
+                (tkmr is not null and lower(tkmr.name) = lower(:tag))
+            """,
+            countQuery = """
+            select count(distinct p) from Project p
+            left join p.tagsCkb tckb
+            left join p.tagsKmr tkmr
+            where
+                (tckb is not null and lower(tckb.name) = lower(:tag))
+                or
+                (tkmr is not null and lower(tkmr.name) = lower(:tag))
+            """
+    )
     Page<Project> searchByTag(@Param("tag") String tag, Pageable pageable);
 
-    @Query("""
-        select distinct p from Project p
-        join p.contents c
-        where lower(c.name) = lower(:content)
-    """)
-    Page<Project> searchByContent(@Param("content") String content, Pageable pageable);
+    // ============================================================
+    // SEARCH BY KEYWORD (CKB or KMR)
+    // ============================================================
 
-    @Query("""
-        select distinct p from Project p
-        join p.keywords k
-        where lower(k.name) = lower(:keyword)
-    """)
+    @Query(
+            value = """
+            select distinct p from Project p
+            left join fetch p.keywordsCkb kckb
+            left join fetch p.keywordsKmr kkmr
+            left join fetch p.tagsCkb
+            left join fetch p.tagsKmr
+            left join fetch p.contentsCkb
+            left join fetch p.contentsKmr
+            left join fetch p.media
+            left join fetch p.contentLanguages
+            where
+                (kckb is not null and lower(kckb.name) = lower(:keyword))
+                or
+                (kkmr is not null and lower(kkmr.name) = lower(:keyword))
+            """,
+            countQuery = """
+            select count(distinct p) from Project p
+            left join p.keywordsCkb kckb
+            left join p.keywordsKmr kkmr
+            where
+                (kckb is not null and lower(kckb.name) = lower(:keyword))
+                or
+                (kkmr is not null and lower(kkmr.name) = lower(:keyword))
+            """
+    )
     Page<Project> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
-    /**
-     * ✅ Important addition:
-     * This makes Specification-based queries fetch relations so JSON mapping won't crash.
-     * It does NOT break your custom @Query methods.
-     */
+    // ============================================================
+    // GET ALL with eager fetch (avoids N+1)
+    // ============================================================
+
     @Override
-    @EntityGraph(attributePaths = {"contents", "tags", "keywords", "media"})
-    Page<Project> findAll(Specification<Project> spec, Pageable pageable);
+    @EntityGraph(attributePaths = {
+            "contentsCkb", "contentsKmr",
+            "tagsCkb", "tagsKmr",
+            "keywordsCkb", "keywordsKmr",
+            "media",
+            "contentLanguages"
+    })
+    Page<Project> findAll(Pageable pageable);
 }

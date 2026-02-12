@@ -5,7 +5,9 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -14,50 +16,51 @@ import java.util.List;
 @Builder
 public class ProjectCreateRequest {
 
-    // ==============================
-    // Project core fields
-    // ==============================
-
-    // S3 image cover URL
     private String coverUrl;
 
-    private String title;
-
-    private String description;
-
-    // example: music, writing, art, film
     private String projectType;
-
-    // ==============================
-    // Dynamic relations (M2M)
-    // ==============================
-
-    // dynamic content names
-    @Builder.Default
-    private List<String> contents = new ArrayList<>();
-
-    // tags
-    @Builder.Default
-    private List<String> tags = new ArrayList<>();
-
-    // keywords for search variations
-    @Builder.Default
-    private List<String> keywords = new ArrayList<>();
-
-    // ==============================
-    // Metadata
-    // ==============================
 
     private LocalDate projectDate;
 
-    private String location;
+    // Which languages exist in this project: CKB, KMR, or both
+    @Builder.Default
+    private Set<Language> contentLanguages = new LinkedHashSet<>();
 
-    private Language language;
+    // multilingual content blocks
+    private ProjectContentBlockDto ckbContent;
+    private ProjectContentBlockDto kmrContent;
 
-    // ==============================
-    // Media (1 -> many)
-    // ==============================
+    // per-language relations (names only)
+    @Builder.Default
+    private List<String> contentsCkb = new ArrayList<>();
+    @Builder.Default
+    private List<String> contentsKmr = new ArrayList<>();
 
     @Builder.Default
+    private List<String> tagsCkb = new ArrayList<>();
+    @Builder.Default
+    private List<String> tagsKmr = new ArrayList<>();
+
+    @Builder.Default
+    private List<String> keywordsCkb = new ArrayList<>();
+    @Builder.Default
+    private List<String> keywordsKmr = new ArrayList<>();
+
+    // media (shared)
+    @Builder.Default
     private List<ProjectMediaCreateRequest> media = new ArrayList<>();
+
+    // ------------------------------------------------------------
+    // Inner DTO: content block
+    // ------------------------------------------------------------
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ProjectContentBlockDto {
+        private String title;
+        private String description;
+        private String location;
+    }
 }

@@ -1,6 +1,6 @@
 package ak.dev.khi_backend.khi_app.api.project;
 
-import ak.dev.khi_backend.khi_app.dto.project.ApiResponse;
+import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
 import ak.dev.khi_backend.khi_app.model.project.Project;
@@ -9,9 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,21 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * REST controller for Project management
- *
- * Endpoints:
- * - POST   /api/v1/projects/create          - Create project (JSON)
- * - POST   /api/v1/projects/with-files      - Create project with file uploads
- * - PUT    /api/v1/projects/update/{id}     - Update project
- * - DELETE /api/v1/projects/delete/{id}     - Delete project
- * - GET    /api/v1/projects/getAll          - Get all projects (paginated)
- * - GET    /api/v1/projects/search          - Enhanced multi-filter search
- * - GET    /api/v1/projects/search/name     - Search by name
- * - GET    /api/v1/projects/search/tag      - Search by tag
- * - GET    /api/v1/projects/search/content  - Search by content
- * - GET    /api/v1/projects/search/keyword  - Search by keyword
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/projects")
@@ -44,21 +26,18 @@ public class ProjectController {
 
     private final ProjectService projectService;
 
-    // ══════════════════════════════════════════════════════════════
-    // CREATE OPERATIONS
-    // ══════════════════════════════════════════════════════════════
+    // ============================================================
+    // CREATE
+    // ============================================================
 
-    /**
-     * Create project with JSON body
-     *
-     * @param request Project data (title, description, tags, etc.)
-     * @return Created project
-     */
-    @PostMapping("/create")
+    @PostMapping(value = "/create", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Project>> create(
             @Valid @RequestBody ProjectCreateRequest request
     ) {
-        log.info("POST /api/v1/projects/create | title={}", request.getTitle());
+        log.info("POST /api/v1/projects/create | langs={} | mediaDtoCount={}",
+                request.getContentLanguages(),
+                request.getMedia() != null ? request.getMedia().size() : 0
+        );
 
         Project project = projectService.create(request);
 
@@ -68,22 +47,31 @@ public class ProjectController {
     }
 
     /**
-     * Create project with file uploads
-     *
-     * @param request Project data
-     * @param cover Cover image file (optional)
-     * @param mediaFiles Media files (optional)
-     * @return Created project
+     * - "data" = JSON ProjectCreateRequest (contains media links/externalUrl/embedUrl too)
+     * - "cover" optional
+     * - "media" optional
+     * - you can send ONLY links (no files) and it works
      */
-    @PostMapping(value = "/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(
+            value = "/with-files",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     public ResponseEntity<ApiResponse<Project>> createWithFiles(
-            @RequestPart("data") @Valid ProjectCreateRequest request,
+            @RequestPart(value = "data") @Valid ProjectCreateRequest request,
             @RequestPart(value = "cover", required = false) MultipartFile cover,
             @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
     ) throws IOException {
-        int fileCount = (mediaFiles != null ? mediaFiles.size() : 0) + (cover != null ? 1 : 0);
-        log.info("POST /api/v1/projects/with-files | title={} | files={}",
-                request.getTitle(), fileCount);
+
+        int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
+        int coverCount = (cover != null && !cover.isEmpty()) ? 1 : 0;
+
+        log.info("POST /api/v1/projects/with-files | langs={} | cover={} | mediaFiles={} | mediaDtoCount={}",
+                request.getContentLanguages(),
+                coverCount,
+                mediaFilesCount,
+                request.getMedia() != null ? request.getMedia().size() : 0
+        );
 
         Project project = projectService.create(request, cover, mediaFiles);
 
@@ -92,23 +80,20 @@ public class ProjectController {
                 .body(ApiResponse.success(project, "Project created successfully"));
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // UPDATE OPERATIONS
-    // ══════════════════════════════════════════════════════════════
+    // ============================================================
+    // UPDATE
+    // ============================================================
 
-    /**
-     * Update existing project
-     *
-     * @param id Project ID
-     * @param request Updated project data
-     * @return Updated project
-     */
-    @PutMapping("/update/{id}")
+    @PutMapping(value = "/update/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Project>> update(
             @PathVariable("id") Long id,
             @Valid @RequestBody ProjectCreateRequest request
     ) {
-        log.info("PUT /api/v1/projects/update/{} | title={}", id, request.getTitle());
+        log.info("PUT /api/v1/projects/update/{} | langs={} | mediaDtoCount={}",
+                id,
+                request.getContentLanguages(),
+                request.getMedia() != null ? request.getMedia().size() : 0
+        );
 
         Project project = projectService.update(id, request);
 
@@ -117,20 +102,40 @@ public class ProjectController {
         );
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // DELETE OPERATIONS
-    // ══════════════════════════════════════════════════════════════
+    @PutMapping(
+            value = "/update/{id}/with-files",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<Project>> updateWithFiles(
+            @PathVariable("id") Long id,
+            @RequestPart(value = "data") @Valid ProjectCreateRequest request,
+            @RequestPart(value = "cover", required = false) MultipartFile cover,
+            @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
+    ) throws IOException {
 
-    /**
-     * Delete project by ID
-     *
-     * @param id Project ID
-     * @return Success response
-     */
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable("id") Long id
-    ) {
+        int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
+        int coverCount = (cover != null && !cover.isEmpty()) ? 1 : 0;
+
+        log.info("PUT /api/v1/projects/update/{}/with-files | langs={} | cover={} | mediaFiles={} | mediaDtoCount={}",
+                id,
+                request.getContentLanguages(),
+                coverCount,
+                mediaFilesCount,
+                request.getMedia() != null ? request.getMedia().size() : 0
+        );
+
+        Project updated = projectService.updateWithFiles(id, request, cover, mediaFiles);
+
+        return ResponseEntity.ok(ApiResponse.success(updated, "Project updated successfully"));
+    }
+
+    // ============================================================
+    // DELETE
+    // ============================================================
+
+    @DeleteMapping(value = "/delete/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         log.info("DELETE /api/v1/projects/delete/{}", id);
 
         projectService.delete(id);
@@ -140,207 +145,59 @@ public class ProjectController {
         );
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // READ OPERATIONS - GET ALL
-    // ══════════════════════════════════════════════════════════════
+    // ============================================================
+    // GET ALL
+    // ============================================================
 
-    /**
-     * Get all projects (paginated & sorted)
-     *
-     * Example: GET /api/v1/projects/getAll?page=0&size=20&sort=createdAt&dir=desc
-     *
-     * @param page Page number (0-indexed)
-     * @param size Page size
-     * @param sort Sort field
-     * @param dir Sort direction (asc/desc)
-     * @return Page of projects
-     */
-    @GetMapping("/getAll")
+    @GetMapping(value = "/getAll", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "createdAt") String sort,
-            @RequestParam(defaultValue = "desc") String dir
+            @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/projects/getAll | page={} size={} sort={} dir={}",
-                page, size, sort, dir);
+        log.info("GET /api/v1/projects/getAll | page={} size={}", page, size);
 
-        Sort.Direction direction = "asc".equalsIgnoreCase(dir)
-                ? Sort.Direction.ASC
-                : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sort));
-
-        Page<ProjectResponse> result = projectService.getAllResponse(pageable);
+        Page<ProjectResponse> result = projectService.getAllResponse(page, size);
 
         return ResponseEntity.ok(
                 ApiResponse.success(result, "Projects fetched successfully")
         );
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // SEARCH OPERATIONS - SINGLE FILTER
-    // ══════════════════════════════════════════════════════════════
+    // ============================================================
+    // SEARCH BY TAG
+    // ============================================================
 
-    /**
-     * Search projects by name/title (contains, case-insensitive)
-     *
-     * Example: GET /api/v1/projects/search/name?q=festival&page=0&size=20
-     *
-     * @param q Search query
-     * @param page Page number
-     * @param size Page size
-     * @return Page of matching projects
-     */
-    @GetMapping("/search/name")
-    public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByName(
-            @RequestParam("q") String q,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        log.info("GET /api/v1/projects/search/name | q={}", q);
-
-        Pageable pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        Page<ProjectResponse> result = projectService.searchByNameResponse(q, pageable);
-
-        return ResponseEntity.ok(
-                ApiResponse.success(result, "Search by name completed")
-        );
-    }
-
-    /**
-     * Search projects by tag (exact match, case-insensitive)
-     *
-     * Example: GET /api/v1/projects/search/tag?tag=culture&page=0&size=20
-     *
-     * @param tag Tag name
-     * @param page Page number
-     * @param size Page size
-     * @return Page of matching projects
-     */
-    @GetMapping("/search/tag")
+    @GetMapping(value = "/search/tag", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByTag(
             @RequestParam("tag") String tag,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/projects/search/tag | tag={}", tag);
+        log.info("GET /api/v1/projects/search/tag | tag={} | page={} size={}", tag, page, size);
 
-        Pageable pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        Page<ProjectResponse> result = projectService.searchByTagResponse(tag, pageable);
+        Page<ProjectResponse> result = projectService.searchByTagResponse(tag, page, size);
 
         return ResponseEntity.ok(
                 ApiResponse.success(result, "Search by tag completed")
         );
     }
 
-    /**
-     * Search projects by content type (exact match, case-insensitive)
-     *
-     * Example: GET /api/v1/projects/search/content?content=poetry&page=0&size=20
-     *
-     * @param content Content type name
-     * @param page Page number
-     * @param size Page size
-     * @return Page of matching projects
-     */
-    @GetMapping("/search/content")
-    public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByContent(
-            @RequestParam("content") String content,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        log.info("GET /api/v1/projects/search/content | content={}", content);
+    // ============================================================
+    // SEARCH BY KEYWORD
+    // ============================================================
 
-        Pageable pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        Page<ProjectResponse> result = projectService.searchByContentResponse(content, pageable);
-
-        return ResponseEntity.ok(
-                ApiResponse.success(result, "Search by content completed")
-        );
-    }
-
-    /**
-     * Search projects by keyword (exact match, case-insensitive)
-     *
-     * Example: GET /api/v1/projects/search/keyword?keyword=kurdish&page=0&size=20
-     *
-     * @param keyword Keyword
-     * @param page Page number
-     * @param size Page size
-     * @return Page of matching projects
-     */
-    @GetMapping("/search/keyword")
+    @GetMapping(value = "/search/keyword", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByKeyword(
             @RequestParam("keyword") String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/projects/search/keyword | keyword={}", keyword);
+        log.info("GET /api/v1/projects/search/keyword | keyword={} | page={} size={}", keyword, page, size);
 
-        Pageable pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        Page<ProjectResponse> result = projectService.searchByKeywordResponse(keyword, pageable);
+        Page<ProjectResponse> result = projectService.searchByKeywordResponse(keyword, page, size);
 
         return ResponseEntity.ok(
                 ApiResponse.success(result, "Search by keyword completed")
-        );
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // SEARCH OPERATIONS - MULTI FILTER (ENHANCED)
-    // ══════════════════════════════════════════════════════════════
-
-    /**
-     * Enhanced search with multiple filters
-     *
-     * Example:
-     * GET /api/v1/projects/search?name=festival&tags=culture&tags=arts&keywords=kurdish&page=0&size=20
-     *
-     * Filters:
-     * - name: Title contains (case-insensitive)
-     * - tags: Exact match, multiple values (case-insensitive)
-     * - contents: Exact match, multiple values (case-insensitive)
-     * - keywords: Exact match, multiple values (case-insensitive)
-     *
-     * @param name Name/title search query (optional)
-     * @param tags List of tags to filter by (optional)
-     * @param contents List of content types to filter by (optional)
-     * @param keywords List of keywords to filter by (optional)
-     * @param page Page number
-     * @param size Page size
-     * @return Page of matching projects
-     */
-    @GetMapping("/search")
-    public ResponseEntity<ApiResponse<Page<ProjectResponse>>> enhancedSearch(
-            @RequestParam(value = "name", required = false) String name,
-            @RequestParam(value = "tags", required = false) List<String> tags,
-            @RequestParam(value = "contents", required = false) List<String> contents,
-            @RequestParam(value = "keywords", required = false) List<String> keywords,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "12") int size
-    ) {
-        log.info("GET /api/v1/projects/search | name={} tags={} contents={} keywords={}",
-                name,
-                tags != null ? tags.size() : 0,
-                contents != null ? contents.size() : 0,
-                keywords != null ? keywords.size() : 0);
-
-        Pageable pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        Page<ProjectResponse> result = projectService.enhancedSearchResponse(
-                name, tags, contents, keywords, pageable
-        );
-
-        return ResponseEntity.ok(
-                ApiResponse.success(result, "Enhanced search completed")
         );
     }
 }

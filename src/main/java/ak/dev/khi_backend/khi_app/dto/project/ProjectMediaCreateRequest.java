@@ -9,18 +9,24 @@ import lombok.*;
 @Builder
 public class ProjectMediaCreateRequest {
 
-    // IMAGE | VIDEO | AUDIO | TEXT
+    // IMAGE | VIDEO | AUDIO | PDF | DOCUMENT
     private String mediaType;
 
-    // S3 URL (stored in DB)
+    // S3 url (or already uploaded url). Optional for AUDIO/VIDEO if you provide externalUrl/embedUrl
     private String url;
 
-    // optional caption
+    // Optional external link (e.g., YouTube, SoundCloud, etc.)
+    private String externalUrl;
+
+    // Optional embeddable link (e.g., iframe src)
+    private String embedUrl;
+
+    // optional
     private String caption;
 
-    // ordering inside project
+    // ordering
     private Integer sortOrder;
 
-    // only used when mediaType = TEXT
+    // optional (if you support TEXT media later)
     private String textBody;
 }

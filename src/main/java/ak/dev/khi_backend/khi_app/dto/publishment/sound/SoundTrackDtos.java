@@ -16,14 +16,70 @@ public final class SoundTrackDtos {
     private SoundTrackDtos() {}
 
     // =========================
-    // FILE RESPONSE
+    // LANGUAGE CONTENT DTO
+    // =========================
+    @Getter @Setter
+    @NoArgsConstructor @AllArgsConstructor
+    @Builder
+    public static class LanguageContentDto {
+        @Size(max = 200)
+        private String title;
+
+        @Size(max = 4000)
+        private String description;
+
+        @Size(max = 255)
+        private String reading;
+    }
+
+    // =========================
+    // BILINGUAL SET DTO
+    // =========================
+    @Getter @Setter
+    @NoArgsConstructor @AllArgsConstructor
+    @Builder
+    public static class BilingualSet {
+        private Set<String> ckb;
+        private Set<String> kmr;
+    }
+
+    // =========================
+    // FILE CREATE REQUEST (NEW ✅)
+    // =========================
+    @Getter @Setter
+    @NoArgsConstructor @AllArgsConstructor
+    @Builder
+    public static class FileCreateRequest {
+        /**
+         * Direct hosted file url (S3)
+         * OR externalUrl OR embedUrl (at least one is required)
+         */
+        private String fileUrl;
+        private String externalUrl;
+        private String embedUrl;
+
+        private FileType fileType;
+
+        private Long durationSeconds; // optional, set 0 if null
+        private Long sizeBytes;       // optional, set 0 if null
+
+        private String readerName;    // optional
+        private Integer sortOrder;    // optional (not stored currently, but can be used later)
+    }
+
+    // =========================
+    // FILE RESPONSE (UPDATED ✅)
     // =========================
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class FileResponse {
         private Long id;
+
         private String fileUrl;
+        private String externalUrl;
+        private String embedUrl;
+
         private FileType fileType;
         private long durationSeconds;
         private long sizeBytes;
@@ -31,137 +87,80 @@ public final class SoundTrackDtos {
     }
 
     // =========================
-    // SOUNDTRACK CREATE REQUEST (For Form Data)
+    // SOUNDTRACK CREATE REQUEST
     // =========================
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class CreateRequest {
 
-        @NotBlank
-        @Size(max = 200)
-        private String title;
-
-        @Size(max = 4000)
-        private String description;
-
-        @Size(max = 255)
-        private String reading;
-
         @NotNull
         private SoundType soundType;
 
         @NotNull
-        private Language language;
+        private TrackState trackState;
 
-        // CHANGED: locations as comma-separated string (easier for form-data)
-        private String locations; // e.g., "Sulaymaniyah,Erbil,Duhok"
+        @NotNull
+        @NotEmpty(message = "At least one content language is required")
+        private Set<Language> contentLanguages;
+
+        private LanguageContentDto ckbContent;
+        private LanguageContentDto kmrContent;
+
+        private Set<String> locations;
 
         @Size(max = 255)
         private String director;
 
         private boolean isThisProjectOfInstitute;
 
-        @NotNull
-        private TrackState trackState;
+        private BilingualSet tags;
+        private BilingualSet keywords;
 
-        // For multi-file upload, reader names correspond to each audio file
+        /**
+         * Optional uploaded files reader names (for multipart upload ordering)
+         */
         private List<String> readerNames;
 
-        // Tags and keywords as comma-separated strings (easier for form-data)
-        private String keywords; // e.g., "story,folklore,kurdish"
-        private String tags;     // e.g., "audio,culture"
-
-        // Helper methods to convert to Set
-        public Set<String> getLocationsSet() {
-            if (locations == null || locations.isBlank()) return Set.of();
-            return Set.of(locations.split(","));
-        }
-
-        public Set<String> getKeywordsSet() {
-            if (keywords == null || keywords.isBlank()) return Set.of();
-            return Set.of(keywords.split(","));
-        }
-
-        public Set<String> getTagsSet() {
-            if (tags == null || tags.isBlank()) return Set.of();
-            return Set.of(tags.split(","));
-        }
-
-        // Renamed to avoid confusion
-        public Set<String> getLocations() {
-            return getLocationsSet();
-        }
-
-        public Set<String> getKeywords() {
-            return getKeywordsSet();
-        }
-
-        public Set<String> getTags() {
-            return getTagsSet();
-        }
+        /**
+         * ✅ NEW: optional files as LINKS (no upload needed)
+         */
+        private List<FileCreateRequest> files;
     }
 
     // =========================
-    // SOUNDTRACK UPDATE REQUEST (For Form Data)
+    // SOUNDTRACK UPDATE REQUEST
     // =========================
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class UpdateRequest {
 
-        @Size(max = 200)
-        private String title;
-
-        @Size(max = 4000)
-        private String description;
-
-        @Size(max = 255)
-        private String reading;
-
         private SoundType soundType;
-        private Language language;
+        private TrackState trackState;
 
-        // CHANGED: locations as comma-separated string
-        private String locations; // comma-separated
+        private Set<Language> contentLanguages;
+
+        private LanguageContentDto ckbContent;
+        private LanguageContentDto kmrContent;
+
+        private Set<String> locations;
 
         @Size(max = 255)
         private String director;
 
         private Boolean isThisProjectOfInstitute;
-        private TrackState trackState;
+
+        private BilingualSet tags;
+        private BilingualSet keywords;
 
         private List<String> readerNames;
 
-        private String keywords; // comma-separated
-        private String tags;     // comma-separated
-
-        public Set<String> getLocationsSet() {
-            if (locations == null || locations.isBlank()) return null;
-            return Set.of(locations.split(","));
-        }
-
-        public Set<String> getKeywordsSet() {
-            if (keywords == null || keywords.isBlank()) return null;
-            return Set.of(keywords.split(","));
-        }
-
-        public Set<String> getTagsSet() {
-            if (tags == null || tags.isBlank()) return null;
-            return Set.of(tags.split(","));
-        }
-
-        public Set<String> getLocations() {
-            return getLocationsSet();
-        }
-
-        public Set<String> getKeywords() {
-            return getKeywordsSet();
-        }
-
-        public Set<String> getTags() {
-            return getTagsSet();
-        }
+        /**
+         * ✅ NEW: optional files as LINKS (no upload needed)
+         * If provided (not null), it will replace/merge depending on service logic.
+         */
+        private List<FileCreateRequest> files;
     }
 
     // =========================
@@ -174,32 +173,27 @@ public final class SoundTrackDtos {
 
         private Long id;
 
-        private String title;
         private String coverUrl;
-        private String description;
-        private String reading;
-
         private SoundType soundType;
-        private Language language;
-
-        // CHANGED: locations as Set
-        private Set<String> locations;
-        private String director;
-
-        private boolean isThisProjectOfInstitute;
-
         private TrackState trackState;
 
-        private Set<String> keywords;
-        private Set<String> tags;
+        private Set<Language> contentLanguages;
+
+        private LanguageContentDto ckbContent;
+        private LanguageContentDto kmrContent;
+
+        private Set<String> locations;
+        private String director;
+        private boolean isThisProjectOfInstitute;
+
+        private BilingualSet tags;
+        private BilingualSet keywords;
 
         private List<FileResponse> files;
 
-        // computed totals
         private long totalDurationSeconds;
         private long totalSizeBytes;
 
-        // timestamps
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
     }

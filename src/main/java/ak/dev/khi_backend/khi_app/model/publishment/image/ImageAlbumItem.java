@@ -14,9 +14,26 @@ public class ImageAlbumItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // S3 URL of the image
-    @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
+    /**
+     * ✅ Uploaded S3 URL (optional now)
+     * Because you may use externalUrl / embedUrl instead.
+     */
+    @Column(name = "image_url", nullable = true, columnDefinition = "TEXT")
     private String imageUrl;
+
+    /**
+     * ✅ NEW: External page link
+     * Example: https://example.com/image.jpg
+     */
+    @Column(name = "external_url", columnDefinition = "TEXT")
+    private String externalUrl;
+
+    /**
+     * ✅ NEW: Embed link (iframe-ready)
+     * Example: https://some-cdn.com/embed/xxxx
+     */
+    @Column(name = "embed_url", columnDefinition = "TEXT")
+    private String embedUrl;
 
     // Optional description in CKB
     @Column(name = "description_ckb", columnDefinition = "TEXT")
