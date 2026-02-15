@@ -35,10 +35,30 @@ public class NewsAuditLog {
     @Column(columnDefinition = "TEXT")
     private String note;
 
+    // When action happened (optional; same as createdAt)
     private LocalDateTime actionTime;
+
+    // ✅ Standard timestamps
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
 
     @PrePersist
     public void prePersist() {
-        this.actionTime = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+
+        // keep compatibility
+        if (this.actionTime == null) {
+            this.actionTime = now;
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

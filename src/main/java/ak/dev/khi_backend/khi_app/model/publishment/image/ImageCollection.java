@@ -1,7 +1,7 @@
 package ak.dev.khi_backend.khi_app.model.publishment.image;
 
-
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.publishment.ImageCollectionType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,7 +16,8 @@ import java.util.Set;
 @Table(name = "image_collections", indexes = {
         @Index(name = "idx_img_title_ckb", columnList = "title_ckb"),
         @Index(name = "idx_img_title_kmr", columnList = "title_kmr"),
-        @Index(name = "idx_img_publishment_date", columnList = "publishment_date")
+        @Index(name = "idx_img_publishment_date", columnList = "publishment_date"),
+        @Index(name = "idx_img_collection_type", columnList = "collection_type") // ✅ NEW: Index for filtering by type
 })
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
@@ -26,6 +27,17 @@ public class ImageCollection {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    // ─── Collection Type ──────────────────────────────────────────────
+    /**
+     * Defines the type of collection:
+     * - SINGLE: One image
+     * - GALLERY: Multiple images (album)
+     * - PHOTO_STORY: Multiple images (story/process)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "collection_type", nullable = false, length = 20)
+    private ImageCollectionType collectionType;
 
     // ─── Cover page image URL (S3) ────────────────────────────────────
     @Column(name = "cover_url", nullable = false, columnDefinition = "TEXT")
@@ -53,7 +65,7 @@ public class ImageCollection {
     })
     private ImageContent kmrContent;
 
-    // ─── Image Album (list of images with optional descriptions) ──────
+    // ─── Image Album (list of images with captions and descriptions) ─
     @Builder.Default
     @OneToMany(mappedBy = "imageCollection", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC")

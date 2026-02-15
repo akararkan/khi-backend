@@ -25,7 +25,15 @@ public class NewsController {
     private final ObjectMapper objectMapper;
 
     // ============================================================
-    // CREATE (multipart: news + coverImage + mediaFiles[])
+    // CREATE (multipart: news + coverImage? + mediaFiles[]?)
+    //
+    // ✅ cover can be:
+    //    - coverImage file
+    //    - OR coverUrl inside newsJson
+    //
+    // ✅ media can be:
+    //    - mediaFiles[] uploads (then news.media can be omitted)
+    //    - OR news.media[] links (then mediaFiles can be omitted)
     // ============================================================
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> createNews(
@@ -103,6 +111,16 @@ public class NewsController {
 
     // ============================================================
     // UPDATE (multipart)
+    //
+    // ✅ cover can be:
+    //    - new coverImage
+    //    - OR coverUrl in JSON
+    //    - OR keep existing
+    //
+    // ✅ media can be:
+    //    - new mediaFiles[] (replace)
+    //    - OR dto.media[] (replace)
+    //    - OR keep existing (if both missing)
     // ============================================================
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> updateNews(

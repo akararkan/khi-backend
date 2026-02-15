@@ -4,6 +4,7 @@ import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.FileType;
 import ak.dev.khi_backend.khi_app.enums.publishment.SoundType;
 import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -184,7 +185,8 @@ public final class SoundTrackDtos {
 
         private Set<String> locations;
         private String director;
-        private boolean isThisProjectOfInstitute;
+        @JsonAlias({"isThisProjectOfInstitute"})
+        private Boolean thisProjectOfInstitute;
 
         private BilingualSet tags;
         private BilingualSet keywords;

@@ -56,7 +56,8 @@ public class ProjectService {
         String traceId = traceId();
         log.info("Creating project | langs={} | traceId={}", dto != null ? dto.getContentLanguages() : null, traceId);
 
-        validate(dto);
+        // ✅ For JSON-only endpoint we must have coverUrl
+        validate(dto, true);
 
         try {
             Project saved = transactionTemplate().execute(status -> {
@@ -95,7 +96,8 @@ public class ProjectService {
         log.info("Creating project with files | mediaFiles={} | langs={} | traceId={}",
                 mediaCount, dto != null ? dto.getContentLanguages() : null, traceId);
 
-        validate(dto);
+        // ✅ For multipart endpoint cover can be file OR coverUrl
+        validate(dto, false);
 
         String dtoCoverUrl = dto.getCoverUrl();
         List<UploadedMedia> uploadedMedia = new ArrayList<>();
@@ -104,7 +106,6 @@ public class ProjectService {
         ExecutorService pool = Executors.newFixedThreadPool(threads);
 
         try {
-            // ── parallel S3 uploads ──────────────────────────────
             CompletableFuture<String> coverFuture = CompletableFuture.completedFuture(dtoCoverUrl);
 
             if (cover != null && !cover.isEmpty()) {
@@ -159,9 +160,13 @@ public class ProjectService {
                 throw ex;
             }
 
-            String coverUrl = coverFuture.join();
+            String coverUrl = safe(coverFuture.join()).trim();
 
-            // ── persist project inside transaction ───────────────
+            // ✅ If client didn't send coverUrl and didn't send cover file -> error
+            if (isBlank(coverUrl)) {
+                throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
+            }
+
             Project saved = transactionTemplate().execute(status -> {
                 Project project = buildProject(dto);
                 project.setCoverUrl(coverUrl);
@@ -170,7 +175,6 @@ public class ProjectService {
                 attachAllTags(project, dto);
                 attachAllKeywords(project, dto);
 
-                // uploaded media files (optional)
                 for (UploadedMedia um : uploadedMedia) {
                     project.addMedia(ProjectMedia.builder()
                             .mediaType(um.mediaType())
@@ -180,7 +184,6 @@ public class ProjectService {
                             .build());
                 }
 
-                // media links/embed/externalUrl (optional)
                 attachMediaFromDto(project, dto.getMedia());
 
                 Project p = projectRepository.save(project);
@@ -210,7 +213,8 @@ public class ProjectService {
         String traceId = traceId();
         log.info("Updating project | id={} | traceId={}", projectId, traceId);
 
-        validate(dto);
+        // ✅ For JSON-only update, must provide coverUrl (otherwise it becomes null)
+        validate(dto, true);
 
         try {
             Project saved = transactionTemplate().execute(status -> {
@@ -219,7 +223,6 @@ public class ProjectService {
 
                 applyBaseFields(project, dto);
 
-                // Clear & re-attach relations safely
                 project.getContentsCkb().clear();
                 project.getContentsKmr().clear();
                 project.getTagsCkb().clear();
@@ -227,7 +230,6 @@ public class ProjectService {
                 project.getKeywordsCkb().clear();
                 project.getKeywordsKmr().clear();
 
-                // replace media only if dto contains media array (optional)
                 if (dto.getMedia() != null) {
                     project.getMedia().clear();
                 }
@@ -264,7 +266,8 @@ public class ProjectService {
 
         log.info("Updating project with files | id={} | mediaFiles={} | traceId={}", projectId, mediaCount, traceId);
 
-        validate(dto);
+        // ✅ For multipart update: cover can be uploaded OR coverUrl provided
+        validate(dto, false);
 
         List<UploadedMedia> uploadedMedia = new ArrayList<>();
         int threads = Math.min(8, Math.max(2, 1 + mediaCount));
@@ -318,7 +321,10 @@ public class ProjectService {
                 uploadedMedia.add(f.join());
             }
 
-            String coverUrl = coverFuture.join();
+            String coverUrl = safe(coverFuture.join()).trim();
+            if (isBlank(coverUrl)) {
+                throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
+            }
 
             Project saved = transactionTemplate().execute(status -> {
                 Project project = projectRepository.findById(projectId)
@@ -327,7 +333,6 @@ public class ProjectService {
                 applyBaseFields(project, dto);
                 project.setCoverUrl(coverUrl);
 
-                // Clear & re-attach relations
                 project.getContentsCkb().clear();
                 project.getContentsKmr().clear();
                 project.getTagsCkb().clear();
@@ -335,7 +340,6 @@ public class ProjectService {
                 project.getKeywordsCkb().clear();
                 project.getKeywordsKmr().clear();
 
-                // replace media only if dto contains media array (optional)
                 if (dto.getMedia() != null) {
                     project.getMedia().clear();
                 }
@@ -344,7 +348,6 @@ public class ProjectService {
                 attachAllTags(project, dto);
                 attachAllKeywords(project, dto);
 
-                // append uploaded media files
                 for (UploadedMedia um : uploadedMedia) {
                     project.addMedia(ProjectMedia.builder()
                             .mediaType(um.mediaType())
@@ -354,7 +357,6 @@ public class ProjectService {
                             .build());
                 }
 
-                // add dto media (links/embed/externalUrl) optional
                 attachMediaFromDto(project, dto.getMedia());
 
                 Project savedProject = projectRepository.save(project);
@@ -403,7 +405,6 @@ public class ProjectService {
     // ============================================================
     // RESPONSE HELPERS
     // ============================================================
-
     public Page<ProjectResponse> getAllResponse(int page, int size) {
         Page<Project> projects = projectRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
         return projects.map(this::toResponse);
@@ -525,7 +526,7 @@ public class ProjectService {
     }
 
     // ============================================================
-    // MEDIA DTO ATTACH (supports url OR externalUrl OR embedUrl)
+    // MEDIA DTO ATTACH
     // ============================================================
     private void attachMediaFromDto(Project project, List<ProjectMediaCreateRequest> mediaList) {
         if (mediaList == null || mediaList.isEmpty()) return;
@@ -545,7 +546,6 @@ public class ProjectService {
             boolean hasEmbed = !isBlank(m.getEmbedUrl());
             boolean hasText = !isBlank(m.getTextBody());
 
-            // AUDIO/VIDEO: require at least one of (url, externalUrl, embedUrl)
             if (type == ProjectMediaType.AUDIO || type == ProjectMediaType.VIDEO) {
                 if (!hasFileUrl && !hasExternal && !hasEmbed) {
                     throw new BadRequestException(
@@ -554,7 +554,6 @@ public class ProjectService {
                     );
                 }
             } else {
-                // others: require (url OR textBody)
                 if (!hasFileUrl && !hasText) {
                     throw new BadRequestException("media.url_or_text_required", Map.of("mediaType", type.name()));
                 }
@@ -617,7 +616,11 @@ public class ProjectService {
         }
     }
 
-    private void validate(ProjectCreateRequest dto) {
+    /**
+     * @param requireCoverUrlOnly when true -> coverUrl MUST be in JSON (for JSON-only endpoints)
+     *                            when false -> coverUrl can be empty because cover file might be uploaded
+     */
+    private void validate(ProjectCreateRequest dto, boolean requireCoverUrlOnly) {
         if (dto == null) throw new BadRequestException("request.required", Map.of());
 
         if (isBlank(dto.getProjectType())) {
@@ -626,6 +629,10 @@ public class ProjectService {
 
         if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty()) {
             throw new BadRequestException("project.languages_required", Map.of());
+        }
+
+        if (requireCoverUrlOnly && isBlank(dto.getCoverUrl())) {
+            throw new BadRequestException("project.cover_required", Map.of());
         }
 
         if (dto.getContentLanguages().contains(Language.CKB)) {
@@ -642,7 +649,7 @@ public class ProjectService {
     }
 
     // ============================================================
-    // ATTACH RELATIONS
+    // ATTACH RELATIONS (trim + dedupe)
     // ============================================================
     private void attachAllContents(Project project, ProjectCreateRequest dto) {
         attachContents(project, dto.getContentsCkb(), Language.CKB);
@@ -654,15 +661,18 @@ public class ProjectService {
 
         Map<String, ProjectContent> map = ensureContents(names);
 
+        Set<Long> addedIds = new HashSet<>();
         if (lang == Language.CKB) {
-            for (String name : names) {
-                ProjectContent c = map.get(name.toLowerCase());
-                if (c != null) project.getContentsCkb().add(c);
+            for (String raw : names) {
+                String key = normKey(raw);
+                ProjectContent c = map.get(key);
+                if (c != null && addedIds.add(c.getId())) project.getContentsCkb().add(c);
             }
         } else {
-            for (String name : names) {
-                ProjectContent c = map.get(name.toLowerCase());
-                if (c != null) project.getContentsKmr().add(c);
+            for (String raw : names) {
+                String key = normKey(raw);
+                ProjectContent c = map.get(key);
+                if (c != null && addedIds.add(c.getId())) project.getContentsKmr().add(c);
             }
         }
     }
@@ -693,15 +703,18 @@ public class ProjectService {
 
         Map<String, ProjectTag> map = ensureTags(names);
 
+        Set<Long> addedIds = new HashSet<>();
         if (lang == Language.CKB) {
-            for (String name : names) {
-                ProjectTag t = map.get(name.toLowerCase());
-                if (t != null) project.getTagsCkb().add(t);
+            for (String raw : names) {
+                String key = normKey(raw);
+                ProjectTag t = map.get(key);
+                if (t != null && addedIds.add(t.getId())) project.getTagsCkb().add(t);
             }
         } else {
-            for (String name : names) {
-                ProjectTag t = map.get(name.toLowerCase());
-                if (t != null) project.getTagsKmr().add(t);
+            for (String raw : names) {
+                String key = normKey(raw);
+                ProjectTag t = map.get(key);
+                if (t != null && addedIds.add(t.getId())) project.getTagsKmr().add(t);
             }
         }
     }
@@ -732,15 +745,18 @@ public class ProjectService {
 
         Map<String, ProjectKeyword> map = ensureKeywords(names);
 
+        Set<Long> addedIds = new HashSet<>();
         if (lang == Language.CKB) {
-            for (String name : names) {
-                ProjectKeyword k = map.get(name.toLowerCase());
-                if (k != null) project.getKeywordsCkb().add(k);
+            for (String raw : names) {
+                String key = normKey(raw);
+                ProjectKeyword k = map.get(key);
+                if (k != null && addedIds.add(k.getId())) project.getKeywordsCkb().add(k);
             }
         } else {
-            for (String name : names) {
-                ProjectKeyword k = map.get(name.toLowerCase());
-                if (k != null) project.getKeywordsKmr().add(k);
+            for (String raw : names) {
+                String key = normKey(raw);
+                ProjectKeyword k = map.get(key);
+                if (k != null && addedIds.add(k.getId())) project.getKeywordsKmr().add(k);
             }
         }
     }
@@ -762,7 +778,7 @@ public class ProjectService {
     }
 
     // ============================================================
-    // AUDIT LOG (FIXED for your ProjectLog fields ✅)
+    // AUDIT LOG
     // ============================================================
     private void createAuditLog(Project project, String action, String message) {
         try {
@@ -817,6 +833,10 @@ public class ProjectService {
         if (p.getCkbContent() != null && !isBlank(p.getCkbContent().getTitle())) return p.getCkbContent().getTitle();
         if (p.getKmrContent() != null && !isBlank(p.getKmrContent().getTitle())) return p.getKmrContent().getTitle();
         return "project#" + p.getId();
+    }
+
+    private String normKey(String raw) {
+        return safe(raw).trim().toLowerCase();
     }
 
     private record UploadedMedia(ProjectMediaType mediaType, String url, String caption, int sortOrder) {}

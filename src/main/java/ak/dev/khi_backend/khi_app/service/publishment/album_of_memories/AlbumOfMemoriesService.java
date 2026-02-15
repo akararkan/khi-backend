@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,13 +41,13 @@ public class AlbumOfMemoriesService {
             MultipartFile attachment
     ) {
         log.info("🎵 Creating album: {}/{}",
-                dto.getCkbContent() != null ? dto.getCkbContent().getTitle() : "N/A",
-                dto.getKmrContent() != null ? dto.getKmrContent().getTitle() : "N/A");
+                dto != null && dto.getCkbContent() != null ? dto.getCkbContent().getTitle() : "N/A",
+                dto != null && dto.getKmrContent() != null ? dto.getKmrContent().getTitle() : "N/A");
 
-        validateAlbumDto(dto);
+        validateForCreate(dto);
 
         try {
-            // cover is required (you can also change this rule if you want coverUrl allowed)
+            // cover is required
             if (coverImage == null || coverImage.isEmpty()) {
                 throw new BadRequestException("cover.required", "Cover image is required");
             }
@@ -202,7 +203,7 @@ public class AlbumOfMemoriesService {
         AlbumOfMemories album = albumRepository.findById(albumId)
                 .orElseThrow(() -> new EntityNotFoundException("Album not found: " + albumId));
 
-        validateAlbumDto(dto);
+        validateForUpdate(dto);
 
         try {
             // cover optional on update
@@ -215,14 +216,14 @@ public class AlbumOfMemoriesService {
                 album.setCoverUrl(newCoverUrl);
             }
 
-            // metadata
+            // ✅ metadata (only update what client sends)
             if (dto.getAlbumType() != null) album.setAlbumType(dto.getAlbumType());
             if (dto.getFileFormat() != null) album.setFileFormat(dto.getFileFormat());
             if (dto.getCdNumber() != null) album.setCdNumber(dto.getCdNumber());
             if (dto.getNumberOfTracks() != null) album.setNumberOfTracks(dto.getNumberOfTracks());
             if (dto.getYearOfPublishment() != null) album.setYearOfPublishment(dto.getYearOfPublishment());
 
-            // languages
+            // ✅ languages only if provided (replace mode)
             if (dto.getContentLanguages() != null) {
                 album.getContentLanguages().clear();
                 album.getContentLanguages().addAll(dto.getContentLanguages());
@@ -257,7 +258,7 @@ public class AlbumOfMemoriesService {
             applyAttachment(album, dto.getAttachment(), newAttachment);
 
             AlbumOfMemories updated = albumRepository.save(album);
-            createAuditLog(updated, "UPDATE", "Album updated (uploads + links supported)");
+            createAuditLog(updated, "UPDATE", "Album updated (partial update + uploads + links)");
 
             return convertToDto(updated);
 
@@ -280,21 +281,59 @@ public class AlbumOfMemoriesService {
     }
 
     // ============================================================
-    // HELPERS
+    // VALIDATION (NEW BEST)
     // ============================================================
 
-    private void validateAlbumDto(AlbumDto dto) {
+    private void validateForCreate(AlbumDto dto) {
         if (dto == null) throw new BadRequestException("album.required", "Album body is required");
-        if (dto.getAlbumType() == null) throw new BadRequestException("album.type.required", "albumType is required");
+
+        if (dto.getAlbumType() == null) {
+            throw new BadRequestException("album.type.required", "albumType is required");
+        }
+
         if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty()) {
             throw new BadRequestException("album.languages.required", "contentLanguages is required");
         }
     }
 
     /**
-     * ✅ Tracks from DTO links (url/external/embed)
-     * - MEDIA TRACK: must have at least one of: url OR externalUrl OR embedUrl
+     * ✅ Soft validation for update:
+     * - no required fields
+     * - only validate fields if provided
+     * - allow partial update (cover only, attachment only, tags only, etc.)
      */
+    private void validateForUpdate(AlbumDto dto) {
+        if (dto == null) throw new BadRequestException("album.required", "Album body is required");
+
+        // If user provides contentLanguages, it must not be empty
+        if (dto.getContentLanguages() != null && dto.getContentLanguages().isEmpty()) {
+            throw new BadRequestException("album.languages.invalid", "contentLanguages cannot be empty when provided");
+        }
+
+        // If user provides tags/keywords, ensure no null/blank items (optional cleanup)
+        if (dto.getTags() != null) {
+            if (dto.getTags().getCkb() != null) dto.getTags().setCkb(cleanStrings(dto.getTags().getCkb()));
+            if (dto.getTags().getKmr() != null) dto.getTags().setKmr(cleanStrings(dto.getTags().getKmr()));
+        }
+        if (dto.getKeywords() != null) {
+            if (dto.getKeywords().getCkb() != null) dto.getKeywords().setCkb(cleanStrings(dto.getKeywords().getCkb()));
+            if (dto.getKeywords().getKmr() != null) dto.getKeywords().setKmr(cleanStrings(dto.getKeywords().getKmr()));
+        }
+    }
+
+    private Set<String> cleanStrings(Set<String> input) {
+        if (input == null) return null;
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (String s : input) {
+            if (s != null && !s.isBlank()) out.add(s.trim());
+        }
+        return out;
+    }
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+
     private void attachMediaLinksFromDto(AlbumOfMemories album, List<AlbumDto.MediaDto> dtoMedia, List<AlbumMedia> out) {
         if (dtoMedia == null || dtoMedia.isEmpty()) return;
 
@@ -313,7 +352,7 @@ public class AlbumOfMemoriesService {
             String emb = trimOrNull(m.getEmbedUrl());
 
             if (isBlank(url) && isBlank(ext) && isBlank(emb)) {
-                // user might send only metadata for uploaded track -> ignore if no link
+                // metadata-only item for upload -> ignore
                 continue;
             }
 
@@ -348,13 +387,7 @@ public class AlbumOfMemoriesService {
         return (trackNo != null ? trackNo : 0) + "|" + best;
     }
 
-    /**
-     * ✅ Attachment can be:
-     * - uploaded file (attachment param) OR
-     * - dtoAttachment.url/externalUrl/embedUrl
-     */
     private void applyAttachment(AlbumOfMemories album, AlbumDto.AttachmentDto dtoAttachment, MultipartFile attachmentFile) throws IOException {
-        // upload wins
         if (attachmentFile != null && !attachmentFile.isEmpty()) {
             String url = s3Service.upload(
                     attachmentFile.getBytes(),
@@ -368,7 +401,6 @@ public class AlbumOfMemoriesService {
             return;
         }
 
-        // dto attachment (optional)
         if (dtoAttachment != null) {
             String url = trimOrNull(dtoAttachment.getUrl());
             String ext = trimOrNull(dtoAttachment.getExternalUrl());
@@ -492,7 +524,6 @@ public class AlbumOfMemoriesService {
         auditLogRepository.save(auditLog);
     }
 
-    // ✅ UPDATED: includes external/embed in response
     private AlbumDto convertToDto(AlbumOfMemories album) {
         AlbumDto dto = AlbumDto.builder()
                 .id(album.getId())
@@ -553,7 +584,6 @@ public class AlbumOfMemoriesService {
             dto.setMedia(mediaDtos);
         }
 
-        // Attachment (updated)
         boolean hasAttach =
                 (album.getAttachmentUrl() != null && !album.getAttachmentUrl().isBlank()) ||
                         (album.getAttachmentExternalUrl() != null && !album.getAttachmentExternalUrl().isBlank()) ||

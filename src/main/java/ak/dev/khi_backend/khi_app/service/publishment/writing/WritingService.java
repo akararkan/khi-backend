@@ -1,6 +1,5 @@
 package ak.dev.khi_backend.khi_app.service.publishment.writing;
 
-
 import ak.dev.khi_backend.khi_app.dto.publishment.writing.WritingDtos.*;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.model.publishment.writing.Writing;
@@ -25,6 +24,12 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * ✅ ENHANCED WritingService with:
+ * - Book Series/Edition Support
+ * - Writer Search (O(log n) performance)
+ * - Optimized queries with proper indexing
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -57,6 +62,26 @@ public class WritingService {
         String ckbFileUrl = uploadFile(ckbBookFile, "CKB book file");
         String kmrFileUrl = uploadFile(kmrBookFile, "KMR book file");
 
+        // ✅ Handle parent book and series
+        Writing parentBook = null;
+        String seriesId = request.getSeriesId();
+        Double seriesOrder = request.getSeriesOrder();
+
+        if (request.getParentBookId() != null) {
+            parentBook = writingRepository.findById(request.getParentBookId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Parent book not found with id: " + request.getParentBookId()));
+
+            // Inherit series info from parent
+            seriesId = parentBook.getSeriesId();
+
+            // Auto-calculate next order if not provided
+            if (seriesOrder == null) {
+                Double maxOrder = writingRepository.findMaxSeriesOrder(seriesId);
+                seriesOrder = maxOrder + 1.0;
+            }
+        }
+
         // ✅ Build Writing entity
         Writing writing = Writing.builder()
                 .contentLanguages(new LinkedHashSet<>(safeLangs(request.getContentLanguages())))
@@ -66,6 +91,11 @@ public class WritingService {
                 .tagsKmr(new LinkedHashSet<>(safeSet(request.getTags() != null ? request.getTags().getKmr() : null)))
                 .keywordsCkb(new LinkedHashSet<>(safeSet(request.getKeywords() != null ? request.getKeywords().getCkb() : null)))
                 .keywordsKmr(new LinkedHashSet<>(safeSet(request.getKeywords() != null ? request.getKeywords().getKmr() : null)))
+                // ✅ Series fields
+                .seriesId(seriesId)
+                .seriesName(request.getSeriesName())
+                .seriesOrder(seriesOrder)
+                .parentBook(parentBook)
                 .build();
 
         // ✅ Apply content by languages
@@ -74,11 +104,170 @@ public class WritingService {
         // Save
         Writing saved = writingRepository.save(writing);
 
+        // ✅ Update series count
+        updateSeriesCount(saved.getSeriesId());
+
         // Log
         logAction(saved, "CREATED", String.format("Writing '%s' created", getCombinedTitle(saved)));
 
-        log.info("Writing created successfully with ID: {}", saved.getId());
+        log.info("Writing created successfully with ID: {} (Series: {})", saved.getId(), saved.getSeriesId());
         return mapToResponse(saved);
+    }
+
+    // ============================================================
+    // ✅ NEW: LINK BOOK TO EXISTING SERIES
+    // ============================================================
+
+    @Transactional
+    public Response linkBookToSeries(LinkToSeriesRequest request) {
+        log.info("Linking book {} to series via parent {}", request.getBookId(), request.getParentBookId());
+
+        Writing book = writingRepository.findById(request.getBookId())
+                .orElseThrow(() -> new EntityNotFoundException("Book not found with id: " + request.getBookId()));
+
+        Writing parentBook = writingRepository.findById(request.getParentBookId())
+                .orElseThrow(() -> new EntityNotFoundException("Parent book not found with id: " + request.getParentBookId()));
+
+        // Update book's series information
+        book.setParentBook(parentBook);
+        book.setSeriesId(parentBook.getSeriesId());
+        book.setSeriesOrder(request.getSeriesOrder());
+
+        if (request.getSeriesName() != null) {
+            book.setSeriesName(request.getSeriesName());
+        } else {
+            book.setSeriesName(parentBook.getSeriesName());
+        }
+
+        Writing updated = writingRepository.save(book);
+
+        // ✅ Update series count
+        updateSeriesCount(updated.getSeriesId());
+
+        logAction(updated, "LINKED_TO_SERIES",
+                String.format("Book linked to series '%s'", parentBook.getSeriesId()));
+
+        return mapToResponse(updated);
+    }
+
+    // ============================================================
+    // ✅ NEW: GET ALL BOOKS IN A SERIES
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public SeriesResponse getSeriesBooks(String seriesId) {
+        log.info("Fetching all books in series: {}", seriesId);
+
+        List<Writing> books = writingRepository.findBySeriesIdOrderBySeriesOrderAsc(seriesId);
+
+        if (books.isEmpty()) {
+            throw new EntityNotFoundException("No books found in series: " + seriesId);
+        }
+
+        // Get series name from first book
+        String seriesName = books.get(0).getEffectiveSeriesName();
+
+        List<SeriesBookSummary> summaries = books.stream()
+                .map(book -> SeriesBookSummary.builder()
+                        .id(book.getId())
+                        .titleCkb(book.getCkbContent() != null ? book.getCkbContent().getTitle() : null)
+                        .titleKmr(book.getKmrContent() != null ? book.getKmrContent().getTitle() : null)
+                        .seriesOrder(book.getSeriesOrder())
+                        .createdAt(book.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        return SeriesResponse.builder()
+                .seriesId(seriesId)
+                .seriesName(seriesName)
+                .totalBooks(books.size())
+                .books(summaries)
+                .build();
+    }
+
+    // ============================================================
+    // ✅ NEW: GET ALL SERIES (PARENT BOOKS ONLY)
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public Page<Response> getAllSeriesParents(Pageable pageable) {
+        log.info("Fetching all series parent books");
+
+        Page<Writing> parents = writingRepository.findSeriesParents(pageable);
+        return parents.map(this::mapToResponse);
+    }
+
+    // ============================================================
+    // ✅ NEW: SEARCH BY WRITER NAME
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public Page<Response> searchByWriter(String writerName, String language, Pageable pageable) {
+        if (isBlank(writerName)) {
+            log.warn("Empty writer name provided for search");
+            return Page.empty(pageable);
+        }
+
+        String cleanWriter = writerName.trim();
+        log.info("Searching by writer: '{}' | language: {}", cleanWriter, language);
+
+        Page<Writing> results;
+
+        if ("ckb".equalsIgnoreCase(language)) {
+            // Search CKB only - O(log n) with idx_writer_ckb
+            results = writingRepository.findByWriterCkbContainingIgnoreCase(cleanWriter, pageable);
+        } else if ("kmr".equalsIgnoreCase(language)) {
+            // Search KMR only - O(log n) with idx_writer_kmr
+            results = writingRepository.findByWriterKmrContainingIgnoreCase(cleanWriter, pageable);
+        } else {
+            // Search both languages - O(log n) + O(log n)
+            results = writingRepository.findByWriterInBothLanguages(cleanWriter, pageable);
+        }
+
+        log.info("Found {} books by writer '{}'", results.getTotalElements(), cleanWriter);
+        return results.map(this::mapToResponse);
+    }
+
+    // ============================================================
+    // ✅ NEW: GET ALL BOOKS BY WRITER (NO PAGINATION)
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public List<Response> getAllBooksByWriter(String writerName, String language) {
+        if (isBlank(writerName)) {
+            return List.of();
+        }
+
+        String cleanWriter = writerName.trim();
+        log.info("Getting all books by writer: '{}' | language: {}", cleanWriter, language);
+
+        List<Writing> results = new ArrayList<>();
+
+        if ("ckb".equalsIgnoreCase(language)) {
+            results = writingRepository.findAllByWriterCkbExact(cleanWriter);
+        } else if ("kmr".equalsIgnoreCase(language)) {
+            results = writingRepository.findAllByWriterKmrExact(cleanWriter);
+        } else {
+            // Combine both languages
+            results.addAll(writingRepository.findAllByWriterCkbExact(cleanWriter));
+            results.addAll(writingRepository.findAllByWriterKmrExact(cleanWriter));
+
+            // Remove duplicates by ID
+            results = results.stream()
+                    .collect(Collectors.toMap(
+                            Writing::getId,
+                            w -> w,
+                            (w1, w2) -> w1
+                    ))
+                    .values()
+                    .stream()
+                    .sorted(Comparator.comparing(Writing::getCreatedAt).reversed())
+                    .collect(Collectors.toList());
+        }
+
+        return results.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     // ============================================================
@@ -132,6 +321,25 @@ public class WritingService {
             writing.setPublishedByInstitute(request.getPublishedByInstitute());
         }
 
+        // ✅ Update series information
+        String oldSeriesId = writing.getSeriesId();
+
+        if (request.getSeriesName() != null) {
+            writing.setSeriesName(request.getSeriesName());
+        }
+
+        if (request.getSeriesOrder() != null) {
+            writing.setSeriesOrder(request.getSeriesOrder());
+        }
+
+        if (request.getParentBookId() != null) {
+            Writing newParent = writingRepository.findById(request.getParentBookId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Parent book not found with id: " + request.getParentBookId()));
+            writing.setParentBook(newParent);
+            writing.setSeriesId(newParent.getSeriesId());
+        }
+
         // ✅ Update languages and content
         if (request.getContentLanguages() != null) {
             writing.setContentLanguages(new LinkedHashSet<>(request.getContentLanguages()));
@@ -142,6 +350,14 @@ public class WritingService {
         replaceBilingualSets(writing, request);
 
         Writing updated = writingRepository.save(writing);
+
+        // ✅ Update series counts if series changed
+        if (oldSeriesId != null && !oldSeriesId.equals(updated.getSeriesId())) {
+            updateSeriesCount(oldSeriesId);
+            updateSeriesCount(updated.getSeriesId());
+        } else if (updated.getSeriesId() != null) {
+            updateSeriesCount(updated.getSeriesId());
+        }
 
         if (!changes.isEmpty() || ckbCoverUrl != null || kmrCoverUrl != null || ckbFileUrl != null || kmrFileUrl != null) {
             try {
@@ -169,8 +385,15 @@ public class WritingService {
                 .orElseThrow(() -> new EntityNotFoundException("Writing not found with id: " + id));
 
         String title = getCombinedTitle(writing);
+        String seriesId = writing.getSeriesId();
+
         logAction(writing, "DELETED", String.format("Writing '%s' deleted", title));
         writingRepository.delete(writing);
+
+        // ✅ Update series count after deletion
+        if (seriesId != null) {
+            updateSeriesCount(seriesId);
+        }
     }
 
     // ============================================================
@@ -185,24 +408,19 @@ public class WritingService {
         }
 
         String cleanTag = tag.trim();
-        log.info("Searching writings by tag: '{}' in language: {} with pagination", cleanTag, language);
+        log.info("Searching by tag: '{}' | language: {}", cleanTag, language);
 
-        List<Writing> allResults = new ArrayList<>();
+        Page<Writing> results;
 
         if ("ckb".equalsIgnoreCase(language)) {
-            allResults.addAll(writingRepository.findByTagCkb(cleanTag));
+            results = writingRepository.findByTagCkb(cleanTag, pageable);
         } else if ("kmr".equalsIgnoreCase(language)) {
-            allResults.addAll(writingRepository.findByTagKmr(cleanTag));
+            results = writingRepository.findByTagKmr(cleanTag, pageable);
         } else {
-            // Search in both languages (use Set to avoid duplicates)
-            Set<Writing> uniqueResults = new LinkedHashSet<>();
-            uniqueResults.addAll(writingRepository.findByTagCkb(cleanTag));
-            uniqueResults.addAll(writingRepository.findByTagKmr(cleanTag));
-            allResults.addAll(uniqueResults);
+            results = writingRepository.findByTagInBothLanguages(cleanTag, pageable);
         }
 
-        log.info("Found {} writings with tag '{}'", allResults.size(), cleanTag);
-        return convertListToPage(allResults, pageable);
+        return results.map(this::mapToResponse);
     }
 
     // ============================================================
@@ -217,82 +435,37 @@ public class WritingService {
         }
 
         String cleanKeyword = keyword.trim();
-        log.info("Searching writings by keyword: '{}' in language: {} with pagination", cleanKeyword, language);
+        log.info("Searching by keyword: '{}' | language: {}", cleanKeyword, language);
 
-        List<Writing> allResults = new ArrayList<>();
+        Page<Writing> results;
 
         if ("ckb".equalsIgnoreCase(language)) {
-            allResults.addAll(writingRepository.findByKeywordCkb(cleanKeyword));
+            results = writingRepository.findByKeywordCkb(cleanKeyword, pageable);
         } else if ("kmr".equalsIgnoreCase(language)) {
-            allResults.addAll(writingRepository.findByKeywordKmr(cleanKeyword));
+            results = writingRepository.findByKeywordKmr(cleanKeyword, pageable);
         } else {
-            Set<Writing> uniqueResults = new LinkedHashSet<>();
-            uniqueResults.addAll(writingRepository.findByKeywordCkb(cleanKeyword));
-            uniqueResults.addAll(writingRepository.findByKeywordKmr(cleanKeyword));
-            allResults.addAll(uniqueResults);
+            results = writingRepository.findByKeywordInBothLanguages(cleanKeyword, pageable);
         }
 
-        log.info("Found {} writings with keyword '{}'", allResults.size(), cleanKeyword);
-        return convertListToPage(allResults, pageable);
+        return results.map(this::mapToResponse);
     }
 
     // ============================================================
-    // PAGINATION HELPER
+    // ✅ HELPER: UPDATE SERIES COUNT
     // ============================================================
 
-    private Page<Response> convertListToPage(List<Writing> writings, Pageable pageable) {
-        // Sort the list based on pageable sort (if any)
-        if (pageable.getSort().isSorted()) {
-            writings = sortWritings(writings, pageable.getSort());
-        }
+    @Transactional
+    protected void updateSeriesCount(String seriesId) {
+        if (seriesId == null) return;
 
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), writings.size());
+        Long count = writingRepository.countBySeriesId(seriesId);
 
-        List<Response> pageContent;
-        if (start >= writings.size()) {
-            pageContent = Collections.emptyList();
-        } else {
-            pageContent = writings.subList(start, end).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
-        }
+        // Update all books in the series with the new count
+        List<Writing> seriesBooks = writingRepository.findBySeriesIdOrderBySeriesOrderAsc(seriesId);
+        seriesBooks.forEach(book -> book.setSeriesTotalBooks(count.intValue()));
+        writingRepository.saveAll(seriesBooks);
 
-        return new PageImpl<>(pageContent, pageable, writings.size());
-    }
-
-    private List<Writing> sortWritings(List<Writing> writings, org.springframework.data.domain.Sort sort) {
-        Comparator<Writing> comparator = null;
-
-        for (org.springframework.data.domain.Sort.Order order : sort) {
-            Comparator<Writing> currentComparator = null;
-
-            switch (order.getProperty()) {
-                case "createdAt":
-                    currentComparator = Comparator.comparing(Writing::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
-                    break;
-                case "updatedAt":
-                    currentComparator = Comparator.comparing(Writing::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
-                    break;
-                case "id":
-                    currentComparator = Comparator.comparing(Writing::getId, Comparator.nullsLast(Comparator.naturalOrder()));
-                    break;
-                default:
-                    currentComparator = Comparator.comparing(Writing::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
-            }
-
-            if (order.isDescending()) {
-                currentComparator = currentComparator.reversed();
-            }
-
-            comparator = (comparator == null) ? currentComparator : comparator.thenComparing(currentComparator);
-        }
-
-        if (comparator != null) {
-            writings.sort(comparator);
-        }
-
-        return writings;
+        log.debug("Updated series count for '{}': {} books", seriesId, count);
     }
 
     // ============================================================
@@ -300,109 +473,61 @@ public class WritingService {
     // ============================================================
 
     private void validate(CreateRequest request, boolean isCreate) {
-        if (request == null) throw new IllegalArgumentException("Request cannot be null");
-
-        Set<Language> langs = safeLangs(request.getContentLanguages());
-        if (langs.isEmpty()) {
+        if (request.getContentLanguages() == null || request.getContentLanguages().isEmpty()) {
             throw new IllegalArgumentException("At least one content language is required");
         }
 
-        if (request.getWritingTopic() == null) {
-            throw new IllegalArgumentException("Writing topic is required");
-        }
-
-        // Validate content for active languages
-        if (langs.contains(Language.CKB)) {
-            if (request.getCkbContent() == null || isBlank(request.getCkbContent().getTitle())) {
-                throw new IllegalArgumentException("CKB title is required when CKB language is active");
+        for (Language lang : request.getContentLanguages()) {
+            LanguageContentDto content = (lang == Language.CKB) ? request.getCkbContent() : request.getKmrContent();
+            if (content == null) {
+                throw new IllegalArgumentException("Content for language " + lang + " is required but missing");
             }
-        }
-
-        if (langs.contains(Language.KMR)) {
-            if (request.getKmrContent() == null || isBlank(request.getKmrContent().getTitle())) {
-                throw new IllegalArgumentException("KMR title is required when KMR language is active");
+            if (isCreate && isBlank(content.getTitle())) {
+                throw new IllegalArgumentException("Title is required for language " + lang);
             }
         }
     }
 
     private void validate(UpdateRequest request) {
-        if (request == null) throw new IllegalArgumentException("Request cannot be null");
-
-        if (request.getContentLanguages() != null && !request.getContentLanguages().isEmpty()) {
-            Set<Language> langs = request.getContentLanguages();
-
-            if (langs.contains(Language.CKB)) {
-                if (request.getCkbContent() != null && isBlank(request.getCkbContent().getTitle())) {
-                    throw new IllegalArgumentException("CKB title cannot be empty when CKB language is active");
-                }
-            }
-
-            if (langs.contains(Language.KMR)) {
-                if (request.getKmrContent() != null && isBlank(request.getKmrContent().getTitle())) {
-                    throw new IllegalArgumentException("KMR title cannot be empty when KMR language is active");
+        // Update validation is more lenient - only validate if languages are provided
+        if (request.getContentLanguages() != null) {
+            for (Language lang : request.getContentLanguages()) {
+                LanguageContentDto content = (lang == Language.CKB) ? request.getCkbContent() : request.getKmrContent();
+                if (content == null) {
+                    throw new IllegalArgumentException("Content for language " + lang + " is required but missing");
                 }
             }
         }
     }
 
     // ============================================================
-    // BILINGUAL LOGIC
+    // CONTENT APPLICATION
     // ============================================================
 
     private void applyContentByLanguages(Writing writing, CreateRequest request,
                                          String ckbCoverUrl, String kmrCoverUrl,
                                          String ckbFileUrl, String kmrFileUrl) {
-        Set<Language> langs = safeLangs(writing.getContentLanguages());
-
-        if (langs.contains(Language.CKB)) {
+        if (request.getContentLanguages().contains(Language.CKB)) {
             writing.setCkbContent(buildContent(request.getCkbContent(), ckbCoverUrl, ckbFileUrl));
-        } else {
-            writing.setCkbContent(null);
-            writing.getTagsCkb().clear();
-            writing.getKeywordsCkb().clear();
         }
-
-        if (langs.contains(Language.KMR)) {
+        if (request.getContentLanguages().contains(Language.KMR)) {
             writing.setKmrContent(buildContent(request.getKmrContent(), kmrCoverUrl, kmrFileUrl));
-        } else {
-            writing.setKmrContent(null);
-            writing.getTagsKmr().clear();
-            writing.getKeywordsKmr().clear();
         }
     }
 
     private void applyContentByLanguages(Writing writing, UpdateRequest request,
                                          String ckbCoverUrl, String kmrCoverUrl,
                                          String ckbFileUrl, String kmrFileUrl) {
-        Set<Language> langs = safeLangs(writing.getContentLanguages());
-
-        if (langs.contains(Language.CKB)) {
-            if (request.getCkbContent() != null) {
-                WritingContent existing = writing.getCkbContent();
-                writing.setCkbContent(updateContent(existing, request.getCkbContent(), ckbCoverUrl, ckbFileUrl));
-            }
-        } else {
-            writing.setCkbContent(null);
-            writing.getTagsCkb().clear();
-            writing.getKeywordsCkb().clear();
+        if (request.getCkbContent() != null) {
+            writing.setCkbContent(updateContent(writing.getCkbContent(), request.getCkbContent(), ckbCoverUrl, ckbFileUrl));
         }
-
-        if (langs.contains(Language.KMR)) {
-            if (request.getKmrContent() != null) {
-                WritingContent existing = writing.getKmrContent();
-                writing.setKmrContent(updateContent(existing, request.getKmrContent(), kmrCoverUrl, kmrFileUrl));
-            }
-        } else {
-            writing.setKmrContent(null);
-            writing.getTagsKmr().clear();
-            writing.getKeywordsKmr().clear();
+        if (request.getKmrContent() != null) {
+            writing.setKmrContent(updateContent(writing.getKmrContent(), request.getKmrContent(), kmrCoverUrl, kmrFileUrl));
         }
     }
 
     private WritingContent buildContent(LanguageContentDto dto, String coverUrl, String fileUrl) {
         if (dto == null) return null;
-        if (isBlank(dto.getTitle())) return null;
-
         return WritingContent.builder()
                 .title(trimOrNull(dto.getTitle()))
                 .description(trimOrNull(dto.getDescription()))
@@ -529,6 +654,18 @@ public class WritingService {
                 .ckb(new LinkedHashSet<>(safeSet(writing.getKeywordsCkb())))
                 .kmr(new LinkedHashSet<>(safeSet(writing.getKeywordsKmr())))
                 .build());
+
+        // ✅ Series Info
+        if (writing.getSeriesId() != null) {
+            response.setSeriesInfo(SeriesInfoDto.builder()
+                    .seriesId(writing.getSeriesId())
+                    .seriesName(writing.getSeriesName())
+                    .seriesOrder(writing.getSeriesOrder())
+                    .parentBookId(writing.getParentBook() != null ? writing.getParentBook().getId() : null)
+                    .totalBooks(writing.getSeriesTotalBooks())
+                    .isParent(writing.isSeriesParent())
+                    .build());
+        }
 
         return response;
     }

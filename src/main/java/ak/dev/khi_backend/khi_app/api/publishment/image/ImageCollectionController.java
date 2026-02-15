@@ -46,8 +46,8 @@ public class ImageCollectionController {
         int imagesCount = (images != null) ? (int) images.stream().filter(f -> f != null && !f.isEmpty()).count() : 0;
         int dtoAlbumCount = (dto.getImageAlbum() != null) ? dto.getImageAlbum().size() : 0;
 
-        log.info("POST /api/v1/image-collections | coverFile={} imagesFiles={} albumDtoCount={} langs={}",
-                coverCount, imagesCount, dtoAlbumCount, dto.getContentLanguages());
+        log.info("POST /api/v1/image-collections | type={} coverFile={} imagesFiles={} albumDtoCount={} langs={}",
+                dto.getCollectionType(), coverCount, imagesCount, dtoAlbumCount, dto.getContentLanguages());
 
         Response created = imageCollectionService.create(dto, cover, images);
 
@@ -67,8 +67,8 @@ public class ImageCollectionController {
 
         int dtoAlbumCount = (dto.getImageAlbum() != null) ? dto.getImageAlbum().size() : 0;
 
-        log.info("POST /api/v1/image-collections/json | albumDtoCount={} langs={}",
-                dtoAlbumCount, dto.getContentLanguages());
+        log.info("POST /api/v1/image-collections/json | type={} albumDtoCount={} langs={}",
+                dto.getCollectionType(), dtoAlbumCount, dto.getContentLanguages());
 
         Response created = imageCollectionService.create(dto, null, null);
 
@@ -97,8 +97,8 @@ public class ImageCollectionController {
         int imagesCount = (images != null) ? (int) images.stream().filter(f -> f != null && !f.isEmpty()).count() : 0;
         int dtoAlbumCount = (dto.getImageAlbum() != null) ? dto.getImageAlbum().size() : -1; // -1 = not provided
 
-        log.info("PUT /api/v1/image-collections/{} | coverFile={} imagesFiles={} albumDtoCount={} langs={}",
-                id, coverCount, imagesCount, dtoAlbumCount, dto.getContentLanguages());
+        log.info("PUT /api/v1/image-collections/{} | type={} coverFile={} imagesFiles={} albumDtoCount={} langs={}",
+                id, dto.getCollectionType(), coverCount, imagesCount, dtoAlbumCount, dto.getContentLanguages());
 
         Response updated = imageCollectionService.update(id, dto, cover, images);
 
@@ -115,6 +115,8 @@ public class ImageCollectionController {
                 "Image collections fetched successfully"
         ));
     }
+
+
 
     // ============================================================
     // DELETE

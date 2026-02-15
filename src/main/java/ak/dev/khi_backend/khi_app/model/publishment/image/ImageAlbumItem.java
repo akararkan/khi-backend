@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "image_album_items")
+@Table(name = "image_album_items", indexes = {
+        @Index(name = "idx_album_item_collection_id", columnList = "image_collection_id")
+})
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
 @Builder
@@ -15,31 +17,39 @@ public class ImageAlbumItem {
     private Long id;
 
     /**
-     * ✅ Uploaded S3 URL (optional now)
-     * Because you may use externalUrl / embedUrl instead.
+     * Uploaded S3 URL (optional)
+     * Can use externalUrl or embedUrl instead
      */
     @Column(name = "image_url", nullable = true, columnDefinition = "TEXT")
     private String imageUrl;
 
     /**
-     * ✅ NEW: External page link
+     * External page link
      * Example: https://example.com/image.jpg
      */
     @Column(name = "external_url", columnDefinition = "TEXT")
     private String externalUrl;
 
     /**
-     * ✅ NEW: Embed link (iframe-ready)
+     * Embed link (iframe-ready)
      * Example: https://some-cdn.com/embed/xxxx
      */
     @Column(name = "embed_url", columnDefinition = "TEXT")
     private String embedUrl;
 
-    // Optional description in CKB
+    // ─── Caption in CKB (short title for the image) ───────────────────
+    @Column(name = "caption_ckb", length = 500)
+    private String captionCkb;
+
+    // ─── Caption in KMR (short title for the image) ───────────────────
+    @Column(name = "caption_kmr", length = 500)
+    private String captionKmr;
+
+    // ─── Description in CKB (detailed description of the image) ───────
     @Column(name = "description_ckb", columnDefinition = "TEXT")
     private String descriptionCkb;
 
-    // Optional description in KMR
+    // ─── Description in KMR (detailed description of the image) ───────
     @Column(name = "description_kmr", columnDefinition = "TEXT")
     private String descriptionKmr;
 

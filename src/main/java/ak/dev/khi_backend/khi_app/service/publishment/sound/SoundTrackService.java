@@ -580,7 +580,7 @@ public class SoundTrackService {
                         new LinkedHashSet<>(soundTrack.getContentLanguages()) : new LinkedHashSet<>())
                 .locations(soundTrack.getLocations())
                 .director(soundTrack.getDirector())
-                .isThisProjectOfInstitute(soundTrack.isThisProjectOfInstitute())
+                .thisProjectOfInstitute(soundTrack.isThisProjectOfInstitute())
                 .files(fileDTOs)
                 .totalDurationSeconds(totalDuration)
                 .totalSizeBytes(totalSize)

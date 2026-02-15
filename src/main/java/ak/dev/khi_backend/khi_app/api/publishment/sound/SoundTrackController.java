@@ -2,6 +2,7 @@ package ak.dev.khi_backend.khi_app.api.publishment.sound;
 
 import ak.dev.khi_backend.khi_app.dto.publishment.sound.SoundTrackDtos.*;
 import ak.dev.khi_backend.khi_app.service.publishment.sound.SoundTrackService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import java.util.List;
 public class SoundTrackController {
 
     private final SoundTrackService soundTrackService;
+    private final ObjectMapper objectMapper;
 
     /**
      * ADD - Create new SoundTrack with BILINGUAL content
@@ -25,20 +27,26 @@ public class SoundTrackController {
      * Content-Type: multipart/form-data
      *
      * Parts:
-     * - data (JSON): CreateRequest
+     * - data (TEXT/JSON string): CreateRequest JSON
      * - coverImage (optional): image file
      * - audioFiles (optional): list of audio files
      *
-     * NOTE:
-     * - audioFiles is OPTIONAL now.
-     * - You can create SoundTrack using ONLY links inside data.files (externalUrl/embedUrl/fileUrl)
+     * NOTE (best behavior):
+     * - audioFiles is OPTIONAL.
+     * - If audioFiles are provided, you SHOULD NOT send data.files (links).
+     * - If audioFiles are not provided, you can send link-based files in data.files.
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Response> addSoundTrack(
-            @Valid @RequestPart("data") CreateRequest request,
+            @RequestPart("data") String dataJson,
             @RequestPart(value = "audioFiles", required = false) List<MultipartFile> audioFiles,
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage
-    ) {
+    ) throws Exception {
+
+        // Keep String parsing to be compatible with Postman "text" part (same as News)
+        CreateRequest request = objectMapper.readValue(dataJson, CreateRequest.class);
+
+        // Service will enforce business validation (single vs multi + either/or sources).
         Response response = soundTrackService.addSoundTrack(request, audioFiles, coverImage);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -59,17 +67,25 @@ public class SoundTrackController {
      * Content-Type: multipart/form-data
      *
      * Parts:
-     * - data (JSON): UpdateRequest
+     * - data (TEXT/JSON string): UpdateRequest JSON
      * - coverImage (optional): image file
      * - audioFiles (optional): list of audio files
+     *
+     * NOTE (best behavior):
+     * - If audioFiles are provided, they REPLACE existing files and data.files is ignored.
+     * - If audioFiles are not provided and data.files is present (even empty list), it REPLACES existing files.
+     * - If neither provided, files remain unchanged.
      */
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Response> updateSoundTrack(
             @PathVariable Long id,
-            @Valid @RequestPart("data") UpdateRequest request,
+            @RequestPart("data") String dataJson,
             @RequestPart(value = "audioFiles", required = false) List<MultipartFile> audioFiles,
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage
-    ) {
+    ) throws Exception {
+
+        UpdateRequest request = objectMapper.readValue(dataJson, UpdateRequest.class);
+
         Response response = soundTrackService.updateSoundTrack(id, request, audioFiles, coverImage);
         return ResponseEntity.ok(response);
     }
@@ -87,8 +103,6 @@ public class SoundTrackController {
     /**
      * SEARCH BY TAG - Bilingual search
      * GET /api/v1/soundtracks/search/tag?value=folklore&language=ckb
-     *
-     * language: "ckb" (Sorani only), "kmr" (Kurmanji only), or omit for both
      */
     @GetMapping("/search/tag")
     public ResponseEntity<List<Response>> searchByTag(
@@ -102,8 +116,6 @@ public class SoundTrackController {
     /**
      * SEARCH BY KEYWORD - Bilingual search
      * GET /api/v1/soundtracks/search/keyword?value=story&language=kmr
-     *
-     * language: "ckb" (Sorani only), "kmr" (Kurmanji only), or omit for both
      */
     @GetMapping("/search/keyword")
     public ResponseEntity<List<Response>> searchByKeyword(

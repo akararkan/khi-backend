@@ -1,6 +1,7 @@
 package ak.dev.khi_backend.khi_app.service.publishment.image;
 
 import ak.dev.khi_backend.khi_app.dto.publishment.image.ImageCollectionDTO.*;
+import ak.dev.khi_backend.khi_app.enums.publishment.ImageCollectionType;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.model.publishment.image.ImageAlbumItem;
@@ -32,7 +33,7 @@ public class ImageCollectionService {
     private final S3Service s3Service;
 
     // ============================================================
-    // CREATE (multipart optional images)
+    // CREATE (multipart optional images) - O(n)
     // ============================================================
     @Transactional
     public Response create(CreateRequest dto, MultipartFile cover, List<MultipartFile> images) {
@@ -42,6 +43,7 @@ public class ImageCollectionService {
             String coverUrl = resolveCoverUrl(dto.getCoverUrl(), cover);
 
             ImageCollection entity = ImageCollection.builder()
+                    .collectionType(dto.getCollectionType())
                     .coverUrl(coverUrl)
                     .publishmentDate(dto.getPublishmentDate())
                     .contentLanguages(new LinkedHashSet<>(safeLangs(dto.getContentLanguages())))
@@ -53,15 +55,15 @@ public class ImageCollectionService {
 
             applyContentByLanguages(entity, dto.getContentLanguages(), dto.getCkbContent(), dto.getKmrContent());
 
-            // ✅ Build album items from uploads + dto links
-            List<ImageAlbumItem> builtItems = buildAlbumItems(entity, dto.getImageAlbum(), images);
+            // Build album items from uploads + dto links
+            List<ImageAlbumItem> builtItems = buildAlbumItems(entity, dto.getCollectionType(), dto.getImageAlbum(), images);
             entity.getImageAlbum().clear();
             entity.getImageAlbum().addAll(builtItems);
 
             ImageCollection saved = imageCollectionRepository.save(entity);
-            createLog(saved.getId(), titleOf(saved), "CREATE", "ImageCollection created");
+            createLog(saved.getId(), titleOf(saved), "CREATE", "ImageCollection created - Type: " + saved.getCollectionType());
 
-            // init album if LAZY
+            // Initialize album if LAZY
             saved.getImageAlbum().size();
             return toResponse(saved);
 
@@ -71,7 +73,7 @@ public class ImageCollectionService {
     }
 
     // ============================================================
-    // UPDATE (multipart optional images)
+    // UPDATE (multipart optional images) - O(n)
     // ============================================================
     @Transactional
     public Response update(Long id, UpdateRequest dto, MultipartFile cover, List<MultipartFile> images) {
@@ -81,7 +83,12 @@ public class ImageCollectionService {
                 .orElseThrow(() -> new EntityNotFoundException("ImageCollection not found: " + id));
 
         try {
-            // cover priority: uploaded > dto.coverUrl > keep old
+            // Update collection type if provided
+            if (dto != null && dto.getCollectionType() != null) {
+                entity.setCollectionType(dto.getCollectionType());
+            }
+
+            // Cover priority: uploaded > dto.coverUrl > keep old
             String newCoverUrl = resolveCoverUrl(dto != null ? dto.getCoverUrl() : null, cover);
             if (!isBlank(newCoverUrl)) entity.setCoverUrl(newCoverUrl);
 
@@ -93,10 +100,10 @@ public class ImageCollectionService {
                     entity.getContentLanguages().addAll(safeLangs(dto.getContentLanguages()));
                 }
 
-                // content blocks
+                // Content blocks
                 applyContentByLanguages(entity, entity.getContentLanguages(), dto.getCkbContent(), dto.getKmrContent());
 
-                // sets
+                // Tags
                 if (dto.getTags() != null) {
                     if (dto.getTags().getCkb() != null) {
                         entity.getTagsCkb().clear();
@@ -108,6 +115,7 @@ public class ImageCollectionService {
                     }
                 }
 
+                // Keywords
                 if (dto.getKeywords() != null) {
                     if (dto.getKeywords().getCkb() != null) {
                         entity.getKeywordsCkb().clear();
@@ -119,17 +127,17 @@ public class ImageCollectionService {
                     }
                 }
 
-                // ✅ Replace album ONLY if dto.imageAlbum != null OR uploaded images not empty
+                // Replace album ONLY if dto.imageAlbum != null OR uploaded images not empty
                 boolean hasUploads = images != null && images.stream().anyMatch(f -> f != null && !f.isEmpty());
                 if (dto.getImageAlbum() != null || hasUploads) {
                     entity.getImageAlbum().clear();
-                    List<ImageAlbumItem> rebuilt = buildAlbumItems(entity, dto.getImageAlbum(), images);
+                    List<ImageAlbumItem> rebuilt = buildAlbumItems(entity, entity.getCollectionType(), dto.getImageAlbum(), images);
                     entity.getImageAlbum().addAll(rebuilt);
                 }
             }
 
             ImageCollection saved = imageCollectionRepository.save(entity);
-            createLog(saved.getId(), titleOf(saved), "UPDATE", "ImageCollection updated");
+            createLog(saved.getId(), titleOf(saved), "UPDATE", "ImageCollection updated - Type: " + saved.getCollectionType());
 
             saved.getImageAlbum().size();
             return toResponse(saved);
@@ -140,7 +148,7 @@ public class ImageCollectionService {
     }
 
     // ============================================================
-    // GET ALL
+    // GET ALL - O(n)
     // ============================================================
     @Transactional(readOnly = true)
     public List<Response> getAll() {
@@ -151,6 +159,8 @@ public class ImageCollectionService {
         }).toList();
     }
 
+
+
     // ============================================================
     // DELETE
     // ============================================================
@@ -159,14 +169,15 @@ public class ImageCollectionService {
         ImageCollection entity = imageCollectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("ImageCollection not found: " + id));
 
-        createLog(entity.getId(), titleOf(entity), "DELETE", "ImageCollection deleted");
+        createLog(entity.getId(), titleOf(entity), "DELETE", "ImageCollection deleted - Type: " + entity.getCollectionType());
         imageCollectionRepository.delete(entity);
     }
 
     // ============================================================
-    // BUILD ALBUM ITEMS (UPLOAD OR LINKS) ✅
+    // BUILD ALBUM ITEMS - O(n) complexity
     // ============================================================
     private List<ImageAlbumItem> buildAlbumItems(ImageCollection owner,
+                                                 ImageCollectionType type,
                                                  List<ImageItemDto> dtos,
                                                  List<MultipartFile> files) throws IOException {
 
@@ -175,6 +186,9 @@ public class ImageCollectionService {
         int fileCount = (files == null) ? 0 : (int) files.stream().filter(f -> f != null && !f.isEmpty()).count();
         int dtoCount = (dtos == null) ? 0 : dtos.size();
         int max = Math.max(fileCount, dtoCount);
+
+        // Validate based on collection type
+        validateAlbumItemsCount(type, max);
 
         int fileIndex = 0;
         for (int i = 0; i < max; i++) {
@@ -188,11 +202,14 @@ public class ImageCollectionService {
             item.setSortOrder(dto != null && dto.getSortOrder() != null ? dto.getSortOrder() : i);
 
             if (dto != null) {
+                // Caption and description
+                item.setCaptionCkb(trimOrNull(dto.getCaptionCkb()));
+                item.setCaptionKmr(trimOrNull(dto.getCaptionKmr()));
                 item.setDescriptionCkb(trimOrNull(dto.getDescriptionCkb()));
                 item.setDescriptionKmr(trimOrNull(dto.getDescriptionKmr()));
             }
 
-            // ✅ apply source priority: upload file > dto.imageUrl/externalUrl/embedUrl
+            // Apply source priority: upload file > dto.imageUrl/externalUrl/embedUrl
             applyImageSource(item, file, dto);
 
             out.add(item);
@@ -214,7 +231,7 @@ public class ImageCollectionService {
         String ext = dto != null ? trimOrNull(dto.getExternalUrl()) : null;
         String emb = dto != null ? trimOrNull(dto.getEmbedUrl()) : null;
 
-        // ✅ item is optional globally, BUT if it exists we require at least one source
+        // At least one source is required
         if (isBlank(s3) && isBlank(ext) && isBlank(emb)) {
             throw new BadRequestException(
                     "image.source.required",
@@ -225,6 +242,40 @@ public class ImageCollectionService {
         item.setImageUrl(s3);
         item.setExternalUrl(ext);
         item.setEmbedUrl(emb);
+    }
+
+    // ============================================================
+    // TYPE-SPECIFIC VALIDATION
+    // ============================================================
+    private void validateAlbumItemsCount(ImageCollectionType type, int totalCount) {
+        switch (type) {
+            case SINGLE:
+                if (totalCount != 1) {
+                    throw new BadRequestException(
+                            "imageCollection.single.invalid",
+                            Map.of("message", "SINGLE type must have exactly 1 image", "count", totalCount)
+                    );
+                }
+                break;
+
+            case GALLERY:
+                if (totalCount < 1) {
+                    throw new BadRequestException(
+                            "imageCollection.gallery.invalid",
+                            Map.of("message", "GALLERY type must have at least 1 image")
+                    );
+                }
+                break;
+
+            case PHOTO_STORY:
+                if (totalCount < 2) {
+                    throw new BadRequestException(
+                            "imageCollection.photoStory.invalid",
+                            Map.of("message", "PHOTO_STORY type must have at least 2 images", "count", totalCount)
+                    );
+                }
+                break;
+        }
     }
 
     // ============================================================
@@ -269,11 +320,17 @@ public class ImageCollectionService {
     // ============================================================
     private void validateCreate(CreateRequest dto, MultipartFile cover) {
         if (dto == null) throw new BadRequestException("error.validation", Map.of("field", "data"));
+
+        // Validate collection type is provided
+        if (dto.getCollectionType() == null) {
+            throw new BadRequestException("imageCollection.type.required", Map.of("field", "collectionType"));
+        }
+
         if (safeLangs(dto.getContentLanguages()).isEmpty()) {
             throw new BadRequestException("imageCollection.languages.required", Map.of("field", "contentLanguages"));
         }
 
-        // cover is required by entity; allow coverUrl if no file
+        // Cover is required: allow coverUrl if no file
         boolean hasCoverFile = cover != null && !cover.isEmpty();
         boolean hasCoverUrl = !isBlank(dto.getCoverUrl());
         if (!hasCoverFile && !hasCoverUrl) {
@@ -307,11 +364,12 @@ public class ImageCollectionService {
     }
 
     // ============================================================
-    // MAPPERS
+    // MAPPERS - O(n)
     // ============================================================
     private Response toResponse(ImageCollection entity) {
         Response.ResponseBuilder b = Response.builder()
                 .id(entity.getId())
+                .collectionType(entity.getCollectionType())
                 .coverUrl(entity.getCoverUrl())
                 .publishmentDate(entity.getPublishmentDate())
                 .contentLanguages(entity.getContentLanguages() != null ? new LinkedHashSet<>(entity.getContentLanguages()) : new LinkedHashSet<>())
@@ -348,14 +406,17 @@ public class ImageCollectionService {
                 .kmr(new LinkedHashSet<>(safeSet(entity.getKeywordsKmr())))
                 .build());
 
+        // Map album items
         List<ImageItemDto> items = entity.getImageAlbum() == null ? List.of() :
                 entity.getImageAlbum().stream()
-                        .sorted(Comparator.comparing(i -> i.getSortOrder() == null ? 0 : i.getSortOrder()))
+                        .sorted(Comparator.comparing(i -> i.getSortOrder() != null ? i.getSortOrder() : 0))
                         .map(i -> ImageItemDto.builder()
                                 .id(i.getId())
                                 .imageUrl(i.getImageUrl())
                                 .externalUrl(i.getExternalUrl())
                                 .embedUrl(i.getEmbedUrl())
+                                .captionCkb(i.getCaptionCkb())
+                                .captionKmr(i.getCaptionKmr())
                                 .descriptionCkb(i.getDescriptionCkb())
                                 .descriptionKmr(i.getDescriptionKmr())
                                 .sortOrder(i.getSortOrder())
@@ -374,7 +435,7 @@ public class ImageCollectionService {
     }
 
     // ============================================================
-    // SMALL UTILS
+    // UTILS
     // ============================================================
     private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
     private String trimOrNull(String s) { if (s == null) return null; String t = s.trim(); return t.isEmpty() ? null : t; }

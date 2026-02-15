@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.project;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
+import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.model.project.Project;
 import ak.dev.khi_backend.khi_app.service.project.ProjectService;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -27,9 +29,8 @@ public class ProjectController {
     private final ProjectService projectService;
 
     // ============================================================
-    // CREATE
+    // CREATE (JSON)
     // ============================================================
-
     @PostMapping(value = "/create", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Project>> create(
             @Valid @RequestBody ProjectCreateRequest request
@@ -47,10 +48,10 @@ public class ProjectController {
     }
 
     /**
-     * - "data" = JSON ProjectCreateRequest (contains media links/externalUrl/embedUrl too)
-     * - "cover" optional
-     * - "media" optional
-     * - you can send ONLY links (no files) and it works
+     * Multipart:
+     * - data: JSON ProjectCreateRequest
+     * - cover: optional file BUT if cover is missing then coverUrl in JSON must exist
+     * - media: optional files (can repeat)
      */
     @PostMapping(
             value = "/with-files",
@@ -62,6 +63,12 @@ public class ProjectController {
             @RequestPart(value = "cover", required = false) MultipartFile cover,
             @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
     ) throws IOException {
+
+        // ✅ EASIEST GUARANTEE:
+        // coverUrl must come either from uploaded cover file OR from request.coverUrl
+        if ((cover == null || cover.isEmpty()) && isBlank(request.getCoverUrl())) {
+            throw new BadRequestException("project.cover_required", Map.of());
+        }
 
         int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
         int coverCount = (cover != null && !cover.isEmpty()) ? 1 : 0;
@@ -81,9 +88,8 @@ public class ProjectController {
     }
 
     // ============================================================
-    // UPDATE
+    // UPDATE (JSON)
     // ============================================================
-
     @PutMapping(value = "/update/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Project>> update(
             @PathVariable("id") Long id,
@@ -114,6 +120,12 @@ public class ProjectController {
             @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
     ) throws IOException {
 
+        // ✅ EASIEST GUARANTEE:
+        // If client doesn't upload new cover, they must send existing coverUrl in JSON.
+        if ((cover == null || cover.isEmpty()) && isBlank(request.getCoverUrl())) {
+            throw new BadRequestException("project.cover_required", Map.of());
+        }
+
         int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
         int coverCount = (cover != null && !cover.isEmpty()) ? 1 : 0;
 
@@ -133,7 +145,6 @@ public class ProjectController {
     // ============================================================
     // DELETE
     // ============================================================
-
     @DeleteMapping(value = "/delete/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         log.info("DELETE /api/v1/projects/delete/{}", id);
@@ -148,7 +159,6 @@ public class ProjectController {
     // ============================================================
     // GET ALL
     // ============================================================
-
     @GetMapping(value = "/getAll", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -166,7 +176,6 @@ public class ProjectController {
     // ============================================================
     // SEARCH BY TAG
     // ============================================================
-
     @GetMapping(value = "/search/tag", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByTag(
             @RequestParam("tag") String tag,
@@ -185,7 +194,6 @@ public class ProjectController {
     // ============================================================
     // SEARCH BY KEYWORD
     // ============================================================
-
     @GetMapping(value = "/search/keyword", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByKeyword(
             @RequestParam("keyword") String keyword,
@@ -199,5 +207,12 @@ public class ProjectController {
         return ResponseEntity.ok(
                 ApiResponse.success(result, "Search by keyword completed")
         );
+    }
+
+    // ============================================================
+    // UTIL
+    // ============================================================
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }

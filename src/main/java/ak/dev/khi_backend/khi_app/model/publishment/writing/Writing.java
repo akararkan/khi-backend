@@ -6,9 +6,17 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Writing/Book entity with bilingual support (CKB & KMR)
- * Represents books, documents, and publications
+ * Represents books, documents, and publications with SERIES SUPPORT
+ *
+ * ✅ ENHANCED FEATURES:
+ * - Book Series/Editions support (e.g., "Eslam Part 1", "Eslam Part 2")
+ * - Optimized indexing for fast writer search O(log n)
+ * - Two separate cover pages (CKB & KMR) already supported
  */
 @Entity
 @Table(
@@ -17,7 +25,16 @@ import java.util.Set;
                 @Index(name = "idx_writing_topic", columnList = "writing_topic"),
                 @Index(name = "idx_writing_institute", columnList = "published_by_institute"),
                 @Index(name = "idx_writing_created_at", columnList = "created_at"),
-                @Index(name = "idx_writing_updated_at", columnList = "updated_at")
+                @Index(name = "idx_writing_updated_at", columnList = "updated_at"),
+
+                // ✅ NEW: Optimized indexes for writer search O(log n)
+                @Index(name = "idx_writer_ckb", columnList = "writer_ckb"),
+                @Index(name = "idx_writer_kmr", columnList = "writer_kmr"),
+
+                // ✅ NEW: Optimized indexes for series queries O(log n)
+                @Index(name = "idx_series_id", columnList = "series_id"),
+                @Index(name = "idx_series_composite", columnList = "series_id, series_order"),
+                @Index(name = "idx_parent_book", columnList = "parent_book_id")
         }
 )
 @Getter @Setter
@@ -31,12 +48,66 @@ public class Writing {
     private Long id;
 
     // ============================================================
+    // ✅ NEW: BOOK SERIES / EDITION SUPPORT
+    // ============================================================
+
+    /**
+     * Series identifier - books with same seriesId belong to same series
+     * Example: "eslam-series", "quran-commentary-series"
+     * Generated automatically for first book, can be shared by related books
+     */
+    @Column(name = "series_id", length = 100)
+    private String seriesId;
+
+    /**
+     * Series name (displayed to users)
+     * Example: "Eslam Series", "Introduction to Islam"
+     * Optional - if null, individual book titles are used
+     */
+    @Column(name = "series_name", length = 300)
+    private String seriesName;
+
+    /**
+     * Order within the series
+     * Example: 1 for "Part 1", 2 for "Part 2"
+     * Allows flexible ordering: 1, 2, 3... or 1, 1.5, 2 (for insertions)
+     */
+    @Column(name = "series_order")
+    private Double seriesOrder;
+
+    /**
+     * Reference to the parent/first book in series (optional)
+     * Useful for quick navigation to series root
+     * NULL for standalone books or series parent
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_book_id")
+    private Writing parentBook;
+
+    /**
+     * Books in this series (if this is a parent)
+     * Bi-directional relationship for easy series navigation
+     */
+    @OneToMany(mappedBy = "parentBook", fetch = FetchType.LAZY)
+    @OrderBy("seriesOrder ASC")
+    @Builder.Default
+    private List<Writing> seriesBooks = new ArrayList<>();
+
+    /**
+     * Total books in this series (cached for performance)
+     * Updated when books are added/removed from series
+     */
+    @Column(name = "series_total_books")
+    private Integer seriesTotalBooks;
+
+    // ============================================================
     // BILINGUAL SUPPORT (like News and SoundTrack)
     // ============================================================
 
     /**
      * Which languages are active for this writing
      * Can be: [CKB], [KMR], or [CKB, KMR]
+     * ✅ Supports TWO SEPARATE COVER PAGES (one for each language)
      */
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
@@ -50,8 +121,8 @@ public class Writing {
 
     /**
      * ✅ Sorani (CKB) Content
-     * Contains: title, description, writer, coverUrl, fileUrl, fileFormat,
-     * fileSizeBytes, pageCount, genre
+     * Contains: title, description, writer, coverUrl (COVER PAGE 1),
+     * fileUrl, fileFormat, fileSizeBytes, pageCount, genre
      */
     @Embedded
     @AttributeOverrides({
@@ -69,8 +140,8 @@ public class Writing {
 
     /**
      * ✅ Kurmanji (KMR) Content
-     * Contains: title, description, writer, coverUrl, fileUrl, fileFormat,
-     * fileSizeBytes, pageCount, genre
+     * Contains: title, description, writer, coverUrl (COVER PAGE 2),
+     * fileUrl, fileFormat, fileSizeBytes, pageCount, genre
      */
     @Embedded
     @AttributeOverrides({
@@ -160,10 +231,54 @@ public class Writing {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+
+        // Auto-generate series ID if not provided
+        if (seriesId == null) {
+            seriesId = "series-" + System.currentTimeMillis();
+        }
+
+        // Default series order to 1 if not set
+        if (seriesOrder == null) {
+            seriesOrder = 1.0;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // ============================================================
+    // HELPER METHODS FOR SERIES MANAGEMENT
+    // ============================================================
+
+    /**
+     * Check if this book is part of a series
+     */
+    public boolean isPartOfSeries() {
+        return seriesId != null && (seriesTotalBooks == null || seriesTotalBooks > 1);
+    }
+
+    /**
+     * Check if this is the parent/first book in a series
+     */
+    public boolean isSeriesParent() {
+        return parentBook == null && isPartOfSeries();
+    }
+
+    /**
+     * Get the effective series name (falls back to book title if not set)
+     */
+    public String getEffectiveSeriesName() {
+        if (seriesName != null && !seriesName.isBlank()) {
+            return seriesName;
+        }
+        if (ckbContent != null && ckbContent.getTitle() != null) {
+            return ckbContent.getTitle();
+        }
+        if (kmrContent != null && kmrContent.getTitle() != null) {
+            return kmrContent.getTitle();
+        }
+        return "Unknown Series";
     }
 }

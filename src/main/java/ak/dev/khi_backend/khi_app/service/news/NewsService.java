@@ -18,6 +18,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -35,33 +36,47 @@ public class NewsService {
     private final TransactionTemplate transactionTemplate;
 
     // ============================================================
-    // CREATE (multipart: cover + mediaFiles)
+    // CREATE (multipart: coverImage optional + mediaFiles optional)
+    //
+    // ✅ cover:
+    //   - if coverImage exists -> upload and use it
+    //   - else -> must have dto.coverUrl
+    //
+    // ✅ media:
+    //   - if mediaFiles provided -> upload and use them (dto.media is optional and can be empty)
+    //   - else -> use dto.media links (optional)
     // ============================================================
-
     public NewsDto addNews(NewsDto dto, MultipartFile coverImage, List<MultipartFile> mediaFiles) {
-        String traceId = MDC.get("traceId");
-        log.info("Creating news with files | traceId={}", traceId);
+        String traceId = traceId();
+        log.info("Creating news | traceId={}", traceId);
 
-        validate(dto, true, coverImage);
+        boolean hasCoverFile = hasFile(coverImage);
+        boolean hasMediaFiles = hasFiles(mediaFiles);
+
+        // cover required for create: file OR dto.coverUrl
+        validate(dto, true, hasCoverFile);
 
         int mediaCount = mediaFiles != null ? mediaFiles.size() : 0;
         ExecutorService pool = Executors.newFixedThreadPool(Math.min(8, Math.max(2, 1 + mediaCount)));
 
         try {
             // ---------- Upload outside transaction ----------
-            CompletableFuture<String> coverFuture = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return s3Service.upload(coverBytes(coverImage), coverImage.getOriginalFilename(), coverImage.getContentType());
-                } catch (IOException e) {
-                    throw new CompletionException(e);
-                }
-            }, pool);
+            CompletableFuture<String> coverFuture = CompletableFuture.completedFuture(trimOrNull(dto.getCoverUrl()));
+            if (hasCoverFile) {
+                coverFuture = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return s3Service.upload(coverBytes(coverImage), coverImage.getOriginalFilename(), coverImage.getContentType());
+                    } catch (IOException e) {
+                        throw new CompletionException(e);
+                    }
+                }, pool);
+            }
 
             List<CompletableFuture<UploadedMedia>> mediaFutures = new ArrayList<>();
-            if (mediaFiles != null && !mediaFiles.isEmpty()) {
+            if (hasMediaFiles) {
                 int sort = 0;
                 for (MultipartFile f : mediaFiles) {
-                    if (f == null || f.isEmpty()) continue;
+                    if (!hasFile(f)) continue;
                     final int so = sort++;
                     mediaFutures.add(CompletableFuture.supplyAsync(() -> {
                         try {
@@ -74,7 +89,11 @@ public class NewsService {
                 }
             }
 
-            String coverUrl = coverFuture.join();
+            String coverUrl = trimOrNull(coverFuture.join());
+            if (isBlank(coverUrl)) {
+                throw new BadRequestException("news.cover.required", Map.of("field", "coverImage_or_coverUrl", "traceId", traceId));
+            }
+
             List<UploadedMedia> uploadedMedia = new ArrayList<>();
             for (CompletableFuture<UploadedMedia> f : mediaFutures) uploadedMedia.add(f.join());
 
@@ -89,10 +108,10 @@ public class NewsService {
                         .category(category)
                         .subCategory(subCategory)
                         .contentLanguages(new LinkedHashSet<>(safeLangs(dto.getContentLanguages())))
-                        .tagsCkb(new LinkedHashSet<>(safeSet(dto.getTags() != null ? dto.getTags().getCkb() : null)))
-                        .tagsKmr(new LinkedHashSet<>(safeSet(dto.getTags() != null ? dto.getTags().getKmr() : null)))
-                        .keywordsCkb(new LinkedHashSet<>(safeSet(dto.getKeywords() != null ? dto.getKeywords().getCkb() : null)))
-                        .keywordsKmr(new LinkedHashSet<>(safeSet(dto.getKeywords() != null ? dto.getKeywords().getKmr() : null)))
+                        .tagsCkb(new LinkedHashSet<>(cleanStrings(dto.getTags() != null ? dto.getTags().getCkb() : null)))
+                        .tagsKmr(new LinkedHashSet<>(cleanStrings(dto.getTags() != null ? dto.getTags().getKmr() : null)))
+                        .keywordsCkb(new LinkedHashSet<>(cleanStrings(dto.getKeywords() != null ? dto.getKeywords().getCkb() : null)))
+                        .keywordsKmr(new LinkedHashSet<>(cleanStrings(dto.getKeywords() != null ? dto.getKeywords().getKmr() : null)))
                         .build();
 
                 applyContentByLanguages(news, dto);
@@ -109,16 +128,17 @@ public class NewsService {
                                 .sortOrder(um.sortOrder())
                                 .build());
                     }
+                } else {
+                    // ✅ only if NO files uploaded -> use dto.media links (optional)
+                    attachMediaFromDto(news, dto.getMedia());
                 }
-
-                // media from dto URLs (optional)  ✅ upgraded
-                attachMediaFromDto(news, dto.getMedia());
 
                 News p = newsRepository.save(news);
                 createAuditLog(p, "CREATE", "news.created");
                 return p;
             });
 
+            saved.getMedia().size();
             return convertToDto(saved);
 
         } catch (CompletionException ex) {
@@ -134,13 +154,15 @@ public class NewsService {
 
     // ============================================================
     // CREATE BULK (JSON only)
+    //
+    // ✅ media optional
+    // ✅ coverUrl required per item (no cover file in bulk)
     // ============================================================
-
     public List<NewsDto> addNewsBulk(List<NewsDto> list) {
         if (list == null || list.isEmpty()) return List.of();
 
         for (NewsDto dto : list) {
-            validate(dto, false, null);
+            validate(dto, false, false);
             if (isBlank(dto.getCoverUrl())) {
                 throw new BadRequestException("news.coverUrl.required", Map.of("field", "coverUrl"));
             }
@@ -159,15 +181,15 @@ public class NewsService {
                         .category(category)
                         .subCategory(subCategory)
                         .contentLanguages(new LinkedHashSet<>(safeLangs(dto.getContentLanguages())))
-                        .tagsCkb(new LinkedHashSet<>(safeSet(dto.getTags() != null ? dto.getTags().getCkb() : null)))
-                        .tagsKmr(new LinkedHashSet<>(safeSet(dto.getTags() != null ? dto.getTags().getKmr() : null)))
-                        .keywordsCkb(new LinkedHashSet<>(safeSet(dto.getKeywords() != null ? dto.getKeywords().getCkb() : null)))
-                        .keywordsKmr(new LinkedHashSet<>(safeSet(dto.getKeywords() != null ? dto.getKeywords().getKmr() : null)))
+                        .tagsCkb(new LinkedHashSet<>(cleanStrings(dto.getTags() != null ? dto.getTags().getCkb() : null)))
+                        .tagsKmr(new LinkedHashSet<>(cleanStrings(dto.getTags() != null ? dto.getTags().getKmr() : null)))
+                        .keywordsCkb(new LinkedHashSet<>(cleanStrings(dto.getKeywords() != null ? dto.getKeywords().getCkb() : null)))
+                        .keywordsKmr(new LinkedHashSet<>(cleanStrings(dto.getKeywords() != null ? dto.getKeywords().getKmr() : null)))
                         .build();
 
                 applyContentByLanguages(news, dto);
 
-                // ✅ upgraded
+                // ✅ JSON bulk uses dto.media (optional)
                 attachMediaFromDto(news, dto.getMedia());
 
                 entities.add(news);
@@ -188,12 +210,11 @@ public class NewsService {
     // ============================================================
     // GET ALL
     // ============================================================
-
     public List<NewsDto> getAllNews() {
         return transactionTemplate.execute(status -> {
             List<News> newsList = newsRepository.findAllOrderedByDate();
             return newsList.stream().map(n -> {
-                n.getMedia().size(); // init lazy
+                n.getMedia().size();
                 return convertToDto(n);
             }).toList();
         });
@@ -202,7 +223,6 @@ public class NewsService {
     // ============================================================
     // SEARCH
     // ============================================================
-
     public List<NewsDto> searchByKeyword(String keyword, String language) {
         if (isBlank(keyword)) return List.of();
 
@@ -256,7 +276,12 @@ public class NewsService {
     public List<NewsDto> searchByTags(Set<String> tags, String language) {
         if (tags == null || tags.isEmpty()) return List.of();
 
-        List<String> searchTags = tags.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isBlank()).toList();
+        List<String> searchTags = tags.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+
         if (searchTags.isEmpty()) return List.of();
 
         List<News> results;
@@ -281,22 +306,30 @@ public class NewsService {
     }
 
     // ============================================================
-    // UPDATE (multipart: optional cover + optional mediaFiles)
+    // UPDATE (multipart)
+    //
+    // ✅ media logic:
+    //   - if newMediaFiles provided -> replace media with uploaded files (dto.media is optional and ignored)
+    //   - else if dto.media != null -> replace media with dto.media (even empty list means clear)
+    //   - else -> keep existing media unchanged
     // ============================================================
-
     public NewsDto updateNews(Long newsId, NewsDto dto, MultipartFile newCoverImage, List<MultipartFile> newMediaFiles) {
-        String traceId = MDC.get("traceId");
-        log.info("Updating news with files | id={} | traceId={}", newsId, traceId);
+        String traceId = traceId();
+        log.info("Updating news | id={} | traceId={}", newsId, traceId);
 
         if (newsId == null) throw new BadRequestException("error.validation", Map.of("field", "id"));
-        validate(dto, false, null);
+
+        boolean hasNewCoverFile = hasFile(newCoverImage);
+        boolean hasNewMediaFiles = hasFiles(newMediaFiles);
+
+        validate(dto, false, false);
 
         int mediaCount = newMediaFiles != null ? newMediaFiles.size() : 0;
         ExecutorService pool = Executors.newFixedThreadPool(Math.min(8, Math.max(2, 1 + mediaCount)));
 
         try {
             CompletableFuture<String> coverFuture = CompletableFuture.completedFuture(null);
-            if (newCoverImage != null && !newCoverImage.isEmpty()) {
+            if (hasNewCoverFile) {
                 coverFuture = CompletableFuture.supplyAsync(() -> {
                     try {
                         return s3Service.upload(coverBytes(newCoverImage), newCoverImage.getOriginalFilename(), newCoverImage.getContentType());
@@ -307,10 +340,10 @@ public class NewsService {
             }
 
             List<CompletableFuture<UploadedMedia>> mediaFutures = new ArrayList<>();
-            if (newMediaFiles != null && !newMediaFiles.isEmpty()) {
+            if (hasNewMediaFiles) {
                 int sort = 0;
                 for (MultipartFile f : newMediaFiles) {
-                    if (f == null || f.isEmpty()) continue;
+                    if (!hasFile(f)) continue;
                     final int so = sort++;
                     mediaFutures.add(CompletableFuture.supplyAsync(() -> {
                         try {
@@ -323,7 +356,8 @@ public class NewsService {
                 }
             }
 
-            String uploadedCoverUrl = coverFuture.join();
+            String uploadedCoverUrl = trimOrNull(coverFuture.join());
+
             List<UploadedMedia> uploadedMedia = new ArrayList<>();
             for (CompletableFuture<UploadedMedia> f : mediaFutures) uploadedMedia.add(f.join());
 
@@ -331,10 +365,16 @@ public class NewsService {
                 News news = newsRepository.findById(newsId)
                         .orElseThrow(() -> new BadRequestException("news.not_found", Map.of("id", newsId)));
 
+                // ✅ Cover logic (never allow empty final result)
                 if (!isBlank(uploadedCoverUrl)) {
                     news.setCoverUrl(uploadedCoverUrl);
                 } else if (!isBlank(dto.getCoverUrl())) {
                     news.setCoverUrl(dto.getCoverUrl().trim());
+                } else {
+                    // keep existing; but if existing is empty -> reject
+                    if (isBlank(news.getCoverUrl())) {
+                        throw new BadRequestException("news.cover.required", Map.of("field", "coverImage_or_coverUrl"));
+                    }
                 }
 
                 if (dto.getDatePublished() != null) {
@@ -355,7 +395,9 @@ public class NewsService {
 
                 replaceBilingualSets(news, dto);
 
+                // ✅ media replace rules
                 if (!uploadedMedia.isEmpty()) {
+                    // replace with uploaded files
                     news.getMedia().clear();
                     for (UploadedMedia um : uploadedMedia) {
                         news.getMedia().add(NewsMedia.builder()
@@ -367,10 +409,13 @@ public class NewsService {
                                 .sortOrder(um.sortOrder())
                                 .build());
                     }
+                } else if (dto.getMedia() != null) {
+                    // replace with dto media (even empty list clears)
+                    news.getMedia().clear();
+                    attachMediaFromDto(news, dto.getMedia());
+                } else {
+                    // keep existing media unchanged
                 }
-
-                // ✅ upgraded (append/ignore duplicates)
-                attachMediaFromDto(news, dto.getMedia());
 
                 News saved = newsRepository.save(news);
                 createAuditLog(saved, "UPDATE", "news.updated");
@@ -394,7 +439,6 @@ public class NewsService {
     // ============================================================
     // DELETE
     // ============================================================
-
     public void deleteNews(Long newsId) {
         if (newsId == null) throw new BadRequestException("error.validation", Map.of("field", "id"));
 
@@ -423,10 +467,11 @@ public class NewsService {
     }
 
     // ============================================================
-    // VALIDATION (Project style)
+    // VALIDATION
+    //
+    // createRequiresCover=true -> cover must exist either as file OR dto.coverUrl
     // ============================================================
-
-    private void validate(NewsDto dto, boolean coverRequired, MultipartFile coverImage) {
+    private void validate(NewsDto dto, boolean createRequiresCover, boolean hasCoverFile) {
         if (dto == null) throw new BadRequestException("error.validation", Map.of("field", "body"));
 
         Set<Language> langs = safeLangs(dto.getContentLanguages());
@@ -434,8 +479,11 @@ public class NewsService {
             throw new BadRequestException("news.languages.required", Map.of("field", "contentLanguages"));
         }
 
-        if (coverRequired && (coverImage == null || coverImage.isEmpty())) {
-            throw new BadRequestException("news.cover.required", Map.of("field", "cover"));
+        if (createRequiresCover) {
+            boolean hasCoverUrl = !isBlank(dto.getCoverUrl());
+            if (!hasCoverFile && !hasCoverUrl) {
+                throw new BadRequestException("news.cover.required", Map.of("field", "coverImage_or_coverUrl"));
+            }
         }
 
         if (dto.getCategory() == null || isBlank(dto.getCategory().getCkbName()) || isBlank(dto.getCategory().getKmrName())) {
@@ -458,9 +506,8 @@ public class NewsService {
     }
 
     // ============================================================
-    // HELPERS
+    // CATEGORY / SUBCATEGORY (trim + update mismatch)
     // ============================================================
-
     private NewsCategory getOrCreateCategory(NewsDto.CategoryDto categoryDto) {
         String ckb = trimOrNull(categoryDto != null ? categoryDto.getCkbName() : null);
         String kmr = trimOrNull(categoryDto != null ? categoryDto.getKmrName() : null);
@@ -469,10 +516,19 @@ public class NewsService {
             throw new BadRequestException("news.category.required", Map.of("field", "category"));
         }
 
-        return newsCategoryRepository.findByNameCkb(ckb)
-                .orElseGet(() -> newsCategoryRepository.save(
-                        NewsCategory.builder().nameCkb(ckb).nameKmr(kmr).build()
-                ));
+        NewsCategory existing = newsCategoryRepository.findByNameCkb(ckb).orElse(null);
+        if (existing != null) {
+            if (!isBlank(kmr) && !kmr.equals(existing.getNameKmr())) {
+                existing.setNameKmr(kmr);
+                existing = newsCategoryRepository.save(existing);
+            }
+            return existing;
+        }
+
+        return newsCategoryRepository.save(NewsCategory.builder()
+                .nameCkb(ckb)
+                .nameKmr(kmr)
+                .build());
     }
 
     private NewsSubCategory getOrCreateSubCategory(NewsDto.SubCategoryDto subCategoryDto, NewsCategory category) {
@@ -483,12 +539,25 @@ public class NewsService {
             throw new BadRequestException("news.subcategory.required", Map.of("field", "subCategory"));
         }
 
-        return newsSubCategoryRepository.findByCategoryAndNameCkb(category, ckb)
-                .orElseGet(() -> newsSubCategoryRepository.save(
-                        NewsSubCategory.builder().nameCkb(ckb).nameKmr(kmr).category(category).build()
-                ));
+        NewsSubCategory existing = newsSubCategoryRepository.findByCategoryAndNameCkb(category, ckb).orElse(null);
+        if (existing != null) {
+            if (!isBlank(kmr) && !kmr.equals(existing.getNameKmr())) {
+                existing.setNameKmr(kmr);
+                existing = newsSubCategoryRepository.save(existing);
+            }
+            return existing;
+        }
+
+        return newsSubCategoryRepository.save(NewsSubCategory.builder()
+                .nameCkb(ckb)
+                .nameKmr(kmr)
+                .category(category)
+                .build());
     }
 
+    // ============================================================
+    // CONTENT
+    // ============================================================
     private void applyContentByLanguages(News news, NewsDto dto) {
         Set<Language> langs = safeLangs(news.getContentLanguages());
 
@@ -544,12 +613,11 @@ public class NewsService {
     }
 
     // ============================================================
-    // ✅ MEDIA FROM DTO (UPGRADED: url OR externalUrl OR embedUrl)
+    // MEDIA FROM DTO (optional)
     // ============================================================
     private void attachMediaFromDto(News news, List<NewsDto.MediaDto> mediaDtos) {
         if (mediaDtos == null || mediaDtos.isEmpty()) return;
 
-        // existing keys: type + bestLink(url|embed|external)
         Set<String> existing = new HashSet<>();
         for (NewsMedia m : news.getMedia()) {
             String key = mediaKey(m.getType(), m.getUrl(), m.getEmbedUrl(), m.getExternalUrl());
@@ -567,7 +635,6 @@ public class NewsService {
             boolean hasExternal = !isBlank(externalUrl);
             boolean hasEmbed = !isBlank(embedUrl);
 
-            // AUDIO/VIDEO: must have at least one of url/external/embed
             if (m.getType() == NewsMediaType.AUDIO || m.getType() == NewsMediaType.VIDEO) {
                 if (!hasUrl && !hasExternal && !hasEmbed) {
                     throw new BadRequestException(
@@ -576,7 +643,6 @@ public class NewsService {
                     );
                 }
             } else {
-                // other types must have direct url
                 if (!hasUrl) {
                     throw new BadRequestException(
                             "news.media.url_required",
@@ -620,6 +686,9 @@ public class NewsService {
         return NewsMediaType.DOCUMENT;
     }
 
+    // ============================================================
+    // AUDIT
+    // ============================================================
     private void createAuditLog(News news, String action, String messageKey) {
         newsAuditLogRepository.save(buildAuditLog(news, action, messageKey));
     }
@@ -634,7 +703,7 @@ public class NewsService {
     }
 
     // ============================================================
-    // ✅ DTO MAPPING (UPGRADED: externalUrl/embedUrl)
+    // DTO mapping
     // ============================================================
     private NewsDto convertToDto(News news) {
         NewsDto dto = NewsDto.builder()
@@ -709,6 +778,17 @@ public class NewsService {
     // ============================================================
     // small utils
     // ============================================================
+    private boolean hasFile(MultipartFile f) {
+        return f != null && !f.isEmpty();
+    }
+
+    private boolean hasFiles(List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) return false;
+        for (MultipartFile f : files) {
+            if (hasFile(f)) return true;
+        }
+        return false;
+    }
 
     private byte[] coverBytes(MultipartFile f) throws IOException {
         if (f == null || f.isEmpty()) throw new BadRequestException("news.cover.required", Map.of("field", "cover"));
@@ -740,6 +820,11 @@ public class NewsService {
             if (s != null && !s.isBlank()) out.add(s.trim());
         }
         return out;
+    }
+
+    private String traceId() {
+        String t = MDC.get("traceId");
+        return (t != null && !t.isBlank()) ? t : UUID.randomUUID().toString();
     }
 
     private record UploadedMedia(NewsMediaType type, String url, int sortOrder) {}
