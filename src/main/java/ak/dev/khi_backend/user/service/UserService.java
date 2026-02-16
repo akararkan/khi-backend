@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.user.service;
 
+import ak.dev.khi_backend.user.enums.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import ak.dev.khi_backend.user.dto.*;
 import ak.dev.khi_backend.user.exceptions.UserAlreadyExistsException;
@@ -81,7 +82,7 @@ public class UserService implements UserDetailsService {
                     .email(dto.getEmail())
                     .password(passwordEncoder.encode(dto.getPassword()))
                     .pincode(dto.getPincode())
-                    .role(dto.getRole())
+                    .role(Role.GUEST)
                     .isActivated(true)
                     .createdAt(now)
                     .updatedAt(now)

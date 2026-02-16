@@ -46,11 +46,11 @@ spring:
   # ===============================
   # JACKSON (JSON)
   # ===============================
-  jackson:
+  Jackson:
     serialization:
       indent_output: true
     default-property-inclusion: non_null
-    time-zone: UTC
+    time-zone: Asia/Baghdad
 
   # ===============================
   # DEVTOOLS

@@ -256,7 +256,7 @@ public class JwtTokenProvider {
     public DecodedJWT decodeToken(String token) {
         try {
             JWTVerifier verifier = JWT.require(Algorithm.HMAC256(secret))
-                    .withIssuer("Brwa Salam - Hadi Shop")
+                    .withIssuer(AKAR_ARKAN)
                     .build();
 
             DecodedJWT decodedJWT = verifier.verify(token);

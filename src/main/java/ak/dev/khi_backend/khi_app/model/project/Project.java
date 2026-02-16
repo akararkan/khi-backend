@@ -1,6 +1,7 @@
 package ak.dev.khi_backend.khi_app.model.project;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.model.audit.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -24,7 +25,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Project {
+public class Project extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -141,25 +142,6 @@ public class Project {
     @OrderBy("sortOrder ASC, id ASC")
     @Builder.Default
     private Set<ProjectMedia> media = new LinkedHashSet<>();
-
-    // timestamps
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    void onCreate() {
-        var now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 
     // Helper methods
     public void addMedia(ProjectMedia m) {
