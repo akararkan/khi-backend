@@ -6,6 +6,7 @@ import ak.dev.khi_backend.khi_app.dto.project.ProjectMediaResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectMediaType;
+import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
 import ak.dev.khi_backend.khi_app.exceptions.*;
 import ak.dev.khi_backend.khi_app.model.project.*;
 import ak.dev.khi_backend.khi_app.repository.project.*;
@@ -17,6 +18,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,52 +35,49 @@ import java.util.concurrent.*;
 @RequiredArgsConstructor
 public class ProjectService {
 
-    private final ProjectRepository projectRepository;
-    private final ProjectContentRepository projectContentRepository;
-    private final ProjectTagRepository projectTagRepository;
-    private final ProjectKeywordRepository projectKeywordRepository;
-    private final ProjectLogRepository projectLogRepository;
-    private final ProjectMediaRepository projectMediaRepository;
-    private final S3Service s3Service;
+    private final ProjectRepository          projectRepository;
+    private final ProjectContentRepository   projectContentRepository;
+    private final ProjectTagRepository       projectTagRepository;
+    private final ProjectKeywordRepository   projectKeywordRepository;
+    private final ProjectLogRepository       projectLogRepository;
+    private final ProjectMediaRepository     projectMediaRepository;
+    private final S3Service                  s3Service;
     private final PlatformTransactionManager transactionManager;
 
     @PersistenceContext
     private EntityManager em;
 
-    private TransactionTemplate transactionTemplate() {
+    private TransactionTemplate tx() {
         return new TransactionTemplate(transactionManager);
     }
 
     // ===========================
-    // CREATE (JSON only)
+    // CREATE  (JSON only)
     // ===========================
     public Project create(ProjectCreateRequest dto) {
         String traceId = traceId();
         log.info("Creating project | langs={} | traceId={}", dto != null ? dto.getContentLanguages() : null, traceId);
 
-        // ✅ For JSON-only endpoint we must have coverUrl
         validate(dto, true);
 
         try {
-            Project saved = transactionTemplate().execute(status -> {
+            Project saved = tx().execute(status -> {
                 Project project = buildProject(dto);
-
                 attachAllContents(project, dto);
                 attachAllTags(project, dto);
                 attachAllKeywords(project, dto);
                 attachMediaFromDto(project, dto.getMedia());
 
                 Project p = projectRepository.save(project);
-                createAuditLog(p, "CREATE", "Created project: " + safeTitle(p));
+                auditLog(p, "CREATE", "Created project: " + safeTitle(p));
                 return p;
             });
 
             log.info("Project created | id={} | traceId={}", saved.getId(), traceId);
             return saved;
 
-        } catch (AppException ex) {
-            throw ex;
-        } catch (DataIntegrityViolationException ex) {
+        } catch (AppException ex) { throw ex; }
+        catch (DataIntegrityViolationException ex) {
             throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
         } catch (Exception ex) {
             log.error("Unexpected error creating project | traceId={}", traceId, ex);
@@ -87,169 +86,85 @@ public class ProjectService {
     }
 
     // ===========================
-    // CREATE (with files)
+    // CREATE  (with files)
     // ===========================
-    public Project create(ProjectCreateRequest dto, MultipartFile cover, List<MultipartFile> mediaFiles) throws IOException {
-        String traceId = traceId();
-        int mediaCount = mediaFiles != null ? mediaFiles.size() : 0;
-
+    public Project create(ProjectCreateRequest dto,
+                          MultipartFile cover,
+                          List<MultipartFile> mediaFiles) throws IOException {
+        String traceId  = traceId();
+        int    mcnt     = mediaFiles != null ? mediaFiles.size() : 0;
         log.info("Creating project with files | mediaFiles={} | langs={} | traceId={}",
-                mediaCount, dto != null ? dto.getContentLanguages() : null, traceId);
+                mcnt, dto != null ? dto.getContentLanguages() : null, traceId);
 
-        // ✅ For multipart endpoint cover can be file OR coverUrl
         validate(dto, false);
 
-        String dtoCoverUrl = dto.getCoverUrl();
-        List<UploadedMedia> uploadedMedia = new ArrayList<>();
-
-        int threads = Math.min(8, Math.max(2, 1 + mediaCount));
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        String dtoCoverUrl   = dto.getCoverUrl();
+        List<UploadedMedia> uploaded = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(8, Math.max(2, 1 + mcnt)));
 
         try {
             CompletableFuture<String> coverFuture = CompletableFuture.completedFuture(dtoCoverUrl);
-
             if (cover != null && !cover.isEmpty()) {
-                coverFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        return s3Service.upload(
-                                cover.getBytes(),
-                                cover.getOriginalFilename(),
-                                cover.getContentType(),
-                                ProjectMediaType.IMAGE
-                        );
-                    } catch (IOException e) {
-                        throw new CompletionException(e);
-                    }
-                }, pool);
+                coverFuture = CompletableFuture.supplyAsync(() -> uploadCover(cover), pool);
             }
 
-            List<CompletableFuture<UploadedMedia>> mediaFutures = new ArrayList<>();
-            if (mediaFiles != null && !mediaFiles.isEmpty()) {
-                int sortOrder = 0;
-                for (MultipartFile file : mediaFiles) {
-                    if (file == null || file.isEmpty()) continue;
-
-                    final int order = sortOrder++;
-                    mediaFutures.add(CompletableFuture.supplyAsync(() -> {
-                        try {
-                            ProjectMediaType type = detectMediaType(file);
-                            String url = s3Service.upload(
-                                    file.getBytes(),
-                                    file.getOriginalFilename(),
-                                    file.getContentType(),
-                                    type
-                            );
-                            return new UploadedMedia(type, url, null, order);
-                        } catch (IOException e) {
-                            throw new CompletionException(e);
-                        }
-                    }, pool));
-                }
-            }
-
-            CompletableFuture<Void> allMedia = CompletableFuture.allOf(mediaFutures.toArray(new CompletableFuture[0]));
-
-            try {
-                allMedia.join();
-                for (CompletableFuture<UploadedMedia> f : mediaFutures) {
-                    uploadedMedia.add(f.join());
-                }
-            } catch (CompletionException ex) {
-                Throwable root = ex.getCause() != null ? ex.getCause() : ex;
-                if (root instanceof IOException io) throw io;
-                throw ex;
-            }
+            List<CompletableFuture<UploadedMedia>> mediaFutures = buildMediaFutures(mediaFiles, pool);
+            joinAll(mediaFutures, uploaded);
 
             String coverUrl = safe(coverFuture.join()).trim();
-
-            // ✅ If client didn't send coverUrl and didn't send cover file -> error
             if (isBlank(coverUrl)) {
                 throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
             }
 
-            Project saved = transactionTemplate().execute(status -> {
-                Project project = buildProject(dto);
-                project.setCoverUrl(coverUrl);
+            Project saved = tx().execute(status -> {
+                Project p = buildProject(dto);
+                p.setCoverUrl(coverUrl);
+                attachAllContents(p, dto);
+                attachAllTags(p, dto);
+                attachAllKeywords(p, dto);
+                appendUploadedMedia(p, uploaded);
+                attachMediaFromDto(p, dto.getMedia());
 
-                attachAllContents(project, dto);
-                attachAllTags(project, dto);
-                attachAllKeywords(project, dto);
-
-                for (UploadedMedia um : uploadedMedia) {
-                    project.addMedia(ProjectMedia.builder()
-                            .mediaType(um.mediaType())
-                            .url(um.url())
-                            .caption(um.caption())
-                            .sortOrder(um.sortOrder())
-                            .build());
-                }
-
-                attachMediaFromDto(project, dto.getMedia());
-
-                Project p = projectRepository.save(project);
-                createAuditLog(p, "CREATE", "Created project with uploads: " + safeTitle(p));
-                return p;
+                Project persisted = projectRepository.save(p);
+                auditLog(persisted, "CREATE", "Created project with uploads: " + safeTitle(persisted));
+                return persisted;
             });
 
             log.info("Project created with files | id={} | traceId={}", saved.getId(), traceId);
             return saved;
 
-        } catch (AppException ex) {
-            throw ex;
-        } catch (DataIntegrityViolationException ex) {
+        } catch (AppException ex) { throw ex; }
+        catch (DataIntegrityViolationException ex) {
             throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
         } catch (Exception ex) {
             log.error("Unexpected error creating project with files | traceId={}", traceId, ex);
             throw Errors.internal("error.db", Map.of("op", "createWithFiles", "traceId", safe(traceId)));
-        } finally {
-            pool.shutdownNow();
-        }
+        } finally { pool.shutdownNow(); }
     }
 
     // ===========================
-    // UPDATE (JSON only)
+    // UPDATE  (JSON only)
     // ===========================
     public Project update(Long projectId, ProjectCreateRequest dto) {
         String traceId = traceId();
         log.info("Updating project | id={} | traceId={}", projectId, traceId);
 
-        // ✅ For JSON-only update, must provide coverUrl (otherwise it becomes null)
         validate(dto, true);
 
         try {
-            Project saved = transactionTemplate().execute(status -> {
-                Project project = projectRepository.findById(projectId)
-                        .orElseThrow(() -> new NotFoundException("project.not_found", Map.of("id", safe(projectId))));
-
-                applyBaseFields(project, dto);
-
-                project.getContentsCkb().clear();
-                project.getContentsKmr().clear();
-                project.getTagsCkb().clear();
-                project.getTagsKmr().clear();
-                project.getKeywordsCkb().clear();
-                project.getKeywordsKmr().clear();
-
-                if (dto.getMedia() != null) {
-                    project.getMedia().clear();
-                }
-
-                attachAllContents(project, dto);
-                attachAllTags(project, dto);
-                attachAllKeywords(project, dto);
-                attachMediaFromDto(project, dto.getMedia());
-
-                Project savedProject = projectRepository.save(project);
-                createAuditLog(savedProject, "UPDATE", "Updated project: " + safeTitle(savedProject));
-                return savedProject;
+            Project saved = tx().execute(status -> {
+                Project project = findOrThrow(projectId);
+                applyUpdate(project, dto, project.getCoverUrl());
+                Project persisted = projectRepository.save(project);
+                auditLog(persisted, "UPDATE", "Updated project: " + safeTitle(persisted));
+                return persisted;
             });
 
             log.info("Project updated | id={} | traceId={}", saved.getId(), traceId);
             return saved;
 
-        } catch (AppException ex) {
-            throw ex;
-        } catch (DataIntegrityViolationException ex) {
+        } catch (AppException ex) { throw ex; }
+        catch (DataIntegrityViolationException ex) {
             throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
         } catch (Exception ex) {
             log.error("Unexpected error updating project | traceId={}", traceId, ex);
@@ -258,170 +173,445 @@ public class ProjectService {
     }
 
     // ===========================
-    // UPDATE (with files)
+    // UPDATE  (with files)
     // ===========================
-    public Project updateWithFiles(Long projectId, ProjectCreateRequest dto, MultipartFile cover, List<MultipartFile> mediaFiles) throws IOException {
+    public Project updateWithFiles(Long projectId,
+                                   ProjectCreateRequest dto,
+                                   MultipartFile cover,
+                                   List<MultipartFile> mediaFiles) throws IOException {
         String traceId = traceId();
-        int mediaCount = mediaFiles != null ? mediaFiles.size() : 0;
+        int    mcnt    = mediaFiles != null ? mediaFiles.size() : 0;
+        log.info("Updating project with files | id={} | mediaFiles={} | traceId={}", projectId, mcnt, traceId);
 
-        log.info("Updating project with files | id={} | mediaFiles={} | traceId={}", projectId, mediaCount, traceId);
-
-        // ✅ For multipart update: cover can be uploaded OR coverUrl provided
         validate(dto, false);
 
-        List<UploadedMedia> uploadedMedia = new ArrayList<>();
-        int threads = Math.min(8, Math.max(2, 1 + mediaCount));
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        List<UploadedMedia> uploaded = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(8, Math.max(2, 1 + mcnt)));
 
         try {
             CompletableFuture<String> coverFuture = CompletableFuture.completedFuture(dto.getCoverUrl());
-
             if (cover != null && !cover.isEmpty()) {
-                coverFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        return s3Service.upload(
-                                cover.getBytes(),
-                                cover.getOriginalFilename(),
-                                cover.getContentType(),
-                                ProjectMediaType.IMAGE
-                        );
-                    } catch (IOException e) {
-                        throw new CompletionException(e);
-                    }
-                }, pool);
+                coverFuture = CompletableFuture.supplyAsync(() -> uploadCover(cover), pool);
             }
 
-            List<CompletableFuture<UploadedMedia>> mediaFutures = new ArrayList<>();
-            if (mediaFiles != null && !mediaFiles.isEmpty()) {
-                int sortOrder = 0;
-                for (MultipartFile file : mediaFiles) {
-                    if (file == null || file.isEmpty()) continue;
-
-                    final int order = sortOrder++;
-                    mediaFutures.add(CompletableFuture.supplyAsync(() -> {
-                        try {
-                            ProjectMediaType type = detectMediaType(file);
-                            String url = s3Service.upload(
-                                    file.getBytes(),
-                                    file.getOriginalFilename(),
-                                    file.getContentType(),
-                                    type
-                            );
-                            return new UploadedMedia(type, url, null, order);
-                        } catch (IOException e) {
-                            throw new CompletionException(e);
-                        }
-                    }, pool));
-                }
-            }
-
-            CompletableFuture<Void> allMedia = CompletableFuture.allOf(mediaFutures.toArray(new CompletableFuture[0]));
-            allMedia.join();
-            for (CompletableFuture<UploadedMedia> f : mediaFutures) {
-                uploadedMedia.add(f.join());
-            }
+            List<CompletableFuture<UploadedMedia>> mediaFutures = buildMediaFutures(mediaFiles, pool);
+            joinAll(mediaFutures, uploaded);
 
             String coverUrl = safe(coverFuture.join()).trim();
             if (isBlank(coverUrl)) {
                 throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
             }
 
-            Project saved = transactionTemplate().execute(status -> {
-                Project project = projectRepository.findById(projectId)
-                        .orElseThrow(() -> new NotFoundException("project.not_found", Map.of("id", safe(projectId))));
-
-                applyBaseFields(project, dto);
-                project.setCoverUrl(coverUrl);
-
-                project.getContentsCkb().clear();
-                project.getContentsKmr().clear();
-                project.getTagsCkb().clear();
-                project.getTagsKmr().clear();
-                project.getKeywordsCkb().clear();
-                project.getKeywordsKmr().clear();
-
-                if (dto.getMedia() != null) {
-                    project.getMedia().clear();
-                }
-
-                attachAllContents(project, dto);
-                attachAllTags(project, dto);
-                attachAllKeywords(project, dto);
-
-                for (UploadedMedia um : uploadedMedia) {
-                    project.addMedia(ProjectMedia.builder()
-                            .mediaType(um.mediaType())
-                            .url(um.url())
-                            .caption(um.caption())
-                            .sortOrder(um.sortOrder())
-                            .build());
-                }
-
-                attachMediaFromDto(project, dto.getMedia());
-
-                Project savedProject = projectRepository.save(project);
-                createAuditLog(savedProject, "UPDATE", "Updated project with uploads: " + safeTitle(savedProject));
-                return savedProject;
+            Project saved = tx().execute(status -> {
+                Project project = findOrThrow(projectId);
+                applyUpdate(project, dto, coverUrl);
+                appendUploadedMedia(project, uploaded);
+                Project persisted = projectRepository.save(project);
+                auditLog(persisted, "UPDATE", "Updated project with uploads: " + safeTitle(persisted));
+                return persisted;
             });
 
             log.info("Project updated with files | id={} | traceId={}", saved.getId(), traceId);
             return saved;
 
-        } catch (AppException ex) {
-            throw ex;
-        } catch (DataIntegrityViolationException ex) {
+        } catch (AppException ex) { throw ex; }
+        catch (DataIntegrityViolationException ex) {
             throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
         } catch (Exception ex) {
             log.error("Unexpected error updating project with files | traceId={}", traceId, ex);
             throw Errors.internal("error.db", Map.of("op", "updateWithFiles", "traceId", safe(traceId)));
-        } finally {
-            pool.shutdownNow();
-        }
+        } finally { pool.shutdownNow(); }
     }
 
     // ===========================
     // DELETE
     // ===========================
+    @Transactional
     public void delete(Long projectId) {
         String traceId = traceId();
         log.info("Deleting project | id={} | traceId={}", projectId, traceId);
 
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new NotFoundException("project.not_found", Map.of("id", safe(projectId))));
+            tx().execute(status -> {
+                Project project = findOrThrow(projectId);
+                String  title   = safeTitle(project);
 
-            projectRepository.delete(project);
-            createAuditLog(project, "DELETE", "Deleted project: " + safeTitle(project));
-            log.info("Project deleted | id={} | traceId={}", projectId, traceId);
+                int logCount = projectLogRepository.deleteByProject(project);
+                log.debug("Purged {} project_log rows for project id={}", logCount, projectId);
 
-        } catch (AppException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("Unexpected error deleting project | traceId={}", traceId, ex);
+                projectRepository.delete(project);
+                log.info("Project deleted | id={} title='{}' | traceId={}", projectId, title, traceId);
+
+                return null;
+            });
+
+        } catch (AppException ex) { throw ex; }
+        catch (Exception ex) {
+            log.error("Unexpected error deleting project | id={} | traceId={}", projectId, traceId, ex);
             throw Errors.internal("error.db", Map.of("op", "delete", "traceId", safe(traceId)));
         }
     }
 
     // ============================================================
-    // RESPONSE HELPERS
+    // QUERY HELPERS
     // ============================================================
     public Page<ProjectResponse> getAllResponse(int page, int size) {
-        Page<Project> projects = projectRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
-        return projects.map(this::toResponse);
+        return projectRepository
+                .findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")))
+                .map(this::toResponse);
     }
 
     public Page<ProjectResponse> searchByTagResponse(String tag, int page, int size) {
         if (isBlank(tag)) throw new BadRequestException("tag.required", Map.of());
-        Page<Project> projects = projectRepository.searchByTag(tag, PageRequest.of(page, size));
-        return projects.map(this::toResponse);
+        return projectRepository.searchByTag(tag, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<ProjectResponse> searchByKeywordResponse(String keyword, int page, int size) {
         if (isBlank(keyword)) throw new BadRequestException("keyword.required", Map.of());
-        Page<Project> projects = projectRepository.searchByKeyword(keyword, PageRequest.of(page, size));
-        return projects.map(this::toResponse);
+        return projectRepository.searchByKeyword(keyword, PageRequest.of(page, size)).map(this::toResponse);
     }
 
+    // ============================================================
+    // INTERNAL — UPDATE HELPER
+    // ============================================================
+    private void applyUpdate(Project project, ProjectCreateRequest dto, String resolvedCoverUrl) {
+        // Base scalar fields
+        project.setCoverUrl(resolvedCoverUrl);
+        project.setProjectDate(dto.getProjectDate());
+
+        // ✅ Bilingual project type
+        project.setProjectTypeCkb(dto.getProjectTypeCkb());
+        project.setProjectTypeKmr(dto.getProjectTypeKmr());
+
+        // ✅ Project status (default ONGOING if not provided)
+        project.setStatus(dto.getStatus() != null ? dto.getStatus() : ProjectStatus.ONGOING);
+
+        // Content languages
+        project.getContentLanguages().clear();
+        if (dto.getContentLanguages() != null) {
+            project.getContentLanguages().addAll(dto.getContentLanguages());
+        }
+
+        // Embedded content blocks
+        if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB)) {
+            project.setCkbContent(dto.getCkbContent() != null
+                    ? ProjectContentBlock.builder()
+                    .title(dto.getCkbContent().getTitle())
+                    .description(dto.getCkbContent().getDescription())
+                    .location(dto.getCkbContent().getLocation())
+                    .build()
+                    : null);
+        } else {
+            project.setCkbContent(null);
+        }
+
+        if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR)) {
+            project.setKmrContent(dto.getKmrContent() != null
+                    ? ProjectContentBlock.builder()
+                    .title(dto.getKmrContent().getTitle())
+                    .description(dto.getKmrContent().getDescription())
+                    .location(dto.getKmrContent().getLocation())
+                    .build()
+                    : null);
+        } else {
+            project.setKmrContent(null);
+        }
+
+        // Clear then re-attach all ManyToMany relations
+        project.getContentsCkb().clear();
+        project.getContentsKmr().clear();
+        project.getTagsCkb().clear();
+        project.getTagsKmr().clear();
+        project.getKeywordsCkb().clear();
+        project.getKeywordsKmr().clear();
+
+        attachAllContents(project, dto);
+        attachAllTags(project, dto);
+        attachAllKeywords(project, dto);
+
+        // Media: clear existing then re-attach from DTO
+        if (dto.getMedia() != null) {
+            project.getMedia().clear();
+        }
+        attachMediaFromDto(project, dto.getMedia());
+    }
+
+    // ============================================================
+    // INTERNAL — S3 UPLOAD HELPERS
+    // ============================================================
+    private String uploadCover(MultipartFile file) {
+        try {
+            return s3Service.upload(
+                    file.getBytes(),
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    ProjectMediaType.IMAGE
+            );
+        } catch (IOException e) {
+            throw new CompletionException(e);
+        }
+    }
+
+    private List<CompletableFuture<UploadedMedia>> buildMediaFutures(
+            List<MultipartFile> files, ExecutorService pool) {
+
+        List<CompletableFuture<UploadedMedia>> futures = new ArrayList<>();
+        if (files == null || files.isEmpty()) return futures;
+
+        int order = 0;
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) continue;
+            final int sortOrder = order++;
+            futures.add(CompletableFuture.supplyAsync(() -> {
+                try {
+                    ProjectMediaType type = detectMediaType(file);
+                    String url = s3Service.upload(
+                            file.getBytes(),
+                            file.getOriginalFilename(),
+                            file.getContentType(),
+                            type
+                    );
+                    return new UploadedMedia(type, url, null, sortOrder);
+                } catch (IOException e) {
+                    throw new CompletionException(e);
+                }
+            }, pool));
+        }
+        return futures;
+    }
+
+    private void joinAll(List<CompletableFuture<UploadedMedia>> futures,
+                         List<UploadedMedia> target) {
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            for (CompletableFuture<UploadedMedia> f : futures) target.add(f.join());
+        } catch (CompletionException ex) {
+            Throwable root = ex.getCause() != null ? ex.getCause() : ex;
+            if (root instanceof RuntimeException re) throw re;
+            throw ex;
+        }
+    }
+
+    private void appendUploadedMedia(Project project, List<UploadedMedia> uploaded) {
+        for (UploadedMedia um : uploaded) {
+            project.addMedia(ProjectMedia.builder()
+                    .mediaType(um.mediaType())
+                    .url(um.url())
+                    .caption(um.caption())
+                    .sortOrder(um.sortOrder())
+                    .build());
+        }
+    }
+
+    // ============================================================
+    // INTERNAL — BUILD / VALIDATE
+    // ============================================================
+    private Project buildProject(ProjectCreateRequest dto) {
+        Project project = new Project();
+        applyBaseFields(project, dto);
+
+        if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB)
+                && dto.getCkbContent() != null) {
+            project.setCkbContent(ProjectContentBlock.builder()
+                    .title(dto.getCkbContent().getTitle())
+                    .description(dto.getCkbContent().getDescription())
+                    .location(dto.getCkbContent().getLocation())
+                    .build());
+        }
+
+        if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR)
+                && dto.getKmrContent() != null) {
+            project.setKmrContent(ProjectContentBlock.builder()
+                    .title(dto.getKmrContent().getTitle())
+                    .description(dto.getKmrContent().getDescription())
+                    .location(dto.getKmrContent().getLocation())
+                    .build());
+        }
+
+        return project;
+    }
+
+    private void applyBaseFields(Project project, ProjectCreateRequest dto) {
+        project.setCoverUrl(dto.getCoverUrl());
+
+        // ✅ Bilingual project type
+        project.setProjectTypeCkb(dto.getProjectTypeCkb());
+        project.setProjectTypeKmr(dto.getProjectTypeKmr());
+
+        // ✅ Status (default ONGOING)
+        project.setStatus(dto.getStatus() != null ? dto.getStatus() : ProjectStatus.ONGOING);
+
+        project.setProjectDate(dto.getProjectDate());
+        project.getContentLanguages().clear();
+        if (dto.getContentLanguages() != null) {
+            project.getContentLanguages().addAll(dto.getContentLanguages());
+        }
+    }
+
+    private void validate(ProjectCreateRequest dto, boolean requireCoverUrl) {
+        if (dto == null) throw new BadRequestException("request.required", Map.of());
+
+        // ✅ At least one language must have a project type
+        boolean hasCkbLang = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB);
+        boolean hasKmrLang = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR);
+
+        if (hasCkbLang && isBlank(dto.getProjectTypeCkb()))
+            throw new BadRequestException("project.ckb_type_required", Map.of());
+        if (hasKmrLang && isBlank(dto.getProjectTypeKmr()))
+            throw new BadRequestException("project.kmr_type_required", Map.of());
+
+        if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty())
+            throw new BadRequestException("project.languages_required", Map.of());
+        if (requireCoverUrl && isBlank(dto.getCoverUrl()))
+            throw new BadRequestException("project.cover_required", Map.of());
+        if (hasCkbLang && (dto.getCkbContent() == null || isBlank(dto.getCkbContent().getTitle())))
+            throw new BadRequestException("project.ckb_title_required", Map.of());
+        if (hasKmrLang && (dto.getKmrContent() == null || isBlank(dto.getKmrContent().getTitle())))
+            throw new BadRequestException("project.kmr_title_required", Map.of());
+    }
+
+    // ============================================================
+    // INTERNAL — ATTACH RELATIONS
+    // ============================================================
+    private void attachAllContents(Project p, ProjectCreateRequest dto) {
+        attachContents(p, dto.getContentsCkb(), Language.CKB);
+        attachContents(p, dto.getContentsKmr(), Language.KMR);
+    }
+
+    private void attachContents(Project project, List<String> names, Language lang) {
+        if (names == null || names.isEmpty()) return;
+        Map<String, ProjectContent> map = ensureContents(names);
+        Set<Long> seen = new HashSet<>();
+        for (String raw : names) {
+            ProjectContent c = map.get(normKey(raw));
+            if (c != null && seen.add(c.getId())) {
+                if (lang == Language.CKB) project.getContentsCkb().add(c);
+                else                      project.getContentsKmr().add(c);
+            }
+        }
+    }
+
+    private Map<String, ProjectContent> ensureContents(List<String> names) {
+        Map<String, ProjectContent> result = new HashMap<>();
+        for (String raw : names) {
+            String name = safe(raw).trim();
+            if (name.isEmpty()) continue;
+            result.put(name.toLowerCase(), projectContentRepository
+                    .findByNameIgnoreCase(name)
+                    .orElseGet(() -> projectContentRepository.save(
+                            ProjectContent.builder().name(name).build())));
+        }
+        return result;
+    }
+
+    private void attachAllTags(Project p, ProjectCreateRequest dto) {
+        attachTags(p, dto.getTagsCkb(), Language.CKB);
+        attachTags(p, dto.getTagsKmr(), Language.KMR);
+    }
+
+    private void attachTags(Project project, List<String> names, Language lang) {
+        if (names == null || names.isEmpty()) return;
+        Map<String, ProjectTag> map = ensureTags(names);
+        Set<Long> seen = new HashSet<>();
+        for (String raw : names) {
+            ProjectTag t = map.get(normKey(raw));
+            if (t != null && seen.add(t.getId())) {
+                if (lang == Language.CKB) project.getTagsCkb().add(t);
+                else                      project.getTagsKmr().add(t);
+            }
+        }
+    }
+
+    private Map<String, ProjectTag> ensureTags(List<String> names) {
+        Map<String, ProjectTag> result = new HashMap<>();
+        for (String raw : names) {
+            String name = safe(raw).trim();
+            if (name.isEmpty()) continue;
+            result.put(name.toLowerCase(), projectTagRepository
+                    .findByNameIgnoreCase(name)
+                    .orElseGet(() -> projectTagRepository.save(
+                            ProjectTag.builder().name(name).build())));
+        }
+        return result;
+    }
+
+    private void attachAllKeywords(Project p, ProjectCreateRequest dto) {
+        attachKeywords(p, dto.getKeywordsCkb(), Language.CKB);
+        attachKeywords(p, dto.getKeywordsKmr(), Language.KMR);
+    }
+
+    private void attachKeywords(Project project, List<String> names, Language lang) {
+        if (names == null || names.isEmpty()) return;
+        Map<String, ProjectKeyword> map = ensureKeywords(names);
+        Set<Long> seen = new HashSet<>();
+        for (String raw : names) {
+            ProjectKeyword k = map.get(normKey(raw));
+            if (k != null && seen.add(k.getId())) {
+                if (lang == Language.CKB) project.getKeywordsCkb().add(k);
+                else                      project.getKeywordsKmr().add(k);
+            }
+        }
+    }
+
+    private Map<String, ProjectKeyword> ensureKeywords(List<String> names) {
+        Map<String, ProjectKeyword> result = new HashMap<>();
+        for (String raw : names) {
+            String name = safe(raw).trim();
+            if (name.isEmpty()) continue;
+            result.put(name.toLowerCase(), projectKeywordRepository
+                    .findByNameIgnoreCase(name)
+                    .orElseGet(() -> projectKeywordRepository.save(
+                            ProjectKeyword.builder().name(name).build())));
+        }
+        return result;
+    }
+
+    // ============================================================
+    // INTERNAL — MEDIA DTO ATTACH
+    // ============================================================
+    private void attachMediaFromDto(Project project, List<ProjectMediaCreateRequest> mediaList) {
+        if (mediaList == null || mediaList.isEmpty()) return;
+
+        for (ProjectMediaCreateRequest m : mediaList) {
+            if (m == null) continue;
+
+            ProjectMediaType type;
+            try {
+                type = ProjectMediaType.valueOf(m.getMediaType());
+            } catch (IllegalArgumentException ex) {
+                throw new BadRequestException("media.type_invalid",
+                        Map.of("mediaType", safe(m.getMediaType())));
+            }
+
+            boolean hasUrl      = !isBlank(m.getUrl());
+            boolean hasExternal = !isBlank(m.getExternalUrl());
+            boolean hasEmbed    = !isBlank(m.getEmbedUrl());
+            boolean hasText     = !isBlank(m.getTextBody());
+
+            if (type == ProjectMediaType.AUDIO || type == ProjectMediaType.VIDEO) {
+                if (!hasUrl && !hasExternal && !hasEmbed)
+                    throw new BadRequestException("media.audio_video_requires_url_or_link",
+                            Map.of("mediaType", type.name()));
+            } else {
+                if (!hasUrl && !hasText)
+                    throw new BadRequestException("media.url_or_text_required",
+                            Map.of("mediaType", type.name()));
+            }
+
+            project.addMedia(ProjectMedia.builder()
+                    .mediaType(type)
+                    .url(m.getUrl())
+                    .externalUrl(m.getExternalUrl())
+                    .embedUrl(m.getEmbedUrl())
+                    .caption(m.getCaption())
+                    .sortOrder(m.getSortOrder() != null ? m.getSortOrder() : 0)
+                    .build());
+        }
+    }
+
+    // ============================================================
+    // INTERNAL — RESPONSE MAPPER
+    // ============================================================
     private ProjectResponse toResponse(Project project) {
         ProjectResponse.ProjectContentBlockDto ckb = null;
         if (project.getCkbContent() != null) {
@@ -441,54 +631,18 @@ public class ProjectService {
                     .build();
         }
 
-        List<String> contentsCkb = new ArrayList<>();
-        if (project.getContentsCkb() != null) {
-            for (ProjectContent c : project.getContentsCkb()) {
-                if (c != null && !isBlank(c.getName())) contentsCkb.add(c.getName());
-            }
-        }
-
-        List<String> contentsKmr = new ArrayList<>();
-        if (project.getContentsKmr() != null) {
-            for (ProjectContent c : project.getContentsKmr()) {
-                if (c != null && !isBlank(c.getName())) contentsKmr.add(c.getName());
-            }
-        }
-
-        List<String> tagsCkb = new ArrayList<>();
-        if (project.getTagsCkb() != null) {
-            for (ProjectTag t : project.getTagsCkb()) {
-                if (t != null && !isBlank(t.getName())) tagsCkb.add(t.getName());
-            }
-        }
-
-        List<String> tagsKmr = new ArrayList<>();
-        if (project.getTagsKmr() != null) {
-            for (ProjectTag t : project.getTagsKmr()) {
-                if (t != null && !isBlank(t.getName())) tagsKmr.add(t.getName());
-            }
-        }
-
-        List<String> keywordsCkb = new ArrayList<>();
-        if (project.getKeywordsCkb() != null) {
-            for (ProjectKeyword k : project.getKeywordsCkb()) {
-                if (k != null && !isBlank(k.getName())) keywordsCkb.add(k.getName());
-            }
-        }
-
-        List<String> keywordsKmr = new ArrayList<>();
-        if (project.getKeywordsKmr() != null) {
-            for (ProjectKeyword k : project.getKeywordsKmr()) {
-                if (k != null && !isBlank(k.getName())) keywordsKmr.add(k.getName());
-            }
-        }
+        List<String> contentsCkb  = toNames(project.getContentsCkb(), ProjectContent::getName);
+        List<String> contentsKmr  = toNames(project.getContentsKmr(), ProjectContent::getName);
+        List<String> tagsCkb      = toNames(project.getTagsCkb(),     ProjectTag::getName);
+        List<String> tagsKmr      = toNames(project.getTagsKmr(),     ProjectTag::getName);
+        List<String> keywordsCkb  = toNames(project.getKeywordsCkb(), ProjectKeyword::getName);
+        List<String> keywordsKmr  = toNames(project.getKeywordsKmr(), ProjectKeyword::getName);
 
         List<ProjectMediaResponse> media = new ArrayList<>();
         if (project.getMedia() != null && !project.getMedia().isEmpty()) {
             List<ProjectMedia> sorted = new ArrayList<>(project.getMedia());
-            sorted.sort(Comparator.comparingInt(ProjectMedia::getSortOrder).thenComparing(ProjectMedia::getId));
-
-            media = new ArrayList<>(sorted.size());
+            sorted.sort(Comparator.comparingInt(ProjectMedia::getSortOrder)
+                    .thenComparing(ProjectMedia::getId));
             for (ProjectMedia m : sorted) {
                 media.add(ProjectMediaResponse.builder()
                         .id(m.getId())
@@ -503,13 +657,18 @@ public class ProjectService {
             }
         }
 
-        Instant createdAt =
-                project.getCreatedAt() != null ? project.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant() : null;
+        Instant createdAt = project.getCreatedAt() != null
+                ? project.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()
+                : null;
 
         return ProjectResponse.builder()
                 .id(project.getId())
                 .coverUrl(project.getCoverUrl())
-                .projectType(project.getProjectType())
+                // ✅ Bilingual project type
+                .projectTypeCkb(project.getProjectTypeCkb())
+                .projectTypeKmr(project.getProjectTypeKmr())
+                // ✅ Status
+                .status(project.getStatus())
                 .projectDate(project.getProjectDate())
                 .contentLanguages(project.getContentLanguages())
                 .ckbContent(ckb)
@@ -525,289 +684,53 @@ public class ProjectService {
                 .build();
     }
 
-    // ============================================================
-    // MEDIA DTO ATTACH
-    // ============================================================
-    private void attachMediaFromDto(Project project, List<ProjectMediaCreateRequest> mediaList) {
-        if (mediaList == null || mediaList.isEmpty()) return;
+    @FunctionalInterface
+    private interface NameExtractor<T> { String name(T t); }
 
-        for (ProjectMediaCreateRequest m : mediaList) {
-            if (m == null) continue;
-
-            ProjectMediaType type;
-            try {
-                type = ProjectMediaType.valueOf(m.getMediaType());
-            } catch (IllegalArgumentException ex) {
-                throw new BadRequestException("media.type_invalid", Map.of("mediaType", safe(m.getMediaType())));
-            }
-
-            boolean hasFileUrl = !isBlank(m.getUrl());
-            boolean hasExternal = !isBlank(m.getExternalUrl());
-            boolean hasEmbed = !isBlank(m.getEmbedUrl());
-            boolean hasText = !isBlank(m.getTextBody());
-
-            if (type == ProjectMediaType.AUDIO || type == ProjectMediaType.VIDEO) {
-                if (!hasFileUrl && !hasExternal && !hasEmbed) {
-                    throw new BadRequestException(
-                            "media.audio_video_requires_url_or_link",
-                            Map.of("mediaType", type.name())
-                    );
-                }
-            } else {
-                if (!hasFileUrl && !hasText) {
-                    throw new BadRequestException("media.url_or_text_required", Map.of("mediaType", type.name()));
-                }
-            }
-
-            project.addMedia(ProjectMedia.builder()
-                    .mediaType(type)
-                    .url(m.getUrl())
-                    .externalUrl(m.getExternalUrl())
-                    .embedUrl(m.getEmbedUrl())
-                    .caption(m.getCaption())
-                    .sortOrder(m.getSortOrder() != null ? m.getSortOrder() : 0)
-                    .build());
+    private <T> List<String> toNames(Iterable<T> items, NameExtractor<T> fn) {
+        List<String> out = new ArrayList<>();
+        if (items == null) return out;
+        for (T item : items) {
+            if (item != null && !isBlank(fn.name(item))) out.add(fn.name(item));
         }
-    }
-
-    // ============================================================
-    // CORE BUILD / APPLY / VALIDATE
-    // ============================================================
-    private Project buildProject(ProjectCreateRequest dto) {
-        Project project = new Project();
-
-        applyBaseFields(project, dto);
-
-        if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB)) {
-            if (dto.getCkbContent() != null) {
-                project.setCkbContent(ProjectContentBlock.builder()
-                        .title(dto.getCkbContent().getTitle())
-                        .description(dto.getCkbContent().getDescription())
-                        .location(dto.getCkbContent().getLocation())
-                        .build());
-            }
-        } else {
-            project.setCkbContent(null);
-        }
-
-        if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR)) {
-            if (dto.getKmrContent() != null) {
-                project.setKmrContent(ProjectContentBlock.builder()
-                        .title(dto.getKmrContent().getTitle())
-                        .description(dto.getKmrContent().getDescription())
-                        .location(dto.getKmrContent().getLocation())
-                        .build());
-            }
-        } else {
-            project.setKmrContent(null);
-        }
-
-        return project;
-    }
-
-    private void applyBaseFields(Project project, ProjectCreateRequest dto) {
-        project.setCoverUrl(dto.getCoverUrl());
-        project.setProjectType(dto.getProjectType());
-        project.setProjectDate(dto.getProjectDate());
-
-        project.getContentLanguages().clear();
-        if (dto.getContentLanguages() != null) {
-            project.getContentLanguages().addAll(dto.getContentLanguages());
-        }
-    }
-
-    /**
-     * @param requireCoverUrlOnly when true -> coverUrl MUST be in JSON (for JSON-only endpoints)
-     *                            when false -> coverUrl can be empty because cover file might be uploaded
-     */
-    private void validate(ProjectCreateRequest dto, boolean requireCoverUrlOnly) {
-        if (dto == null) throw new BadRequestException("request.required", Map.of());
-
-        if (isBlank(dto.getProjectType())) {
-            throw new BadRequestException("project.type_required", Map.of());
-        }
-
-        if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty()) {
-            throw new BadRequestException("project.languages_required", Map.of());
-        }
-
-        if (requireCoverUrlOnly && isBlank(dto.getCoverUrl())) {
-            throw new BadRequestException("project.cover_required", Map.of());
-        }
-
-        if (dto.getContentLanguages().contains(Language.CKB)) {
-            if (dto.getCkbContent() == null || isBlank(dto.getCkbContent().getTitle())) {
-                throw new BadRequestException("project.ckb_title_required", Map.of());
-            }
-        }
-
-        if (dto.getContentLanguages().contains(Language.KMR)) {
-            if (dto.getKmrContent() == null || isBlank(dto.getKmrContent().getTitle())) {
-                throw new BadRequestException("project.kmr_title_required", Map.of());
-            }
-        }
-    }
-
-    // ============================================================
-    // ATTACH RELATIONS (trim + dedupe)
-    // ============================================================
-    private void attachAllContents(Project project, ProjectCreateRequest dto) {
-        attachContents(project, dto.getContentsCkb(), Language.CKB);
-        attachContents(project, dto.getContentsKmr(), Language.KMR);
-    }
-
-    private void attachContents(Project project, List<String> names, Language lang) {
-        if (names == null || names.isEmpty()) return;
-
-        Map<String, ProjectContent> map = ensureContents(names);
-
-        Set<Long> addedIds = new HashSet<>();
-        if (lang == Language.CKB) {
-            for (String raw : names) {
-                String key = normKey(raw);
-                ProjectContent c = map.get(key);
-                if (c != null && addedIds.add(c.getId())) project.getContentsCkb().add(c);
-            }
-        } else {
-            for (String raw : names) {
-                String key = normKey(raw);
-                ProjectContent c = map.get(key);
-                if (c != null && addedIds.add(c.getId())) project.getContentsKmr().add(c);
-            }
-        }
-    }
-
-    private Map<String, ProjectContent> ensureContents(List<String> names) {
-        Map<String, ProjectContent> result = new HashMap<>();
-        for (String raw : names) {
-            String name = safe(raw).trim();
-            if (name.isEmpty()) continue;
-
-            String key = name.toLowerCase();
-            ProjectContent existing = projectContentRepository.findByNameIgnoreCase(name).orElse(null);
-            if (existing == null) {
-                existing = projectContentRepository.save(ProjectContent.builder().name(name).build());
-            }
-            result.put(key, existing);
-        }
-        return result;
-    }
-
-    private void attachAllTags(Project project, ProjectCreateRequest dto) {
-        attachTags(project, dto.getTagsCkb(), Language.CKB);
-        attachTags(project, dto.getTagsKmr(), Language.KMR);
-    }
-
-    private void attachTags(Project project, List<String> names, Language lang) {
-        if (names == null || names.isEmpty()) return;
-
-        Map<String, ProjectTag> map = ensureTags(names);
-
-        Set<Long> addedIds = new HashSet<>();
-        if (lang == Language.CKB) {
-            for (String raw : names) {
-                String key = normKey(raw);
-                ProjectTag t = map.get(key);
-                if (t != null && addedIds.add(t.getId())) project.getTagsCkb().add(t);
-            }
-        } else {
-            for (String raw : names) {
-                String key = normKey(raw);
-                ProjectTag t = map.get(key);
-                if (t != null && addedIds.add(t.getId())) project.getTagsKmr().add(t);
-            }
-        }
-    }
-
-    private Map<String, ProjectTag> ensureTags(List<String> names) {
-        Map<String, ProjectTag> result = new HashMap<>();
-        for (String raw : names) {
-            String name = safe(raw).trim();
-            if (name.isEmpty()) continue;
-
-            String key = name.toLowerCase();
-            ProjectTag existing = projectTagRepository.findByNameIgnoreCase(name).orElse(null);
-            if (existing == null) {
-                existing = projectTagRepository.save(ProjectTag.builder().name(name).build());
-            }
-            result.put(key, existing);
-        }
-        return result;
-    }
-
-    private void attachAllKeywords(Project project, ProjectCreateRequest dto) {
-        attachKeywords(project, dto.getKeywordsCkb(), Language.CKB);
-        attachKeywords(project, dto.getKeywordsKmr(), Language.KMR);
-    }
-
-    private void attachKeywords(Project project, List<String> names, Language lang) {
-        if (names == null || names.isEmpty()) return;
-
-        Map<String, ProjectKeyword> map = ensureKeywords(names);
-
-        Set<Long> addedIds = new HashSet<>();
-        if (lang == Language.CKB) {
-            for (String raw : names) {
-                String key = normKey(raw);
-                ProjectKeyword k = map.get(key);
-                if (k != null && addedIds.add(k.getId())) project.getKeywordsCkb().add(k);
-            }
-        } else {
-            for (String raw : names) {
-                String key = normKey(raw);
-                ProjectKeyword k = map.get(key);
-                if (k != null && addedIds.add(k.getId())) project.getKeywordsKmr().add(k);
-            }
-        }
-    }
-
-    private Map<String, ProjectKeyword> ensureKeywords(List<String> names) {
-        Map<String, ProjectKeyword> result = new HashMap<>();
-        for (String raw : names) {
-            String name = safe(raw).trim();
-            if (name.isEmpty()) continue;
-
-            String key = name.toLowerCase();
-            ProjectKeyword existing = projectKeywordRepository.findByNameIgnoreCase(name).orElse(null);
-            if (existing == null) {
-                existing = projectKeywordRepository.save(ProjectKeyword.builder().name(name).build());
-            }
-            result.put(key, existing);
-        }
-        return result;
+        return out;
     }
 
     // ============================================================
     // AUDIT LOG
     // ============================================================
-    private void createAuditLog(Project project, String action, String message) {
+    private void auditLog(Project project, String action, String message) {
         try {
-            ProjectLog logEntry = ProjectLog.builder()
+            projectLogRepository.save(ProjectLog.builder()
                     .project(project)
                     .action(action)
                     .fieldName("SUMMARY")
                     .oldValue(null)
                     .newValue(message)
                     .createdAt(LocalDateTime.now())
-                    .build();
-            projectLogRepository.save(logEntry);
+                    .build());
         } catch (Exception e) {
-            log.warn("Failed to create project log | projectId={}", project != null ? project.getId() : null, e);
+            log.warn("Failed to write project audit log | projectId={} | action={}",
+                    project != null ? project.getId() : null, action, e);
         }
     }
 
     // ============================================================
     // UTIL
     // ============================================================
+    private Project findOrThrow(Long projectId) {
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new NotFoundException(
+                        "project.not_found", Map.of("id", safe(projectId))));
+    }
+
     private ProjectMediaType detectMediaType(MultipartFile file) {
-        String ct = safe(file.getContentType()).toLowerCase();
+        String ct   = safe(file.getContentType()).toLowerCase();
         String name = safe(file.getOriginalFilename()).toLowerCase();
-
         if (ct.startsWith("image/") || name.matches(".*\\.(png|jpg|jpeg|gif|webp)$")) return ProjectMediaType.IMAGE;
-        if (ct.startsWith("video/") || name.matches(".*\\.(mp4|webm|mov|mkv)$")) return ProjectMediaType.VIDEO;
-        if (ct.startsWith("audio/") || name.matches(".*\\.(mp3|wav|ogg|m4a)$")) return ProjectMediaType.AUDIO;
-        if (name.endsWith(".pdf")) return ProjectMediaType.PDF;
-
+        if (ct.startsWith("video/") || name.matches(".*\\.(mp4|webm|mov|mkv)$"))      return ProjectMediaType.VIDEO;
+        if (ct.startsWith("audio/") || name.matches(".*\\.(mp3|wav|ogg|m4a)$"))       return ProjectMediaType.AUDIO;
+        if (name.endsWith(".pdf"))                                                      return ProjectMediaType.PDF;
         return ProjectMediaType.DOCUMENT;
     }
 
@@ -816,17 +739,11 @@ public class ProjectService {
         return t != null ? t : UUID.randomUUID().toString();
     }
 
-    private boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
-    }
+    private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
 
-    private String safe(Object o) {
-        return o == null ? "" : String.valueOf(o);
-    }
+    private String safe(Object o) { return o == null ? "" : String.valueOf(o); }
 
-    private String safe(Long v) {
-        return v == null ? "null" : String.valueOf(v);
-    }
+    private String safe(Long v)   { return v == null ? "null" : String.valueOf(v); }
 
     private String safeTitle(Project p) {
         if (p == null) return "";
@@ -835,9 +752,7 @@ public class ProjectService {
         return "project#" + p.getId();
     }
 
-    private String normKey(String raw) {
-        return safe(raw).trim().toLowerCase();
-    }
+    private String normKey(String raw) { return safe(raw).trim().toLowerCase(); }
 
     private record UploadedMedia(ProjectMediaType mediaType, String url, String caption, int sortOrder) {}
 }

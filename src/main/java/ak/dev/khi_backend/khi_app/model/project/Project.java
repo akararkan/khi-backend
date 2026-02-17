@@ -1,12 +1,12 @@
 package ak.dev.khi_backend.khi_app.model.project;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
 import ak.dev.khi_backend.khi_app.model.audit.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -14,10 +14,10 @@ import java.util.Set;
 @Table(
         name = "projects",
         indexes = {
-                @Index(name = "idx_projects_title_ckb", columnList = "title_ckb"),
-                @Index(name = "idx_projects_title_kmr", columnList = "title_kmr"),
-                @Index(name = "idx_projects_type", columnList = "project_type"),
-                @Index(name = "idx_projects_date", columnList = "project_date")
+                @Index(name = "idx_projects_type_ckb",  columnList = "project_type_ckb"),
+                @Index(name = "idx_projects_type_kmr",  columnList = "project_type_kmr"),
+                @Index(name = "idx_projects_status",    columnList = "status"),
+                @Index(name = "idx_projects_date",      columnList = "project_date")
         }
 )
 @Getter
@@ -31,30 +31,40 @@ public class Project extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // cover: image cover of the project
+    // cover image URL
     @Column(name = "cover_url", length = 1024)
     private String coverUrl;
 
     // ✅ CKB (Sorani) Content
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title", column = @Column(name = "title_ckb", length = 255)),
+            @AttributeOverride(name = "title",       column = @Column(name = "title_ckb",       length = 255)),
             @AttributeOverride(name = "description", column = @Column(name = "description_ckb", columnDefinition = "TEXT")),
-            @AttributeOverride(name = "location", column = @Column(name = "location_ckb", length = 255))
+            @AttributeOverride(name = "location",    column = @Column(name = "location_ckb",    length = 255))
     })
     private ProjectContentBlock ckbContent;
 
     // ✅ KMR (Kurmanji) Content
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title", column = @Column(name = "title_kmr", length = 255)),
+            @AttributeOverride(name = "title",       column = @Column(name = "title_kmr",       length = 255)),
             @AttributeOverride(name = "description", column = @Column(name = "description_kmr", columnDefinition = "TEXT")),
-            @AttributeOverride(name = "location", column = @Column(name = "location_kmr", length = 255))
+            @AttributeOverride(name = "location",    column = @Column(name = "location_kmr",    length = 255))
     })
     private ProjectContentBlock kmrContent;
 
-    @Column(name = "project_type", nullable = false, length = 64)
-    private String projectType;
+    // ✅ Bilingual project type (one per language)
+    @Column(name = "project_type_ckb", length = 128)
+    private String projectTypeCkb;
+
+    @Column(name = "project_type_kmr", length = 128)
+    private String projectTypeKmr;
+
+    // ✅ Project status (ONGOING / COMPLETED) — shared across languages
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 32)
+    @Builder.Default
+    private ProjectStatus status = ProjectStatus.ONGOING;
 
     // ✅ Which languages are available for this project
     @Builder.Default
