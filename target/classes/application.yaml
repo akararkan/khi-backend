@@ -1,0 +1,147 @@
+spring:
+  application:
+    name: khi_backend
+
+  # ===============================
+  # DATASOURCE (PostgreSQL)
+  # ===============================
+  datasource:
+    url: jdbc:postgresql://localhost:5432/khi_web_db
+    username: khi
+    password: ""
+    driver-class-name: org.postgresql.Driver
+
+  # ===============================
+  # JPA / HIBERNATE
+  # ===============================
+  jpa:
+    open-in-view: false
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          time_zone: UTC
+
+  # ===============================
+  # WEB MVC / I18N
+  # ===============================
+  web:
+    locale: ckb
+    locale-resolver: fixed
+
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+
+  mvc:
+    format:
+      date: yyyy-MM-dd
+      date-time: yyyy-MM-dd HH:mm:ss
+
+  # ===============================
+  # JACKSON (JSON)
+  # ===============================
+  jackson:
+    serialization:
+      indent_output: true
+    default-property-inclusion: non_null
+    time-zone: Asia/Baghdad
+
+  # ===============================
+  # DEVTOOLS
+  # ===============================
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+  # ===============================
+  # MULTIPART UPLOAD LIMITS
+  # ===============================
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 1GB
+      max-request-size: 1GB
+      file-size-threshold: 2MB
+
+  # ===============================
+  # OAUTH2 (Google)
+  # ===============================
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - email
+              - profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            client-name: Google
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
+
+# ===============================
+# JWT (ENV SECRET ONLY)
+# ===============================
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+# ===============================
+# APP CUSTOM CONFIG
+# ===============================
+app:
+  oauth2:
+    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:5173/oauth2/redirect}
+
+# ===============================
+# AWS S3
+# ===============================
+aws:
+  s3:
+    region: us-east-1
+    bucket: s3-khiwebsite
+    base-folder: khi-web-folders
+
+# ===============================
+# SERVER / TOMCAT LIMITS
+# ===============================
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
+  tomcat:
+    max-swallow-size: 1GB
+    max-http-form-post-size: 1GB
+    max-parameter-count: 10000
+
+# ===============================
+# LOGGING
+# ===============================
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId}] %-5level %logger{36} - %msg%n"
+
+  level:
+    root: INFO
+    ak.dev.khi_backend: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.web.servlet: DEBUG
+    org.springframework.security: INFO

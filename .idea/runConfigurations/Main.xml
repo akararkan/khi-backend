@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Main" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="ak.dev.khi_backend.KhiBackendApplication" />
+    <module name="khi_backend" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
