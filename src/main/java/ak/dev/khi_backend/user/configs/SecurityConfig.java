@@ -63,17 +63,18 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // ── Self-service profile (any authenticated user) ──────────
-                        // GET  /api/user/me
-                        // PUT  /api/user/profile
-                        // PUT  /api/user/password
-                        // POST /api/user/profile-image
-                        // DEL  /api/user/profile-image
-                        // DEL  /api/user/account
                         .requestMatchers("/api/user/**").authenticated()
 
                         // ── Admin: user management ────────────────────────────────
                         .requestMatchers("/api/users/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/auth/sessions/**").hasRole("SUPER_ADMIN")
+
+                        // ── About Page: Public reads (GET all, GET by slug) ───────
+                        .requestMatchers(HttpMethod.GET, "/api/v1/about/**").permitAll()
+
+                        // ── About Page: Admin only writes (POST, PUT, DELETE) ─────
+                        // This covers: create, update, upload, upload/multiple
+                        .requestMatchers("/api/v1/about/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         // ── Content: public reads ─────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
@@ -132,7 +133,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:5173",   // Vite dev server
-                "https://yourdomain.com"  // production — replace with real domain
+                "https://yourdomain.com"   // production — replace with real domain
         ));
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS"
