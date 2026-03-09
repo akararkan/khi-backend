@@ -26,7 +26,11 @@ public class AboutController {
         return ResponseEntity.ok(aboutService.getAllActive());
     }
 
-    // GET single about page by slug (PUBLIC)
+    /**
+     * GET single about page by slug (PUBLIC).
+     * Accepts either the CKB slug or the KMR slug —
+     * the service resolves whichever matches.
+     */
     @GetMapping("/{slug}")
     public ResponseEntity<AboutDTOs.AboutResponse> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(aboutService.getBySlug(slug));
@@ -50,7 +54,7 @@ public class AboutController {
         return ResponseEntity.ok(aboutService.update(id, request));
     }
 
-    // ✅ DELETE (ADMIN)  ← THIS WAS MISSING
+    // DELETE (ADMIN)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         aboutService.delete(id);

@@ -4,6 +4,8 @@ import ak.dev.khi_backend.khi_app.dto.about.AboutDTOs.*;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectMediaType;
 import ak.dev.khi_backend.khi_app.model.about.About;
 import ak.dev.khi_backend.khi_app.model.about.AboutBlock;
+import ak.dev.khi_backend.khi_app.model.about.AboutBlockContent;
+import ak.dev.khi_backend.khi_app.model.about.AboutContent;
 import ak.dev.khi_backend.khi_app.repository.about.AboutRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
 import jakarta.persistence.EntityNotFoundException;
@@ -42,9 +44,13 @@ public class AboutService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Lookup by either the CKB slug or the KMR slug.
+     * The frontend can navigate using whichever language slug it has.
+     */
     @Transactional(readOnly = true)
     public AboutResponse getBySlug(String slug) {
-        About about = aboutRepository.findBySlugWithBlocks(slug)
+        About about = aboutRepository.findBySlugCkbOrSlugKmr(slug, slug)
                 .orElseThrow(() ->
                         new EntityNotFoundException("About page not found: " + slug));
         return toResponse(about);
@@ -57,16 +63,15 @@ public class AboutService {
     @Transactional
     public AboutResponse create(AboutRequest request) {
 
-        if (aboutRepository.existsBySlug(request.getSlug())) {
-            throw new IllegalArgumentException(
-                    "Slug already exists: " + request.getSlug());
-        }
+        validateSlugs(request, null);
 
         About about = new About();
-        about.setSlug(request.getSlug());
-        about.setTitle(request.getTitle());
-        about.setSubtitle(request.getSubtitle());
-        about.setMetaDescription(request.getMetaDescription());
+        about.setSlugCkb(request.getSlugCkb().trim());
+        about.setSlugKmr(request.getSlugKmr() != null && !request.getSlugKmr().isBlank()
+                ? request.getSlugKmr().trim() : null);
+
+        about.setCkbContent(buildAboutContent(request.getCkbContent()));
+        about.setKmrContent(buildAboutContent(request.getKmrContent()));
         about.setActive(true);
 
         if (request.getBlocks() != null) {
@@ -90,12 +95,16 @@ public class AboutService {
                 .orElseThrow(() ->
                         new EntityNotFoundException("About not found: " + id));
 
-        about.setSlug(request.getSlug());
-        about.setTitle(request.getTitle());
-        about.setSubtitle(request.getSubtitle());
-        about.setMetaDescription(request.getMetaDescription());
+        validateSlugs(request, id);
 
-        // orphanRemoval = true on the blocks collection handles DB cleanup
+        about.setSlugCkb(request.getSlugCkb().trim());
+        about.setSlugKmr(request.getSlugKmr() != null && !request.getSlugKmr().isBlank()
+                ? request.getSlugKmr().trim() : null);
+
+        about.setCkbContent(buildAboutContent(request.getCkbContent()));
+        about.setKmrContent(buildAboutContent(request.getKmrContent()));
+
+        // orphanRemoval = true handles DB cleanup
         about.getBlocks().clear();
 
         if (request.getBlocks() != null) {
@@ -118,7 +127,6 @@ public class AboutService {
                 .orElseThrow(() ->
                         new EntityNotFoundException("About not found: " + id));
 
-        // Delete all S3 media attached to blocks before removing the entity
         about.getBlocks().stream()
                 .filter(b -> b.getMediaUrl() != null && !b.getMediaUrl().isBlank())
                 .forEach(b -> s3Service.deleteFile(b.getMediaUrl()));
@@ -131,12 +139,6 @@ public class AboutService {
     // MEDIA UPLOAD — S3
     // ============================================================
 
-    /**
-     * Upload a single file.
-     * The {@code type} hint ("image", "video", "audio") is used to pick
-     * the right S3 folder via {@link ProjectMediaType}.  When null or
-     * unrecognised, S3Service falls back to content-type auto-detection.
-     */
     public UploadResponse uploadMedia(MultipartFile file, String type) throws IOException {
 
         log.info("Uploading about media: name={}, hint={}, contentType={}, size={}",
@@ -161,35 +163,23 @@ public class AboutService {
                 .build();
     }
 
-    /**
-     * Convenience overload — type hint is derived from the file's content-type.
-     */
     public UploadResponse uploadMedia(MultipartFile file) throws IOException {
         return uploadMedia(file, null);
     }
 
-    /**
-     * Bulk upload — all files share the same type hint.
-     */
-    public List<UploadResponse> uploadMultipleMedia(List<MultipartFile> files,
-                                                    String type) {
+    public List<UploadResponse> uploadMultipleMedia(List<MultipartFile> files, String type) {
         return files.stream()
                 .map(file -> {
                     try {
                         return uploadMedia(file, type);
                     } catch (IOException e) {
                         log.error("Failed to upload: {}", file.getOriginalFilename(), e);
-                        throw new RuntimeException(
-                                "Upload failed: " + file.getOriginalFilename(), e);
+                        throw new RuntimeException("Upload failed: " + file.getOriginalFilename(), e);
                     }
                 })
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Delete a single S3 file by URL.
-     * Safe to call — S3Service swallows deletion errors internally.
-     */
     @Transactional
     public void deleteMedia(String fileUrl) {
         if (fileUrl != null && !fileUrl.isBlank()) {
@@ -203,38 +193,87 @@ public class AboutService {
     // ============================================================
 
     /**
-     * Map the free-text type hint from the controller to a {@link ProjectMediaType}.
-     * Returns {@code null} when no match so S3Service auto-detects from content-type.
+     * Validate slug uniqueness for both CKB and KMR.
+     * On update, excludes the current record's own ID from the uniqueness check.
      */
+    private void validateSlugs(AboutRequest request, Long excludeId) {
+
+        if (request.getSlugCkb() == null || request.getSlugCkb().isBlank()) {
+            throw new IllegalArgumentException("CKB slug is required");
+        }
+
+        String ckb = request.getSlugCkb().trim();
+        String kmr = (request.getSlugKmr() != null && !request.getSlugKmr().isBlank())
+                ? request.getSlugKmr().trim() : null;
+
+        // CKB slug uniqueness
+        aboutRepository.findBySlugCkb(ckb).ifPresent(existing -> {
+            if (!existing.getId().equals(excludeId)) {
+                throw new IllegalArgumentException("CKB slug already exists: " + ckb);
+            }
+        });
+
+        // KMR slug uniqueness (only if provided)
+        if (kmr != null) {
+            aboutRepository.findBySlugKmr(kmr).ifPresent(existing -> {
+                if (!existing.getId().equals(excludeId)) {
+                    throw new IllegalArgumentException("KMR slug already exists: " + kmr);
+                }
+            });
+
+            // CKB and KMR slugs must not be identical
+            if (ckb.equals(kmr)) {
+                throw new IllegalArgumentException(
+                        "CKB slug and KMR slug must be different: " + ckb);
+            }
+        }
+    }
+
     private ProjectMediaType resolveMediaType(String hint) {
         if (hint == null) return null;
         return switch (hint.toLowerCase().trim()) {
             case "image"   -> ProjectMediaType.IMAGE;
             case "video"   -> ProjectMediaType.VIDEO;
             case "audio"   -> ProjectMediaType.AUDIO;
-            case "gallery" -> ProjectMediaType.IMAGE;   // gallery items are images
+            case "gallery" -> ProjectMediaType.IMAGE;
             default        -> null;
         };
+    }
+
+    private AboutContent buildAboutContent(AboutContentRequest req) {
+        if (req == null) return new AboutContent();
+        return AboutContent.builder()
+                .title(req.getTitle())
+                .subtitle(req.getSubtitle())
+                .metaDescription(req.getMetaDescription())
+                .build();
+    }
+
+    private AboutBlockContent buildBlockContent(AboutBlockContentRequest req) {
+        if (req == null) return new AboutBlockContent();
+        return AboutBlockContent.builder()
+                .contentText(req.getContentText())
+                .title(req.getTitle())
+                .altText(req.getAltText())
+                .build();
     }
 
     private AboutBlock buildBlock(AboutBlockRequest req, int sequence) {
 
         AboutBlock.ContentType contentType;
         try {
-            contentType = AboutBlock.ContentType.valueOf(
-                    req.getContentType().toUpperCase());
+            contentType = AboutBlock.ContentType.valueOf(req.getContentType().toUpperCase());
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    "Invalid content type: " + req.getContentType());
+            throw new IllegalArgumentException("Invalid content type: " + req.getContentType());
         }
 
         AboutBlock.AboutBlockBuilder builder = AboutBlock.builder()
                 .contentType(contentType)
                 .sequence(sequence)
-                .contentText(req.getContentText())
-                .title(req.getTitle())
-                .altText(req.getAltText())
-                .mediaUrl(req.getMediaUrl());
+                .ckbContent(buildBlockContent(req.getCkbContent()))
+                .kmrContent(buildBlockContent(req.getKmrContent()))
+                .mediaUrl(req.getMediaUrl())
+                .thumbnailUrl(req.getThumbnailUrl());
 
         if (req.getMetadata() != null) {
             builder.metadata((java.util.Map<String, Object>) req.getMetadata());
@@ -242,6 +281,8 @@ public class AboutService {
 
         return builder.build();
     }
+
+    // ─── Response Mappers ─────────────────────────────────────────────────────
 
     private AboutResponse toResponse(About about) {
 
@@ -252,10 +293,10 @@ public class AboutService {
 
         return AboutResponse.builder()
                 .id(about.getId())
-                .slug(about.getSlug())
-                .title(about.getTitle())
-                .subtitle(about.getSubtitle())
-                .metaDescription(about.getMetaDescription())
+                .slugCkb(about.getSlugCkb())
+                .slugKmr(about.getSlugKmr())
+                .ckbContent(toAboutContentResponse(about.getCkbContent()))
+                .kmrContent(toAboutContentResponse(about.getKmrContent()))
                 .active(about.isActive())
                 .blocks(blockResponses)
                 .createdAt(about.getCreatedAt() != null
@@ -265,17 +306,34 @@ public class AboutService {
                 .build();
     }
 
+    private AboutContentResponse toAboutContentResponse(AboutContent content) {
+        if (content == null) return null;
+        return AboutContentResponse.builder()
+                .title(content.getTitle())
+                .subtitle(content.getSubtitle())
+                .metaDescription(content.getMetaDescription())
+                .build();
+    }
+
     private AboutBlockResponse toBlockResponse(AboutBlock block) {
         return AboutBlockResponse.builder()
                 .id(block.getId())
                 .contentType(block.getContentType().name())
                 .sequence(block.getSequence())
-                .contentText(block.getContentText())
+                .ckbContent(toBlockContentResponse(block.getCkbContent()))
+                .kmrContent(toBlockContentResponse(block.getKmrContent()))
                 .mediaUrl(block.getMediaUrl())
                 .thumbnailUrl(block.getThumbnailUrl())
-                .title(block.getTitle())
-                .altText(block.getAltText())
                 .metadata(block.getMetadata())
+                .build();
+    }
+
+    private AboutBlockContentResponse toBlockContentResponse(AboutBlockContent content) {
+        if (content == null) return null;
+        return AboutBlockContentResponse.builder()
+                .contentText(content.getContentText())
+                .title(content.getTitle())
+                .altText(content.getAltText())
                 .build();
     }
 }
