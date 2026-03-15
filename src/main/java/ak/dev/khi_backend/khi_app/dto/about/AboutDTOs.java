@@ -40,6 +40,7 @@ public class AboutDTOs {
 
         /** Ordered list of rich-content blocks. */
         private List<AboutBlockRequest> blocks;
+        private String heroImageUrl;
     }
 
     // ─── Bilingual page-level text ────────────────────────────────────────────
@@ -125,6 +126,8 @@ public class AboutDTOs {
 
         /** Kurmanji (KMR) page-level text content. */
         private AboutContentResponse kmrContent;
+
+        private String heroImageUrl;
 
         private boolean active;
         private List<AboutBlockResponse> blocks;

@@ -3,13 +3,20 @@ package ak.dev.khi_backend.khi_app.model.news;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
-@Table(name = "news")
+@Table(
+        name = "news",
+        indexes = {
+                @Index(name = "idx_news_date_published", columnList = "datePublished DESC"),
+                @Index(name = "idx_news_created_at",    columnList = "createdAt DESC")
+        }
+)
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
 @Builder
@@ -19,16 +26,29 @@ public class News {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "cover_url", length = 1024)
     private String coverUrl;
 
+    @Column(name = "date_published")
     private LocalDate datePublished;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // ✅ LIKE Project: which languages are active
+    // ─────────────────────────────────────────────
+    // Content Languages
+    //
+    // Changed EAGER → LAZY.
+    // @BatchSize: for a page of 20 news, Hibernate fires
+    // 1 IN-query for all their languages instead of 20 queries.
+    // ─────────────────────────────────────────────
+
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "news_content_languages",
             joinColumns = @JoinColumn(name = "news_id")
@@ -37,51 +57,70 @@ public class News {
     @Column(name = "language", nullable = false, length = 10)
     private Set<Language> contentLanguages = new LinkedHashSet<>();
 
-    // ✅ CKB (Sorani) Content
+    // ─────────────────────────────────────────────
+    // Embedded bilingual content blocks
+    // ─────────────────────────────────────────────
+
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title", column = @Column(name = "title_ckb", length = 250)),
+            @AttributeOverride(name = "title",       column = @Column(name = "title_ckb",       length = 250)),
             @AttributeOverride(name = "description", column = @Column(name = "description_ckb", columnDefinition = "TEXT"))
     })
     private NewsContent ckbContent;
 
-    // ✅ KMR (Kurmanji) Content
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title", column = @Column(name = "title_kmr", length = 250)),
+            @AttributeOverride(name = "title",       column = @Column(name = "title_kmr",       length = 250)),
             @AttributeOverride(name = "description", column = @Column(name = "description_kmr", columnDefinition = "TEXT"))
     })
     private NewsContent kmrContent;
 
-    // ✅ EAGER FETCH - CKB tags
+    // ─────────────────────────────────────────────
+    // Tags (simple string collections)
+    //
+    // Changed EAGER → LAZY + @BatchSize.
+    // All 4 tag/keyword collections fire 1 IN-query each
+    // for an entire page of results — total: 4 fast queries.
+    // ─────────────────────────────────────────────
+
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "news_tags_ckb", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "tag_ckb", nullable = false, length = 80)
     private Set<String> tagsCkb = new LinkedHashSet<>();
 
-    // ✅ EAGER FETCH - KMR tags
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "news_tags_kmr", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "tag_kmr", nullable = false, length = 80)
     private Set<String> tagsKmr = new LinkedHashSet<>();
 
-    // ✅ EAGER FETCH - CKB keywords
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "news_keywords_ckb", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "keyword_ckb", nullable = false, length = 120)
     private Set<String> keywordsCkb = new LinkedHashSet<>();
 
-    // ✅ EAGER FETCH - KMR keywords
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "news_keywords_kmr", joinColumns = @JoinColumn(name = "news_id"))
     @Column(name = "keyword_kmr", nullable = false, length = 120)
     private Set<String> keywordsKmr = new LinkedHashSet<>();
 
-    // ✅ Both category and subcategory
+    // ─────────────────────────────────────────────
+    // Category & SubCategory
+    //
+    // LAZY is correct here.
+    // @BatchSize is placed on the NewsCategory and
+    // NewsSubCategory entity classes — that tells Hibernate
+    // to batch-load them with IN-queries when accessed
+    // across a page of results (1 query per type, not N).
+    // ─────────────────────────────────────────────
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private NewsCategory category;
@@ -90,9 +129,17 @@ public class News {
     @JoinColumn(name = "sub_category_id", nullable = false)
     private NewsSubCategory subCategory;
 
-    // ✅ LAZY FETCH - One news contains many media
+    // ─────────────────────────────────────────────
+    // Media
+    //
+    // @BatchSize: for 20 news items, Hibernate loads all
+    // their media in 1 IN-query instead of 20 queries.
+    // ─────────────────────────────────────────────
+
     @Builder.Default
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "news", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("sortOrder ASC, id ASC")
     private List<NewsMedia> media = new ArrayList<>();
 
     @PrePersist

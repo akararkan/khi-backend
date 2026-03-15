@@ -1,8 +1,8 @@
 package ak.dev.khi_backend.khi_app.dto.publishment.writing;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.publishment.BookGenre;
 import ak.dev.khi_backend.khi_app.enums.publishment.WritingFileFormat;
-import ak.dev.khi_backend.khi_app.enums.publishment.WritingTopic;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -67,7 +67,7 @@ public final class WritingDtos {
     }
 
     // =========================================================================
-    // TOPIC DTO  (inline create / response projection)
+    // TOPIC DTOS  (inline create / response projection)
     // =========================================================================
 
     /**
@@ -144,7 +144,6 @@ public final class WritingDtos {
         /**
          * Sorani (CKB) cover URL.
          * If a file is uploaded via multipart, the service will override this.
-         * Pass an external URL here when no file is being uploaded.
          */
         @Size(max = 2000)
         private String ckbCoverUrl;
@@ -183,10 +182,16 @@ public final class WritingDtos {
          */
         private TopicPayload newTopic;
 
-        // ─── Shared ───────────────────────────────────────────────────────────
+        // ─── Book Genre ───────────────────────────────────────────────────────
 
-        @NotNull(message = "Writing topic is required")
-        private WritingTopic writingTopic;
+        /**
+         * Primary genre / category of this book (e.g. NOVEL, POETRY, HISTORY).
+         * Replaces the old {@code writingTopic} field — maps to column {@code book_genre}.
+         */
+        @NotNull(message = "Book genre is required")
+        private BookGenre bookGenre;
+
+        // ─── Shared ───────────────────────────────────────────────────────────
 
         private boolean publishedByInstitute;
 
@@ -242,7 +247,7 @@ public final class WritingDtos {
 
         /**
          * Replace the current topic with an existing one by ID.
-         * Set to {@code 0L} (or use {@link #clearTopic}) to detach the topic.
+         * Use {@link #clearTopic} to detach the topic entirely.
          */
         private Long topicId;
 
@@ -258,9 +263,17 @@ public final class WritingDtos {
          */
         private Boolean clearTopic;
 
+        // ─── Book Genre ───────────────────────────────────────────────────────
+
+        /**
+         * Update the book's genre/category.
+         * Nullable — omit to leave the current value unchanged.
+         * Replaces the old {@code writingTopic} field.
+         */
+        private BookGenre bookGenre;
+
         // ─── Shared ───────────────────────────────────────────────────────────
 
-        private WritingTopic writingTopic;
         private Boolean publishedByInstitute;
 
         private BilingualSet tags;
@@ -314,9 +327,16 @@ public final class WritingDtos {
          */
         private TopicInfo topic;
 
+        // ─── Book Genre ───────────────────────────────────────────────────────
+
+        /**
+         * Genre / category of this book.
+         * Replaces the old {@code writingTopic} field.
+         */
+        private BookGenre bookGenre;
+
         // ─── Shared ───────────────────────────────────────────────────────────
 
-        private WritingTopic writingTopic;
         private boolean publishedByInstitute;
 
         private BilingualSet tags;
@@ -340,9 +360,9 @@ public final class WritingDtos {
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class SeriesResponse {
-        private String seriesId;
-        private String seriesName;
-        private Integer totalBooks;
+        private String              seriesId;
+        private String              seriesName;
+        private Integer             totalBooks;
         private List<SeriesBookSummary> books;
     }
 
@@ -377,11 +397,12 @@ public final class WritingDtos {
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class SearchRequest {
-        private WritingTopic topic;
-        private Boolean      instituteOnly;
-        private String       writer;
-        private String       language;
-        private String       seriesId;
-        private Boolean      seriesParentsOnly;
+        /** Filter by book genre (was: topic). */
+        private BookGenre bookGenre;
+        private Boolean   instituteOnly;
+        private String    writer;
+        private String    language;
+        private String    seriesId;
+        private Boolean   seriesParentsOnly;
     }
 }

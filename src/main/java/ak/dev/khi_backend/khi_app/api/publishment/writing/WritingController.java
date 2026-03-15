@@ -245,7 +245,8 @@ public class WritingController {
 
     @GetMapping(value = "/topics", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getTopics() {
-        List<PublishmentTopic> topics = topicRepository.findByEntityType("IMAGE");
+        // FIX: Changed "IMAGE" to "WRITING"
+        List<PublishmentTopic> topics = topicRepository.findByEntityType("WRITING");
         List<Map<String, Object>> result = topics.stream()
                 .map(t -> Map.<String, Object>of(
                         "id",      t.getId(),
@@ -253,7 +254,7 @@ public class WritingController {
                         "nameKmr", t.getNameKmr() != null ? t.getNameKmr() : ""
                 ))
                 .toList();
-        return ResponseEntity.ok(ApiResponse.success(result, "IMAGE topics fetched successfully"));
+        return ResponseEntity.ok(ApiResponse.success(result, "WRITING topics fetched successfully"));
     }
 
     // ============================================================

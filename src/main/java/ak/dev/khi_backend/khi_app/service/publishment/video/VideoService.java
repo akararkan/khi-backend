@@ -143,41 +143,37 @@ public class VideoService {
     ) {
         requireDto(dto);
 
-        // ✅ دانانی ٣ وێنەی بەرگ بە سەربەخۆیی
+        // Optional covers
         String ckbUrl = resolveCoverUrl(dto.getCkbCoverUrl(), ckbCoverImage);
-        if (isBlank(ckbUrl)) {
-            // هەڵە: وێنەی بەرگی کوردیی ناوەندی (سۆرانی) پێویستە
-            throw new BadRequestException("video.cover.ckb.required",
-                    Map.of("field", "ckbCoverImage یا ckbCoverUrl"));
-        }
-
         String kmrUrl = resolveCoverUrl(dto.getKmrCoverUrl(), kmrCoverImage);
-        if (isBlank(kmrUrl)) {
-            // هەڵە: وێنەی بەرگی کوردیی باکووری (کورمانجی) پێویستە
-            throw new BadRequestException("video.cover.kmr.required",
-                    Map.of("field", "kmrCoverImage یا kmrCoverUrl"));
-        }
-
         String hoverUrl = resolveCoverUrl(dto.getHoverCoverUrl(), hoverImage);
-        if (isBlank(hoverUrl)) {
-            // هەڵە: وێنەی هاڤەر (hover) پێویستە
-            throw new BadRequestException("video.cover.hover.required",
-                    Map.of("field", "hoverImage یا hoverCoverUrl"));
-        }
 
         Video video = VideoMapper.toEntity(dto);
-        video.setCkbCoverUrl(ckbUrl);
-        video.setKmrCoverUrl(kmrUrl);
-        video.setHoverCoverUrl(hoverUrl);
 
-        // بابەت
+        // set if present
+        if (!isBlank(ckbUrl)) {
+            video.setCkbCoverUrl(ckbUrl);
+        }
+
+        if (!isBlank(kmrUrl)) {
+            video.setKmrCoverUrl(kmrUrl);
+        }
+
+        if (!isBlank(hoverUrl)) {
+            video.setHoverCoverUrl(hoverUrl);
+        }
+
+        // Topic
         video.setTopic(resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic()));
 
         enforceAlbumRule(video, dto);
 
         if (video.getVideoType() == VideoType.FILM) {
             applyVideoSource(video, dto, videoFile);
-            if (video.getVideoClipItems() != null) video.getVideoClipItems().clear();
+
+            if (video.getVideoClipItems() != null) {
+                video.getVideoClipItems().clear();
+            }
         } else {
             clearFilmSourceFields(video);
             buildAndAttachClipItems(video, dto);
@@ -185,8 +181,13 @@ public class VideoService {
 
         Video saved = videoRepository.save(video);
 
-        logAction(saved.getId(), getTitle(saved), "CREATED",
-                "ڤیدیۆ دروستکرا: جۆر=" + saved.getVideoType() + ", ئەلبومی بیرەوەری=" + saved.isAlbumOfMemories());
+        logAction(
+                saved.getId(),
+                getTitle(saved),
+                "CREATED",
+                "ڤیدیۆ دروستکرا: جۆر=" + saved.getVideoType() +
+                        ", ئەلبومی بیرەوەری=" + saved.isAlbumOfMemories()
+        );
 
         return VideoMapper.toDTO(saved);
     }

@@ -5,6 +5,7 @@ import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -12,30 +13,26 @@ import java.util.*;
 /**
  * SoundTrack — Sound / audio publishment entity.
  *
- * ─── Track States ─────────────────────────────────────────────────────────────
+ * ─── @BatchSize strategy ───────────────────────────────────────────────────
  *
- *  SINGLE
- *    A single audio track (one file or one link). Cannot be an album.
+ *  All collections changed from EAGER → LAZY + @BatchSize(size = 50).
  *
- *  MULTI
- *    A collection of multiple audio tracks (e.g. a full album, a series of
- *    readings). The files list contains all the individual tracks.
+ *  Without @BatchSize (old EAGER):
+ *    Hibernate fires 1 massive LEFT JOIN across all collections
+ *    = Cartesian product explosion for N tracks × tags × keywords × files
  *
- *    MULTI can optionally be an "Album of Memories":
- *      isAlbumOfMemories = true  → memorial / retrospective audio collection
- *      isAlbumOfMemories = false → regular multi-track sound (e.g. a music album)
+ *  With @BatchSize (new LAZY):
+ *    Q1 : SELECT s   FROM sound_tracks                  WHERE id IN (...)
+ *    Q2 : SELECT ... FROM sound_track_content_languages  WHERE sound_track_id IN (...)
+ *    Q3 : SELECT ... FROM sound_track_locations          WHERE sound_track_id IN (...)
+ *    Q4 : SELECT ... FROM sound_track_keywords_ckb       WHERE sound_track_id IN (...)
+ *    Q5 : SELECT ... FROM sound_track_keywords_kmr       WHERE sound_track_id IN (...)
+ *    Q6 : SELECT ... FROM sound_track_tags_ckb           WHERE sound_track_id IN (...)
+ *    Q7 : SELECT ... FROM sound_track_tags_kmr           WHERE sound_track_id IN (...)
+ *    Q8 : SELECT ... FROM sound_track_files              WHERE sound_track_id IN (...)
+ *    Q9 : SELECT ... FROM publishment_topics             WHERE id IN (...)  ← @BatchSize on class
  *
- *    Always false for SINGLE state.
- *
- * ─── Topic ────────────────────────────────────────────────────────────────────
- *  Topic is a @ManyToOne relation to PublishmentTopic (entityType = "SOUND").
- *  It is NOT a free-text column. This allows:
- *    - Reuse of the same topic across many sound records
- *    - Bilingual topic names (CKB + KMR) managed in one place
- *    - Frontend autocomplete from the topic table
- *
- * ─── Sound Type ───────────────────────────────────────────────────────────────
- *  soundType remains a free-text String (e.g. "LAWK", "HAIRAN") as before.
+ *    9 fast IN-queries for any page size.
  */
 @Entity
 @Table(
@@ -49,7 +46,8 @@ import java.util.*;
                 @Index(name = "idx_soundtrack_updated_at", columnList = "updated_at")
         }
 )
-@Getter @Setter
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -59,56 +57,50 @@ public class SoundTrack {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ─── Cover Image ──────────────────────────────────────────────────────────
+    // ─── Cover Images ─────────────────────────────────────────────────────────
 
-    @Column(name = "cover_url", length = 1000)      // ← column is "cover_url"
-    private String ckbCoverUrl;                       //   but field says "ckb"
+    @Column(name = "cover_url", length = 1000)
+    private String ckbCoverUrl;
 
-    @Column(name = "ckb_cover_url", length = 1000)  // ← column is "ckb_cover_url"
-    private String kmrCoverUrl;                       //   but field says "kmr"
+    @Column(name = "ckb_cover_url", length = 1000)
+    private String kmrCoverUrl;
 
     @Column(name = "hover_cover_url", length = 1000)
     private String hoverCoverUrl;
 
-    // ─── Sound Type (free-text, e.g. "LAWK", "HAIRAN") ───────────────────────
+    // ─── Sound Type ───────────────────────────────────────────────────────────
 
     @Column(name = "sound_type", nullable = false, length = 100)
     private String soundType;
 
-    // ─── Track State: SINGLE or MULTI ─────────────────────────────────────────
+    // ─── Track State ──────────────────────────────────────────────────────────
 
     @Enumerated(EnumType.STRING)
     @Column(name = "track_state", nullable = false, length = 10)
     private TrackState trackState;
 
-    /**
-     * Is this a "Album of Memories" sound collection?
-     *
-     * Only meaningful when trackState = MULTI.
-     * When true  → memorial / retrospective multi-track collection.
-     * When false → regular multi-track sound (music album, readings, etc.).
-     *
-     * Always false for SINGLE state.
-     */
     @Builder.Default
     @Column(name = "is_album_of_memories", nullable = false)
     private boolean albumOfMemories = false;
 
-    // ─── Topic (ManyToOne → PublishmentTopic) ─────────────────────────────────
+    // ─── Topic ────────────────────────────────────────────────────────────────
+    //
+    // LAZY + @BatchSize on the PublishmentTopic CLASS.
+    // For a page of N tracks, Hibernate fires 1 IN-query
+    // to load all their topics instead of N queries.
 
-    /**
-     * The topic / subject of this sound record.
-     * Points to PublishmentTopic where entityType = "SOUND".
-     * Nullable — a track may have no topic assigned yet.
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "topic_id")
     private PublishmentTopic topic;
 
-    // ─── Languages ────────────────────────────────────────────────────────────
+    // ─── Content Languages ────────────────────────────────────────────────────
+    //
+    // Changed EAGER → LAZY + @BatchSize.
+    // 1 IN-query loads languages for the entire page.
 
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "sound_track_content_languages",
             joinColumns = @JoinColumn(name = "sound_track_id")
@@ -117,35 +109,40 @@ public class SoundTrack {
     @Column(name = "language", nullable = false, length = 10)
     private Set<Language> contentLanguages = new LinkedHashSet<>();
 
-    // ─── CKB (Sorani) Content ─────────────────────────────────────────────────
+    // ─── Embedded bilingual content ───────────────────────────────────────────
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title",       column = @Column(name = "title_ckb",       length = 200)),
-            @AttributeOverride(name = "description", column = @Column(name = "description_ckb", columnDefinition = "TEXT")),
-            @AttributeOverride(name = "reading",     column = @Column(name = "reading_ckb",     length = 255))
+            @AttributeOverride(name = "title",
+                    column = @Column(name = "title_ckb",       length = 200)),
+            @AttributeOverride(name = "description",
+                    column = @Column(name = "description_ckb", columnDefinition = "TEXT")),
+            @AttributeOverride(name = "reading",
+                    column = @Column(name = "reading_ckb",     length = 255))
     })
     private SoundTrackContent ckbContent;
 
-    // ─── KMR (Kurmanji) Content ───────────────────────────────────────────────
-
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title",       column = @Column(name = "title_kmr",       length = 200)),
-            @AttributeOverride(name = "description", column = @Column(name = "description_kmr", columnDefinition = "TEXT")),
-            @AttributeOverride(name = "reading",     column = @Column(name = "reading_kmr",     length = 255))
+            @AttributeOverride(name = "title",
+                    column = @Column(name = "title_kmr",       length = 200)),
+            @AttributeOverride(name = "description",
+                    column = @Column(name = "description_kmr", columnDefinition = "TEXT")),
+            @AttributeOverride(name = "reading",
+                    column = @Column(name = "reading_kmr",     length = 255))
     })
     private SoundTrackContent kmrContent;
 
-    // ─── Shared Fields ────────────────────────────────────────────────────────
+    // ─── Locations ────────────────────────────────────────────────────────────
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @Builder.Default
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "sound_track_locations",
             joinColumns = @JoinColumn(name = "sound_track_id")
     )
     @Column(name = "location", nullable = false, length = 255)
-    @Builder.Default
     private Set<String> locations = new LinkedHashSet<>();
 
     @Column(length = 255)
@@ -157,38 +154,58 @@ public class SoundTrack {
     // ─── CKB Keywords ─────────────────────────────────────────────────────────
 
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "sound_track_keywords_ckb", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "sound_track_keywords_ckb",
+            joinColumns = @JoinColumn(name = "sound_track_id")
+    )
     @Column(name = "keyword_ckb", nullable = false, length = 100)
     private Set<String> keywordsCkb = new LinkedHashSet<>();
 
     // ─── KMR Keywords ─────────────────────────────────────────────────────────
 
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "sound_track_keywords_kmr", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "sound_track_keywords_kmr",
+            joinColumns = @JoinColumn(name = "sound_track_id")
+    )
     @Column(name = "keyword_kmr", nullable = false, length = 100)
     private Set<String> keywordsKmr = new LinkedHashSet<>();
 
     // ─── CKB Tags ─────────────────────────────────────────────────────────────
 
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "sound_track_tags_ckb", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "sound_track_tags_ckb",
+            joinColumns = @JoinColumn(name = "sound_track_id")
+    )
     @Column(name = "tag_ckb", nullable = false, length = 60)
     private Set<String> tagsCkb = new LinkedHashSet<>();
 
     // ─── KMR Tags ─────────────────────────────────────────────────────────────
 
     @Builder.Default
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "sound_track_tags_kmr", joinColumns = @JoinColumn(name = "sound_track_id"))
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "sound_track_tags_kmr",
+            joinColumns = @JoinColumn(name = "sound_track_id")
+    )
     @Column(name = "tag_kmr", nullable = false, length = 60)
     private Set<String> tagsKmr = new LinkedHashSet<>();
 
     // ─── Audio Files ──────────────────────────────────────────────────────────
+    //
+    // @BatchSize: for 20 tracks on a page, Hibernate loads ALL
+    // their files in 1 IN-query instead of 20 queries.
 
     @Builder.Default
+    @BatchSize(size = 50)
     @OneToMany(
             mappedBy = "soundTrack",
             cascade = CascadeType.ALL,
@@ -217,7 +234,7 @@ public class SoundTrack {
         updatedAt = LocalDateTime.now();
     }
 
-    // ─── Helper Methods ───────────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     public void addFile(SoundTrackFile file) {
         files.add(file);
@@ -229,7 +246,6 @@ public class SoundTrack {
         file.setSoundTrack(null);
     }
 
-    /** Convenience: true only when MULTI and flagged as album of memories. */
     public boolean isMultiAlbumOfMemories() {
         return trackState == TrackState.MULTI && albumOfMemories;
     }

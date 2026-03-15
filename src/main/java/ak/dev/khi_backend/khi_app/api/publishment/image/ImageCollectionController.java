@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -133,9 +134,13 @@ public class ImageCollectionController {
     // =========================================================================
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<List<Response>>> getAll() {
+    public ResponseEntity<ApiResponse<Page<Response>>> getAll(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        log.info("GET /api/v1/image-collections | page={} size={}", page, size);
         return ResponseEntity.ok(ApiResponse.success(
-                imageCollectionService.getAll(),
+                imageCollectionService.getAll(page, size),
                 "Image collections fetched successfully"));
     }
 

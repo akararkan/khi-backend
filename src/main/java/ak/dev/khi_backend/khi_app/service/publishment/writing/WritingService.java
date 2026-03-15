@@ -29,20 +29,32 @@ import java.util.stream.Collectors;
 /**
  * سێرڤیسی نووسراو - بەڕێوەبردنی کتێب و نووسراوەکان لەگەڵ زنجیرە (Series) و بابەتەکان
  *
+ * NOTE: WritingTopic enum + field renamed to BookGenre / bookGenre throughout.
+ *       Update WritingDtos (CreateRequest, UpdateRequest, Response) accordingly:
+ *         • WritingTopic writingTopic  →  BookGenre bookGenre
+ *         • getWritingTopic()          →  getBookGenre()
+ *
+ * ─── Performance fix ──────────────────────────────────────────────────────────
+ *  All single-entity lookups now go through findOrThrow(id) which calls
+ *  writingRepository.findByIdWithDetails(id) — a single query that JOIN FETCHes
+ *  seriesBooks, parentBook, and topic instead of firing N+1 lazy selects.
+ *  The EAGER element collections (tags, keywords, languages) are batch-loaded
+ *  by Hibernate via @BatchSize(size=25) on Writing.java.
+ *
  * لیستی هەڵە کوردیەکان کە بەکاردێن:
  *
- * ١. "writing.languages.required" = "زمانەکانی ناوەڕۆک پێویستە: دەبێت لانیکەم یەک زمان هەڵبژێردرێت" (Bad Request)
- * ٢. "writing.content.missing" = "ناوەڕۆک کەمە: ناوەڕۆک بۆ ئەم زمانە دیاری نەکراوە" (Bad Request)
- * ٣. "writing.title.required" = "ناونیشانی نووسراو پێویستە: کاتێک زمان چالاکە دەبێت ناونیشان هەبێت" (Bad Request)
- * ٤. "writing.not_found" = "نووسراو نەدۆزرایەوە: ئایدییەکە بوونی نییە لە سیستەم" (Not Found)
- * ٥. "topic.not_found" = "بابەت نەدۆزرایەوە: ئایدیی بابەت بوونی نییە" (Not Found)
- * ٦. "parent_book.not_found" = "کتێبی باوک نەدۆزرایەوە: ئایدیی کتێبی باوک بوونی نییە" (Not Found)
- * ٧. "series.not_found" = "زنجیرە نەدۆزرایەوە: ناسنامەی زنجیرە بوونی نییە" (Not Found)
- * ٨. "media.upload.failed" = "شکستی ناردنی فایل: کێشە لە ناردنی فایل بۆ S3" (Bad Request)
- * ٩. "search.writer.required" = "ناوی نووسەر پێویستە بۆ گەڕان" (Bad Request)
- * ١٠. "search.tag.required" = "تاگی گەڕان پێویستە" (Bad Request)
- * ١١. "search.keyword.required" = "کلیلەووشەی گەڕان پێویستە" (Bad Request)
- * ١٢. "writing.topic.names.required" = "ناوی بابەت پێویستە: دەبێت لانیکەم ناوێکی کوردی بنووسرێت" (Bad Request)
+ * ١. "writing.languages.required"     — زمانەکانی ناوەڕۆک پێویستە
+ * ٢. "writing.content.missing"        — ناوەڕۆک کەمە
+ * ٣. "writing.title.required"         — ناونیشانی نووسراو پێویستە
+ * ٤. "writing.not_found"              — نووسراو نەدۆزرایەوە
+ * ٥. "topic.not_found"                — بابەت نەدۆزرایەوە
+ * ٦. "parent_book.not_found"          — کتێبی باوک نەدۆزرایەوە
+ * ٧. "series.not_found"               — زنجیرە نەدۆزرایەوە
+ * ٨. "media.upload.failed"            — شکستی ناردنی فایل
+ * ٩. "search.writer.required"         — ناوی نووسەر پێویستە
+ * ١٠. "search.tag.required"           — تاگی گەڕان پێویستە
+ * ١١. "search.keyword.required"       — کلیلەووشەی گەڕان پێویستە
+ * ١٢. "writing.topic.names.required"  — ناوی بابەت پێویستە
  */
 @Service
 @RequiredArgsConstructor
@@ -64,18 +76,18 @@ public class WritingService {
     /**
      * دروستکردنی نووسراوێکی نوێ (کتێب یان نووسین)
      *
-     * @param request        زانیاری JSON
-     * @param ckbCoverImage  وێنەی بەرگی کوردیی ناوەندی (ئارەزوومەندانە، لەسەر لینک پێشەکییە)
-     * @param kmrCoverImage  وێنەی بەرگی کوردیی باکووری (ئارەزوومەندانە)
+     * @param request         زانیاری JSON
+     * @param ckbCoverImage   وێنەی بەرگی سۆرانی (ئارەزوومەندانە)
+     * @param kmrCoverImage   وێنەی بەرگی کورمانجی (ئارەزوومەندانە)
      * @param hoverCoverImage وێنەی هاڤەر (ئارەزوومەندانە)
-     * @param ckbBookFile    فایلی کتێبی کوردیی ناوەندی (PDF یان جۆرەکانی تر)
-     * @param kmrBookFile    فایلی کتێبی کوردیی باکووری
+     * @param ckbBookFile     فایلی کتێبی سۆرانی (PDF یان جۆرەکانی تر)
+     * @param kmrBookFile     فایلی کتێبی کورمانجی
      *
      * @throws BadRequestException - "زمانەکانی ناوەڕۆک پێویستە"
      * @throws BadRequestException - "ناوەڕۆک کەمە"
      * @throws BadRequestException - "ناونیشانی نووسراو پێویستە"
      * @throws BadRequestException - "شکستی ناردنی فایل"
-     * @throws NotFoundException   - "کتێبی باوک نەدۆزرایەوە" (ئەگەر seriesId دیاری کرابێت)
+     * @throws NotFoundException   - "کتێبی باوک نەدۆزرایەوە"
      */
     @Transactional
     public Response addWriting(CreateRequest request,
@@ -89,7 +101,7 @@ public class WritingService {
 
         validate(request, true);
 
-        // ─── ناردنی وێنەی بەرگ (فایل لەسەر لینک پێشەکییە) ────────────────────
+        // ─── ناردنی وێنەی بەرگ ────────────────────────────────────────────────
         String ckbCoverUrl   = uploadOrFallback(ckbCoverImage,   request.getCkbCoverUrl(),   "وێنەی بەرگی CKB");
         String kmrCoverUrl   = uploadOrFallback(kmrCoverImage,   request.getKmrCoverUrl(),   "وێنەی بەرگی KMR");
         String hoverCoverUrl = uploadOrFallback(hoverCoverImage, request.getHoverCoverUrl(), "وێنەی هاڤەر");
@@ -98,36 +110,32 @@ public class WritingService {
         String ckbFileUrl = uploadFile(ckbBookFile, "فایلی کتێبی CKB");
         String kmrFileUrl = uploadFile(kmrBookFile, "فایلی کتێبی KMR");
 
-        // ─── دۆزینەوەی بابەت ────────────────────────────────────────────────────
+        // ─── دۆزینەوەی بابەت ─────────────────────────────────────────────────
         PublishmentTopic topic = resolveTopic(request.getTopicId(), request.getNewTopic());
 
-        // ─── دۆزینەوەی کتێبی باوک (بۆ زنجیرە) ───────────────────────────────────
-        Writing parentBook = null;
-        String  seriesId   = request.getSeriesId();
+        // ─── دۆزینەوەی کتێبی باوک (بۆ زنجیرە) ───────────────────────────────
+        // ✅ uses findOrThrow → findByIdWithDetails (single query, no N+1)
+        Writing parentBook  = null;
+        String  seriesId    = request.getSeriesId();
         Double  seriesOrder = request.getSeriesOrder();
 
         if (request.getParentBookId() != null) {
-            parentBook = writingRepository.findById(request.getParentBookId())
-                    .orElseThrow(() -> {
-                        // هەڵە: کتێبی باوک نەدۆزرایەوە
-                        return new NotFoundException("parent_book.not_found",
-                                Map.of("parentBookId", request.getParentBookId()));
-                    });
-            seriesId = parentBook.getSeriesId();
+            parentBook  = findOrThrow(request.getParentBookId(), "parent_book.not_found");
+            seriesId    = parentBook.getSeriesId();
             if (seriesOrder == null) {
                 Double maxOrder = writingRepository.findMaxSeriesOrder(seriesId);
                 seriesOrder = (maxOrder != null ? maxOrder : 0.0) + 1.0;
             }
         }
 
-        // ─── دروستکردنی ئینتیتی ─────────────────────────────────────────────────
+        // ─── دروستکردنی ئینتیتی ──────────────────────────────────────────────
         Writing writing = Writing.builder()
                 .ckbCoverUrl(ckbCoverUrl)
                 .kmrCoverUrl(kmrCoverUrl)
                 .hoverCoverUrl(hoverCoverUrl)
                 .topic(topic)
+                .bookGenre(request.getBookGenre())
                 .contentLanguages(new LinkedHashSet<>(safeLangs(request.getContentLanguages())))
-                .writingTopic(request.getWritingTopic())
                 .publishedByInstitute(request.isPublishedByInstitute())
                 .tagsCkb(new LinkedHashSet<>(safeSet(request.getTags()     != null ? request.getTags().getCkb()     : null)))
                 .tagsKmr(new LinkedHashSet<>(safeSet(request.getTags()     != null ? request.getTags().getKmr()     : null)))
@@ -172,29 +180,21 @@ public class WritingService {
 
         log.info("نوێکردنەوەی نووسراو id={}", id);
 
-        Writing writing = writingRepository.findById(id)
-                .orElseThrow(() -> {
-                    // هەڵە: نووسراوەکە نەدۆزرایەوە
-                    return new NotFoundException("writing.not_found", Map.of("id", id));
-                });
+        // ✅ single query: JOIN FETCHes seriesBooks + parentBook + topic
+        Writing writing = findOrThrow(id, "writing.not_found");
 
         validate(request);
 
-        // ─── وێنەی بەرگ ─────────────────────────────────────────────────────
-        //   پێشەکی: ناردنی نوێ → لینکی داواکراو → هێشتنەوەی کۆن
-        String ckbCoverUrl   = resolveUpdate(ckbCoverImage,   request.getCkbCoverUrl(),   writing.getCkbCoverUrl());
-        String kmrCoverUrl   = resolveUpdate(kmrCoverImage,   request.getKmrCoverUrl(),   writing.getKmrCoverUrl());
-        String hoverCoverUrl = resolveUpdate(hoverCoverImage, request.getHoverCoverUrl(), writing.getHoverCoverUrl());
+        // ─── وێنەی بەرگ ──────────────────────────────────────────────────────
+        writing.setCkbCoverUrl(resolveUpdate(ckbCoverImage,   request.getCkbCoverUrl(),   writing.getCkbCoverUrl()));
+        writing.setKmrCoverUrl(resolveUpdate(kmrCoverImage,   request.getKmrCoverUrl(),   writing.getKmrCoverUrl()));
+        writing.setHoverCoverUrl(resolveUpdate(hoverCoverImage, request.getHoverCoverUrl(), writing.getHoverCoverUrl()));
 
-        writing.setCkbCoverUrl(ckbCoverUrl);
-        writing.setKmrCoverUrl(kmrCoverUrl);
-        writing.setHoverCoverUrl(hoverCoverUrl);
-
-        // ─── فایلی کتێب ───────────────────────────────────────────────────────
+        // ─── فایلی کتێب ──────────────────────────────────────────────────────
         String ckbFileUrl = uploadFile(ckbBookFile, "فایلی کتێبی CKB");
         String kmrFileUrl = uploadFile(kmrBookFile, "فایلی کتێبی KMR");
 
-        // ─── بابەت ────────────────────────────────────────────────────────────
+        // ─── بابەت ───────────────────────────────────────────────────────────
         if (Boolean.TRUE.equals(request.getClearTopic())) {
             writing.setTopic(null);
         } else {
@@ -202,37 +202,32 @@ public class WritingService {
             if (topic != null) writing.setTopic(topic);
         }
 
-        // ─── خانە هاوبەشەکان ────────────────────────────────────────────────────
-        if (request.getWritingTopic()       != null) writing.setWritingTopic(request.getWritingTopic());
+        // ─── خانە هاوبەشەکان ─────────────────────────────────────────────────
+        if (request.getBookGenre()            != null) writing.setBookGenre(request.getBookGenre());
         if (request.getPublishedByInstitute() != null) writing.setPublishedByInstitute(request.getPublishedByInstitute());
 
-        // ─── زمان و ناوەڕۆک ─────────────────────────────────────────────────────
+        // ─── زمان و ناوەڕۆک ──────────────────────────────────────────────────
         if (request.getContentLanguages() != null && !request.getContentLanguages().isEmpty()) {
             writing.setContentLanguages(new LinkedHashSet<>(request.getContentLanguages()));
         }
         applyContent(writing, request, ckbFileUrl, kmrFileUrl);
 
-        // ─── تاگ و کلیلەووشەکان ──────────────────────────────────────────────────
+        // ─── تاگ و کلیلەووشەکان ──────────────────────────────────────────────
         replaceBilingualSets(writing, request);
 
-        // ─── زنجیرە ───────────────────────────────────────────────────────────
+        // ─── زنجیرە ──────────────────────────────────────────────────────────
         String oldSeriesId = writing.getSeriesId();
-        if (request.getSeriesName() != null) writing.setSeriesName(request.getSeriesName());
+        if (request.getSeriesName()  != null) writing.setSeriesName(request.getSeriesName());
         if (request.getSeriesOrder() != null) writing.setSeriesOrder(request.getSeriesOrder());
         if (request.getParentBookId() != null) {
-            Writing newParent = writingRepository.findById(request.getParentBookId())
-                    .orElseThrow(() -> {
-                        // هەڵە: کتێبی باوکی نوێ نەدۆزرایەوە
-                        return new NotFoundException("parent_book.not_found",
-                                Map.of("parentBookId", request.getParentBookId()));
-                    });
+            // ✅ single query for parent book too
+            Writing newParent = findOrThrow(request.getParentBookId(), "parent_book.not_found");
             writing.setParentBook(newParent);
             writing.setSeriesId(newParent.getSeriesId());
         }
 
         Writing updated = writingRepository.save(writing);
 
-        // نوێکردنەوەی ژماری زنجیرە ئەگەر کتێب گواسترابێتەوە بۆ زنجیرەیەکی تر
         if (oldSeriesId != null && !oldSeriesId.equals(updated.getSeriesId())) {
             updateSeriesCount(oldSeriesId);
         }
@@ -255,33 +250,30 @@ public class WritingService {
     public void deleteWriting(Long id) {
         log.info("سڕینەوەی نووسراو id={}", id);
 
-        Writing writing = writingRepository.findById(id)
-                .orElseThrow(() -> {
-                    // هەڵە: نووسراوەکە نەدۆزرایەوە بۆ سڕینەوە
-                    return new NotFoundException("writing.not_found", Map.of("id", id));
-                });
+        // ✅ findOrThrow handles null check + not-found in one place
+        Writing writing = findOrThrow(id, "writing.not_found");
 
-        String seriesId = writing.getSeriesId();
-        String title    = getCombinedTitle(writing);
+        String seriesId  = writing.getSeriesId();
+        String title     = getCombinedTitle(writing);
         Long   writingId = writing.getId();
 
-        // ── سەرەتا: تۆمارکردنی لۆگ کاتێک نووسراو هەر هەیە ─────────────────────
-        WritingLog log = WritingLog.builder()
-                .writing(null)          // بەقەست null — FK پاک دەکرێتەوە بۆ لۆگی سڕینەوە
-                .writingId(writingId)   // ئایدی هەمیشە دابمەزرێت
+        // ── سەرەتا: تۆمارکردنی لۆگ ───────────────────────────────────────────
+        WritingLog deletionLog = WritingLog.builder()
+                .writing(null)
+                .writingId(writingId)
                 .action("DELETED")
                 .actorId("system")
                 .actorName("System")
                 .details("نووسراو '" + title + "' سڕایەوە")
                 .createdAt(LocalDateTime.now())
                 .build();
-        writingLogRepository.saveAndFlush(log);
+        writingLogRepository.saveAndFlush(deletionLog);
 
-        // ── دواتر: سڕینەوەی نووسراو ────────────────────────────────────────────
+        // ── دواتر: سڕینەوە ───────────────────────────────────────────────────
         writingRepository.delete(writing);
         writingRepository.flush();
 
-        // ── کۆتایی: نوێکردنەوەی ژماری زنجیرە ───────────────────────────────────
+        // ── کۆتایی: نوێکردنەوەی ژمارەی زنجیرە ───────────────────────────────
         updateSeriesCount(seriesId);
     }
 
@@ -291,22 +283,20 @@ public class WritingService {
 
     @Transactional(readOnly = true)
     public Page<Response> getAllWritings(Pageable pageable) {
-        return writingRepository.findAll(pageable).map(this::mapToResponse);
+        // ✅ uses findAllWithTopic → avoids N+1 on topic name in list cards
+        return writingRepository.findAllWithTopic(pageable).map(this::mapToResponse);
     }
 
     /**
-     * هێنانی نووسراو بەپێی ئایدی
+     * هێنانی نووسراو بەپێی ئایدی — هەموو وردەکاریەکان بەیەک دەمەوە
      *
      * @throws NotFoundException - "نووسراو نەدۆزرایەوە"
      */
     @Transactional(readOnly = true)
     public Response getWritingById(Long id) {
-        Writing writing = writingRepository.findById(id)
-                .orElseThrow(() -> {
-                    // هەڵە: نووسراوەکە نەدۆزرایەوە
-                    return new NotFoundException("writing.not_found", Map.of("id", id));
-                });
-        return mapToResponse(writing);
+        // ✅ single query: JOIN FETCHes seriesBooks + parentBook + topic
+        //    EAGER sets batch-loaded via @BatchSize(size=25) on Writing.java
+        return mapToResponse(findOrThrow(id, "writing.not_found"));
     }
 
     // =========================================================================
@@ -314,24 +304,13 @@ public class WritingService {
     // =========================================================================
 
     /**
-     * لکاندنی کتێب بە زنجیرەیەک
-     *
-     * @throws NotFoundException - "نووسراو نەدۆزرایەوە" (کتێب یان باوک)
+     * @throws NotFoundException - "نووسراو نەدۆزرایەوە" | "parent_book.not_found"
      */
     @Transactional
     public Response linkBookToSeries(LinkToSeriesRequest request) {
-        Writing book = writingRepository.findById(request.getBookId())
-                .orElseThrow(() -> {
-                    // هەڵە: کتێب نەدۆزرایەوە
-                    return new NotFoundException("writing.not_found",
-                            Map.of("bookId", request.getBookId()));
-                });
-        Writing parent = writingRepository.findById(request.getParentBookId())
-                .orElseThrow(() -> {
-                    // هەڵە: کتێبی باوک نەدۆزرایەوە
-                    return new NotFoundException("parent_book.not_found",
-                            Map.of("parentBookId", request.getParentBookId()));
-                });
+        // ✅ both lookups use findOrThrow
+        Writing book   = findOrThrow(request.getBookId(),       "writing.not_found");
+        Writing parent = findOrThrow(request.getParentBookId(), "parent_book.not_found");
 
         book.setParentBook(parent);
         book.setSeriesId(parent.getSeriesId());
@@ -345,15 +324,12 @@ public class WritingService {
     }
 
     /**
-     * هێنانی هەموو کتێبەکانی زنجیرەیەک
-     *
-     * @throws NotFoundException - "زنجیرە نەدۆزرایەوە" (ئەگەر بەتاڵ بێت)
+     * @throws NotFoundException - "series.not_found"
      */
     @Transactional(readOnly = true)
     public SeriesResponse getSeriesBooks(String seriesId) {
         List<Writing> books = writingRepository.findBySeriesIdOrderBySeriesOrderAsc(seriesId);
         if (books.isEmpty()) {
-            // هەڵە: هیچ کتێبێک نەدۆزرایەوە لەم زنجیرەیە
             throw new NotFoundException("series.not_found", Map.of("seriesId", seriesId));
         }
 
@@ -385,64 +361,36 @@ public class WritingService {
     // گەڕان
     // =========================================================================
 
-    /**
-     * گەڕان بەپێی نووسەر
-     *
-     * @throws BadRequestException - "ناوی نووسەر پێویستە" (ئەگەر بەتاڵ بێت)
-     */
     @Transactional(readOnly = true)
     public Page<Response> searchByWriter(String writerName, String language, Pageable pageable) {
-        if (isBlank(writerName)) {
-            // هەڵە: ناوی نووسەر پێویستە
-            throw new BadRequestException("search.writer.required", Map.of("field", "writerName"));
-        }
+        if (isBlank(writerName)) throw new BadRequestException("search.writer.required", Map.of("field", "writerName"));
         String q = writerName.trim();
         Page<Writing> results;
-        if ("ckb".equalsIgnoreCase(language)) {
-            results = writingRepository.findByWriterCkbContainingIgnoreCase(q, pageable);
-        } else if ("kmr".equalsIgnoreCase(language)) {
-            results = writingRepository.findByWriterKmrContainingIgnoreCase(q, pageable);
-        } else {
-            results = writingRepository.findByWriterInBothLanguages(q, pageable);
-        }
+        if ("ckb".equalsIgnoreCase(language))      results = writingRepository.findByWriterCkbContainingIgnoreCase(q, pageable);
+        else if ("kmr".equalsIgnoreCase(language)) results = writingRepository.findByWriterKmrContainingIgnoreCase(q, pageable);
+        else                                       results = writingRepository.findByWriterInBothLanguages(q, pageable);
         return results.map(this::mapToResponse);
     }
 
-    /**
-     * گەڕان بەپێی تاگ
-     *
-     * @throws BadRequestException - "تاگی گەڕان پێویستە"
-     */
     @Transactional(readOnly = true)
     public Page<Response> searchByTag(String tag, String language, Pageable pageable) {
-        if (isBlank(tag)) {
-            // هەڵە: تاگی گەڕان پێویستە
-            throw new BadRequestException("search.tag.required", Map.of("field", "tag"));
-        }
+        if (isBlank(tag)) throw new BadRequestException("search.tag.required", Map.of("field", "tag"));
         String q = tag.trim();
         Page<Writing> results;
-        if ("ckb".equalsIgnoreCase(language))       results = writingRepository.findByTagCkb(q, pageable);
-        else if ("kmr".equalsIgnoreCase(language))  results = writingRepository.findByTagKmr(q, pageable);
-        else                                        results = writingRepository.findByTagInBothLanguages(q, pageable);
+        if ("ckb".equalsIgnoreCase(language))      results = writingRepository.findByTagCkb(q, pageable);
+        else if ("kmr".equalsIgnoreCase(language)) results = writingRepository.findByTagKmr(q, pageable);
+        else                                       results = writingRepository.findByTagInBothLanguages(q, pageable);
         return results.map(this::mapToResponse);
     }
 
-    /**
-     * گەڕان بەپێی کلیلەووشە
-     *
-     * @throws BadRequestException - "کلیلەووشەی گەڕان پێویستە"
-     */
     @Transactional(readOnly = true)
     public Page<Response> searchByKeyword(String keyword, String language, Pageable pageable) {
-        if (isBlank(keyword)) {
-            // هەڵە: کلیلەووشەی گەڕان پێویستە
-            throw new BadRequestException("search.keyword.required", Map.of("field", "keyword"));
-        }
+        if (isBlank(keyword)) throw new BadRequestException("search.keyword.required", Map.of("field", "keyword"));
         String q = keyword.trim();
         Page<Writing> results;
-        if ("ckb".equalsIgnoreCase(language))       results = writingRepository.findByKeywordCkb(q, pageable);
-        else if ("kmr".equalsIgnoreCase(language))  results = writingRepository.findByKeywordKmr(q, pageable);
-        else                                        results = writingRepository.findByKeywordInBothLanguages(q, pageable);
+        if ("ckb".equalsIgnoreCase(language))      results = writingRepository.findByKeywordCkb(q, pageable);
+        else if ("kmr".equalsIgnoreCase(language)) results = writingRepository.findByKeywordKmr(q, pageable);
+        else                                       results = writingRepository.findByKeywordInBothLanguages(q, pageable);
         return results.map(this::mapToResponse);
     }
 
@@ -450,21 +398,10 @@ public class WritingService {
     // دۆزینەوەی بابەت
     // =========================================================================
 
-    /**
-     * دۆزینەوەی بابەت بۆ دروستکردن/نوێکردنەوە:
-     *  ١. ئەگەر topicId هەبێت → دۆزینەوەی لە بنکەدراو
-     *  ٢. ئەگەر newTopic هەبێت → دروستکردنی بابەتی نوێ
-     *  ٣. ئەگەر هیچ نەبێت → null (بێ بابەت)
-     *
-     * @throws NotFoundException - "بابەت نەدۆزرایەوە"
-     */
     private PublishmentTopic resolveTopic(Long topicId, TopicPayload newTopic) {
         if (topicId != null) {
             return topicRepository.findById(topicId)
-                    .orElseThrow(() -> {
-                        // هەڵە: بابەت نەدۆزرایەوە
-                        return new NotFoundException("topic.not_found", Map.of("topicId", topicId));
-                    });
+                    .orElseThrow(() -> new NotFoundException("topic.not_found", Map.of("topicId", topicId)));
         }
         if (newTopic != null && (!isBlank(newTopic.getNameCkb()) || !isBlank(newTopic.getNameKmr()))) {
             PublishmentTopic created = PublishmentTopic.builder()
@@ -497,47 +434,28 @@ public class WritingService {
     // پشتڕاستکردنەوە
     // =========================================================================
 
-    /**
-     * پشتڕاستکردنەوەی دروستکردن
-     *
-     * @throws BadRequestException - "زمانەکانی ناوەڕۆک پێویستە"
-     * @throws BadRequestException - "ناوەڕۆک کەمە"
-     * @throws BadRequestException - "ناونیشانی نووسراو پێویستە"
-     */
     private void validate(CreateRequest request, boolean isCreate) {
         if (request.getContentLanguages() == null || request.getContentLanguages().isEmpty()) {
-            // هەڵە: دەبێت لانیکەم یەک زمان هەڵبژێردرێت
-            throw new BadRequestException("writing.languages.required",
-                    Map.of("field", "contentLanguages"));
+            throw new BadRequestException("writing.languages.required", Map.of("field", "contentLanguages"));
         }
         for (Language lang : request.getContentLanguages()) {
             LanguageContentDto content = lang == Language.CKB ? request.getCkbContent() : request.getKmrContent();
             if (content == null) {
-                // هەڵە: ناوەڕۆک بۆ ئەم زمانە دیاری نەکراوە
                 throw new BadRequestException("writing.content.missing",
                         Map.of("language", lang, "message", "ناوەڕۆک بۆ " + lang + " دیاری نەکراوە"));
             }
             if (isCreate && isBlank(content.getTitle())) {
-                // هەڵە: ناونیشان پێویستە بۆ دروستکردن
                 throw new BadRequestException("writing.title.required",
                         Map.of("language", lang, "message", "ناونیشان بۆ " + lang + " پێویستە"));
             }
         }
     }
 
-    /**
-     * پشتڕاستکردنەوەی نوێکردنەوە
-     *
-     * @throws BadRequestException - "ناوەڕۆک کەمە"
-     */
     private void validate(UpdateRequest request) {
         if (request.getContentLanguages() == null) return;
         for (Language lang : request.getContentLanguages()) {
             LanguageContentDto content = lang == Language.CKB ? request.getCkbContent() : request.getKmrContent();
-            if (content == null) {
-                throw new BadRequestException("writing.content.missing",
-                        Map.of("language", lang));
-            }
+            if (content == null) throw new BadRequestException("writing.content.missing", Map.of("language", lang));
         }
     }
 
@@ -545,9 +463,7 @@ public class WritingService {
     // ناوەڕۆک
     // =========================================================================
 
-    /** دانانی ناوەڕۆکی زمانی لە CreateRequest — لینکی فایل لە DTO Override دەکات */
-    private void applyContent(Writing writing, CreateRequest request,
-                              String ckbFileUrl, String kmrFileUrl) {
+    private void applyContent(Writing writing, CreateRequest request, String ckbFileUrl, String kmrFileUrl) {
         if (request.getContentLanguages().contains(Language.CKB)) {
             writing.setCkbContent(buildContent(request.getCkbContent(), ckbFileUrl));
         }
@@ -556,9 +472,7 @@ public class WritingService {
         }
     }
 
-    /** دانانی ناوەڕۆکی زمانی لە UpdateRequest — تەنها خانە ناتەواوەکان نوێ دەکرێنەوە */
-    private void applyContent(Writing writing, UpdateRequest request,
-                              String ckbFileUrl, String kmrFileUrl) {
+    private void applyContent(Writing writing, UpdateRequest request, String ckbFileUrl, String kmrFileUrl) {
         if (request.getCkbContent() != null) {
             writing.setCkbContent(mergeContent(writing.getCkbContent(), request.getCkbContent(), ckbFileUrl));
         }
@@ -583,15 +497,15 @@ public class WritingService {
 
     private WritingContent mergeContent(WritingContent existing, LanguageContentDto dto, String fileUrl) {
         if (existing == null) return buildContent(dto, fileUrl);
-        if (dto.getTitle()       != null) existing.setTitle(trimOrNull(dto.getTitle()));
-        if (dto.getDescription() != null) existing.setDescription(trimOrNull(dto.getDescription()));
-        if (dto.getWriter()      != null) existing.setWriter(trimOrNull(dto.getWriter()));
-        if (fileUrl              != null) existing.setFileUrl(fileUrl);
-        else if (dto.getFileUrl() != null) existing.setFileUrl(trimOrNull(dto.getFileUrl()));
-        if (dto.getFileFormat()  != null) existing.setFileFormat(dto.getFileFormat());
+        if (dto.getTitle()         != null) existing.setTitle(trimOrNull(dto.getTitle()));
+        if (dto.getDescription()   != null) existing.setDescription(trimOrNull(dto.getDescription()));
+        if (dto.getWriter()        != null) existing.setWriter(trimOrNull(dto.getWriter()));
+        if (fileUrl                != null) existing.setFileUrl(fileUrl);
+        else if (dto.getFileUrl()  != null) existing.setFileUrl(trimOrNull(dto.getFileUrl()));
+        if (dto.getFileFormat()    != null) existing.setFileFormat(dto.getFileFormat());
         if (dto.getFileSizeBytes() != null) existing.setFileSizeBytes(dto.getFileSizeBytes());
-        if (dto.getPageCount()   != null) existing.setPageCount(dto.getPageCount());
-        if (dto.getGenre()       != null) existing.setGenre(trimOrNull(dto.getGenre()));
+        if (dto.getPageCount()     != null) existing.setPageCount(dto.getPageCount());
+        if (dto.getGenre()         != null) existing.setGenre(trimOrNull(dto.getGenre()));
         return existing;
     }
 
@@ -613,12 +527,11 @@ public class WritingService {
     private Response mapToResponse(Writing w) {
         Response r = Response.builder()
                 .id(w.getId())
-                .contentLanguages(w.getContentLanguages() != null ? new LinkedHashSet<>(w.getContentLanguages()) : new LinkedHashSet<>())
-                // ─── ٣ وێنەی بەرگ ────────────────────────────────────────────
+                .contentLanguages(w.getContentLanguages() != null
+                        ? new LinkedHashSet<>(w.getContentLanguages()) : new LinkedHashSet<>())
                 .ckbCoverUrl(w.getCkbCoverUrl())
                 .kmrCoverUrl(w.getKmrCoverUrl())
                 .hoverCoverUrl(w.getHoverCoverUrl())
-                // ─── بابەت ────────────────────────────────────────────────────
                 .topic(w.getTopic() != null
                         ? TopicInfo.builder()
                         .id(w.getTopic().getId())
@@ -626,43 +539,30 @@ public class WritingService {
                         .nameKmr(w.getTopic().getNameKmr())
                         .build()
                         : null)
-                .writingTopic(w.getWritingTopic())
+                .bookGenre(w.getBookGenre())
                 .publishedByInstitute(w.isPublishedByInstitute())
                 .createdAt(w.getCreatedAt())
                 .updatedAt(w.getUpdatedAt())
                 .build();
 
-        // ─── ناوەڕۆکی CKB ──────────────────────────────────────────────────────
         if (w.getCkbContent() != null) {
             WritingContent c = w.getCkbContent();
             r.setCkbContent(LanguageContentDto.builder()
-                    .title(c.getTitle())
-                    .description(c.getDescription())
-                    .writer(c.getWriter())
-                    .fileUrl(c.getFileUrl())
-                    .fileFormat(c.getFileFormat())
-                    .fileSizeBytes(c.getFileSizeBytes())
-                    .pageCount(c.getPageCount())
-                    .genre(c.getGenre())
+                    .title(c.getTitle()).description(c.getDescription()).writer(c.getWriter())
+                    .fileUrl(c.getFileUrl()).fileFormat(c.getFileFormat())
+                    .fileSizeBytes(c.getFileSizeBytes()).pageCount(c.getPageCount()).genre(c.getGenre())
                     .build());
         }
 
-        // ─── ناوەڕۆکی KMR ──────────────────────────────────────────────────────
         if (w.getKmrContent() != null) {
             WritingContent c = w.getKmrContent();
             r.setKmrContent(LanguageContentDto.builder()
-                    .title(c.getTitle())
-                    .description(c.getDescription())
-                    .writer(c.getWriter())
-                    .fileUrl(c.getFileUrl())
-                    .fileFormat(c.getFileFormat())
-                    .fileSizeBytes(c.getFileSizeBytes())
-                    .pageCount(c.getPageCount())
-                    .genre(c.getGenre())
+                    .title(c.getTitle()).description(c.getDescription()).writer(c.getWriter())
+                    .fileUrl(c.getFileUrl()).fileFormat(c.getFileFormat())
+                    .fileSizeBytes(c.getFileSizeBytes()).pageCount(c.getPageCount()).genre(c.getGenre())
                     .build());
         }
 
-        // ─── تاگ و کلیلەووشەکان ──────────────────────────────────────────────────
         r.setTags(BilingualSet.builder()
                 .ckb(new LinkedHashSet<>(safeSet(w.getTagsCkb())))
                 .kmr(new LinkedHashSet<>(safeSet(w.getTagsKmr())))
@@ -673,7 +573,6 @@ public class WritingService {
                 .kmr(new LinkedHashSet<>(safeSet(w.getKeywordsKmr())))
                 .build());
 
-        // ─── زانیاری زنجیرە ──────────────────────────────────────────────────────
         if (w.getSeriesId() != null) {
             r.setSeriesInfo(SeriesInfoDto.builder()
                     .seriesId(w.getSeriesId())
@@ -692,12 +591,6 @@ public class WritingService {
     // یاریدەدەرەکانی ناردنی فایل
     // =========================================================================
 
-    /**
-     * ناردنی فایل بۆ S3 و گەڕاندنەوەی لینک
-     * null دەگەڕێنێتەوە ئەگەر فایل بەتاڵ بێت
-     *
-     * @throws BadRequestException - "شکستی ناردنی فایل"
-     */
     private String uploadFile(MultipartFile file, String description) {
         if (file == null || file.isEmpty()) return null;
         try {
@@ -705,44 +598,31 @@ public class WritingService {
             log.info("{} نێردرا → {}", description, url);
             return url;
         } catch (IOException e) {
-            // هەڵە: کێشە لە ناردنی فایل
             throw new BadRequestException("media.upload.failed",
                     Map.of("description", description, "error", e.getMessage()));
         }
     }
 
-    /**
-     * ناردن ئەگەر فایل هەبێت؛ ئەگەر نەبێت گەڕاندنەوەی لینکی داواکراو
-     */
     private String uploadOrFallback(MultipartFile file, String urlFallback, String description) {
         String uploaded = uploadFile(file, description);
         return uploaded != null ? uploaded : trimOrNull(urlFallback);
     }
 
-    /**
-     * دانانی نرخی کۆتایی بۆ وێنەی بەرگ لە کاتی نوێکردنەوە:
-     *  ١. ناردنی نوێ → بەکارهێنانی لینکی نوێ
-     *  ٢. لینکی دیاریکراو لە داواکاری → بەکارهێنانی (ڕێسای بەتاڵ = سڕینەوە)
-     *  ٣. هیچیان نەبێت → هێشتنەوەی کۆن
-     */
     private String resolveUpdate(MultipartFile file, String requestUrl, String existing) {
         String uploaded = uploadFile(file, "وێنەی بەرگ");
         if (uploaded != null) return uploaded;
-        if (requestUrl != null) {
-            String t = requestUrl.trim();
-            return t.isEmpty() ? null : t;   // ڕیزبەندی بەتاڵ = پاککردنەوە
-        }
+        if (requestUrl != null) { String t = requestUrl.trim(); return t.isEmpty() ? null : t; }
         return existing;
     }
 
     // =========================================================================
-    // تۆمارکردنی چالاکی (Audit Log)
+    // تۆمارکردنی چالاکی
     // =========================================================================
 
     private void logAction(Writing writing, String action, String details) {
         writingLogRepository.save(WritingLog.builder()
                 .writing(writing)
-                .writingId(writing.getId())   // denormalised — هەمیشە دابمەزرێت
+                .writingId(writing.getId())
                 .action(action)
                 .actorId("system")
                 .actorName("System")
@@ -754,6 +634,20 @@ public class WritingService {
     // =========================================================================
     // یاریدەدەرەکان
     // =========================================================================
+
+    /**
+     * دۆزینەوەی نووسراو بە تەواوی وردەکارییەکانی — یەک کوێری بەشیوەی JOIN FETCH.
+     *
+     * ✅ JOIN FETCHes: seriesBooks + parentBook + topic  (هەموو LAZY-ەکان)
+     * ✅ EAGER element collections (tags, keywords, languages) batch-loaded
+     *    via @BatchSize(size=25) — 5 SELECTs بۆ هەموو پەیجێک بجیاتی لە N×5
+     *
+     * @throws NotFoundException ئەگەر ئایدی نەدۆزرایەوە، بەپێی errorCode
+     */
+    private Writing findOrThrow(Long id, String errorCode) {
+        return writingRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new NotFoundException(errorCode, Map.of("id", id)));
+    }
 
     private String getCombinedTitle(Writing w) {
         if (w.getCkbContent() != null && !isBlank(w.getCkbContent().getTitle())) return w.getCkbContent().getTitle();
@@ -767,8 +661,8 @@ public class WritingService {
         return "ناونیشانی نەناسراو";
     }
 
-    private boolean isBlank(String s)   { return s == null || s.isBlank(); }
-    private String trimOrNull(String s)  { if (s == null) return null; String t = s.trim(); return t.isEmpty() ? null : t; }
+    private boolean isBlank(String s)    { return s == null || s.isBlank(); }
+    private String trimOrNull(String s)   { if (s == null) return null; String t = s.trim(); return t.isEmpty() ? null : t; }
     private Set<Language> safeLangs(Set<Language> l) { return l == null ? Set.of() : l; }
     private <T> Set<T> safeSet(Set<T> s)             { return s == null ? Set.of() : s; }
     private Set<String> cleanStrings(Set<String> in) {

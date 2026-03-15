@@ -7,6 +7,7 @@ import ak.dev.khi_backend.khi_app.service.news.NewsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 @RestController
@@ -23,49 +23,41 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class NewsController {
 
-    private final NewsService newsService;
+    private final NewsService  newsService;
     private final ObjectMapper objectMapper;
 
     // ============================================================
-    // CREATE with /with-files path (multipart: news/data + coverImage/cover? + mediaFiles/media[]?)
-    //
-    // ✅ Accepts both "news" and "data" JSON fields
-    // ✅ Accepts both "coverImage" and "cover" file fields
-    // ✅ Accepts both "mediaFiles" and "media" array fields
+    // CREATE — multipart /with-files  (accepts both field name variants)
     // ============================================================
+
     @PostMapping(value = "/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> createNewsWithFiles(
-            @RequestPart(value = "news", required = false) String newsJson,
-            @RequestPart(value = "data", required = false) String dataJson,
-            @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @RequestPart(value = "cover", required = false) MultipartFile cover,
-            @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles,
-            @RequestPart(value = "media", required = false) List<MultipartFile> media
+            @RequestPart(value = "news",        required = false) String newsJson,
+            @RequestPart(value = "data",        required = false) String dataJson,
+            @RequestPart(value = "coverImage",  required = false) MultipartFile coverImage,
+            @RequestPart(value = "cover",       required = false) MultipartFile cover,
+            @RequestPart(value = "mediaFiles",  required = false) List<MultipartFile> mediaFiles,
+            @RequestPart(value = "media",       required = false) List<MultipartFile> media
     ) throws Exception {
 
-        // Try both "news" and "data" fields
         String json = newsJson != null ? newsJson : dataJson;
         if (json == null) {
             throw new BadRequestException("error.validation", Map.of("field", "news or data"));
         }
 
-        NewsDto newsDto = objectMapper.readValue(json, NewsDto.class);
+        NewsDto dto       = objectMapper.readValue(json, NewsDto.class);
+        MultipartFile    coverFile = coverImage != null ? coverImage : cover;
+        List<MultipartFile> files = (mediaFiles != null && !mediaFiles.isEmpty()) ? mediaFiles : media;
 
-        // Try both "coverImage" and "cover" fields
-        MultipartFile coverFile = coverImage != null ? coverImage : cover;
-
-        // Try both "mediaFiles" and "media" fields
-        List<MultipartFile> files = mediaFiles != null && !mediaFiles.isEmpty() ? mediaFiles : media;
-
-        NewsDto created = newsService.addNews(newsDto, coverFile, files);
-
+        NewsDto created = newsService.addNews(dto, coverFile, files);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "News created successfully"));
     }
 
     // ============================================================
-    // CREATE (multipart: news + coverImage? + mediaFiles[]?)
+    // CREATE — simple multipart
     // ============================================================
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> createNews(
             @RequestPart("news") String newsJson,
@@ -73,96 +65,157 @@ public class NewsController {
             @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles
     ) throws Exception {
 
-        NewsDto newsDto = objectMapper.readValue(newsJson, NewsDto.class);
-
-        NewsDto created = newsService.addNews(newsDto, coverImage, mediaFiles);
-
+        NewsDto dto     = objectMapper.readValue(newsJson, NewsDto.class);
+        NewsDto created = newsService.addNews(dto, coverImage, mediaFiles);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "News created successfully"));
     }
 
     // ============================================================
-    // CREATE BULK (json only)
+    // CREATE BULK — JSON only
     // ============================================================
+
     @PostMapping(value = "/bulk", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<List<NewsDto>>> createNewsBulk(
-            @RequestBody List<NewsDto> newsDtoList
+            @RequestBody List<NewsDto> list
     ) {
-        List<NewsDto> created = newsService.addNewsBulk(newsDtoList);
-
+        List<NewsDto> created = newsService.addNewsBulk(list);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "News created successfully (bulk)"));
     }
 
     // ============================================================
-    // GET ALL
+    // GET ALL — paginated
+    //
+    // GET /api/v1/news?page=0&size=20
+    // GET /api/v1/news/all?page=0&size=20
     // ============================================================
+
     @GetMapping(value = {"", "/", "/all"})
-    public ResponseEntity<ApiResponse<List<NewsDto>>> getAllNews() {
-        List<NewsDto> newsList = newsService.getAllNews();
-        return ResponseEntity.ok(ApiResponse.success(newsList, "News fetched successfully"));
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> getAllNews(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        log.info("GET /api/v1/news | page={} size={}", page, size);
+        Page<NewsDto> result = newsService.getAllNews(page, size);
+        return ResponseEntity.ok(ApiResponse.success(result, "News fetched successfully"));
     }
+
+    // ============================================================
+    // GET BY ID
+    // ============================================================
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<NewsDto>> getNewsById(@PathVariable Long id) {
-        NewsDto dto = newsService.getNewsById(id); // or findById(id)
-        return ResponseEntity.ok(
-                ApiResponse.<NewsDto>builder()
-                        .success(true)
-                        .message("News fetched successfully")
-                        .data(dto)
-                        .build()
-        );
+        log.info("GET /api/v1/news/{}", id);
+        NewsDto dto = newsService.getNewsById(id);
+        return ResponseEntity.ok(ApiResponse.success(dto, "News fetched successfully"));
     }
 
     // ============================================================
-    // SEARCH KEYWORD
+    // GLOBAL SEARCH — searches title + description + tags + keywords
+    //
+    // GET /api/v1/news/search?q=کوردستان&page=0&size=20
     // ============================================================
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> globalSearch(
+            @RequestParam("q") String q,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        log.info("GET /api/v1/news/search | q={} | page={} size={}", q, page, size);
+        Page<NewsDto> result = newsService.globalSearch(q, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result, "Global search completed"));
+    }
+
+    // ============================================================
+    // SEARCH BY KEYWORD — language-aware, paginated
+    //
+    // GET /api/v1/news/search/keyword?keyword=کوردستان&language=ckb&page=0&size=20
+    // language: ckb | kmr | both (default)
+    // ============================================================
+
     @GetMapping("/search/keyword")
-    public ResponseEntity<ApiResponse<List<NewsDto>>> searchByKeyword(
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> searchByKeyword(
             @RequestParam String keyword,
-            @RequestParam(defaultValue = "both") String language
+            @RequestParam(defaultValue = "both") String language,
+            @RequestParam(defaultValue = "0")    int page,
+            @RequestParam(defaultValue = "20")   int size
     ) {
-        List<NewsDto> results = newsService.searchByKeyword(keyword, language);
-        return ResponseEntity.ok(ApiResponse.success(results, "Search by keyword completed"));
+        log.info("GET /api/v1/news/search/keyword | keyword={} lang={} | page={} size={}",
+                keyword, language, page, size);
+        Page<NewsDto> result = newsService.searchByKeyword(keyword, language, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result, "Search by keyword completed"));
     }
 
     // ============================================================
-    // SEARCH TAG
+    // SEARCH BY TAG — language-aware, paginated
+    //
+    // GET /api/v1/news/search/tag?tag=کوردستان&language=kmr&page=0&size=20
+    // language: ckb | kmr | both (default)
     // ============================================================
+
     @GetMapping("/search/tag")
-    public ResponseEntity<ApiResponse<List<NewsDto>>> searchByTag(
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> searchByTag(
             @RequestParam String tag,
-            @RequestParam(defaultValue = "both") String language
+            @RequestParam(defaultValue = "both") String language,
+            @RequestParam(defaultValue = "0")    int page,
+            @RequestParam(defaultValue = "20")   int size
     ) {
-        List<NewsDto> results = newsService.searchByTag(tag, language);
-        return ResponseEntity.ok(ApiResponse.success(results, "Search by tag completed"));
+        log.info("GET /api/v1/news/search/tag | tag={} lang={} | page={} size={}",
+                tag, language, page, size);
+        Page<NewsDto> result = newsService.searchByTag(tag, language, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result, "Search by tag completed"));
     }
 
     // ============================================================
-    // SEARCH MULTI TAGS
+    // SEARCH BY CATEGORY — paginated
+    //
+    // GET /api/v1/news/search/category?name=سیاسی&page=0&size=20
     // ============================================================
-    @PostMapping(value = "/search/tags", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<List<NewsDto>>> searchByTags(
-            @RequestBody Set<String> tags,
-            @RequestParam(defaultValue = "both") String language
+
+    @GetMapping("/search/category")
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> searchByCategory(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        List<NewsDto> results = newsService.searchByTags(tags, language);
-        return ResponseEntity.ok(ApiResponse.success(results, "Search by tags completed"));
+        log.info("GET /api/v1/news/search/category | name={} | page={} size={}", name, page, size);
+        Page<NewsDto> result = newsService.searchByCategory(name, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result, "Search by category completed"));
     }
 
     // ============================================================
-    // UPDATE with /update/{id}/with-files path
+    // SEARCH BY SUBCATEGORY — paginated
+    //
+    // GET /api/v1/news/search/subcategory?name=ئابووری&page=0&size=20
     // ============================================================
+
+    @GetMapping("/search/subcategory")
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> searchBySubCategory(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        log.info("GET /api/v1/news/search/subcategory | name={} | page={} size={}", name, page, size);
+        Page<NewsDto> result = newsService.searchBySubCategory(name, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result, "Search by subcategory completed"));
+    }
+
+    // ============================================================
+    // UPDATE — /update/{id}/with-files  (accepts both field name variants)
+    // ============================================================
+
     @PutMapping(value = "/update/{id}/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> updateNewsWithFilesAlt(
             @PathVariable Long id,
-            @RequestPart(value = "news", required = false) String newsJson,
-            @RequestPart(value = "data", required = false) String dataJson,
+            @RequestPart(value = "news",       required = false) String newsJson,
+            @RequestPart(value = "data",       required = false) String dataJson,
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @RequestPart(value = "cover", required = false) MultipartFile cover,
+            @RequestPart(value = "cover",      required = false) MultipartFile cover,
             @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles,
-            @RequestPart(value = "media", required = false) List<MultipartFile> media
+            @RequestPart(value = "media",      required = false) List<MultipartFile> media
     ) throws Exception {
 
         String json = newsJson != null ? newsJson : dataJson;
@@ -170,27 +223,27 @@ public class NewsController {
             throw new BadRequestException("error.validation", Map.of("field", "news or data"));
         }
 
-        NewsDto dto = objectMapper.readValue(json, NewsDto.class);
-        MultipartFile coverFile = coverImage != null ? coverImage : cover;
-        List<MultipartFile> files = mediaFiles != null && !mediaFiles.isEmpty() ? mediaFiles : media;
+        NewsDto dto       = objectMapper.readValue(json, NewsDto.class);
+        MultipartFile    coverFile = coverImage != null ? coverImage : cover;
+        List<MultipartFile> files = (mediaFiles != null && !mediaFiles.isEmpty()) ? mediaFiles : media;
 
         NewsDto updated = newsService.updateNews(id, dto, coverFile, files);
-
         return ResponseEntity.ok(ApiResponse.success(updated, "News updated successfully"));
     }
 
     // ============================================================
-    // UPDATE with /{id}/with-files path
+    // UPDATE — /{id}/with-files
     // ============================================================
+
     @PutMapping(value = "/{id}/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> updateNewsWithFiles(
             @PathVariable Long id,
-            @RequestPart(value = "news", required = false) String newsJson,
-            @RequestPart(value = "data", required = false) String dataJson,
+            @RequestPart(value = "news",       required = false) String newsJson,
+            @RequestPart(value = "data",       required = false) String dataJson,
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @RequestPart(value = "cover", required = false) MultipartFile cover,
+            @RequestPart(value = "cover",      required = false) MultipartFile cover,
             @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles,
-            @RequestPart(value = "media", required = false) List<MultipartFile> media
+            @RequestPart(value = "media",      required = false) List<MultipartFile> media
     ) throws Exception {
 
         String json = newsJson != null ? newsJson : dataJson;
@@ -198,18 +251,18 @@ public class NewsController {
             throw new BadRequestException("error.validation", Map.of("field", "news or data"));
         }
 
-        NewsDto dto = objectMapper.readValue(json, NewsDto.class);
-        MultipartFile coverFile = coverImage != null ? coverImage : cover;
-        List<MultipartFile> files = mediaFiles != null && !mediaFiles.isEmpty() ? mediaFiles : media;
+        NewsDto dto       = objectMapper.readValue(json, NewsDto.class);
+        MultipartFile    coverFile = coverImage != null ? coverImage : cover;
+        List<MultipartFile> files = (mediaFiles != null && !mediaFiles.isEmpty()) ? mediaFiles : media;
 
         NewsDto updated = newsService.updateNews(id, dto, coverFile, files);
-
         return ResponseEntity.ok(ApiResponse.success(updated, "News updated successfully"));
     }
 
     // ============================================================
-    // UPDATE (multipart)
+    // UPDATE — simple multipart /{id}
     // ============================================================
+
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<NewsDto>> updateNews(
             @PathVariable Long id,
@@ -218,27 +271,25 @@ public class NewsController {
             @RequestPart(value = "mediaFiles", required = false) List<MultipartFile> mediaFiles
     ) throws Exception {
 
-        NewsDto dto = objectMapper.readValue(newsJson, NewsDto.class);
-
+        NewsDto dto     = objectMapper.readValue(newsJson, NewsDto.class);
         NewsDto updated = newsService.updateNews(id, dto, coverImage, mediaFiles);
-
         return ResponseEntity.ok(ApiResponse.success(updated, "News updated successfully"));
     }
 
     // ============================================================
-    // DELETE with /delete/{id} path
+    // DELETE — /delete/{id}  and  /{id}
     // ============================================================
+
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteNewsAlt(@PathVariable Long id) {
+        log.info("DELETE /api/v1/news/delete/{}", id);
         newsService.deleteNews(id);
         return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully"));
     }
 
-    // ============================================================
-    // DELETE
-    // ============================================================
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteNews(@PathVariable Long id) {
+        log.info("DELETE /api/v1/news/{}", id);
         newsService.deleteNews(id);
         return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully"));
     }
@@ -246,8 +297,10 @@ public class NewsController {
     // ============================================================
     // BULK DELETE
     // ============================================================
+
     @DeleteMapping(value = "/bulk", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Void>> deleteNewsBulk(@RequestBody List<Long> newsIds) {
+        log.info("DELETE /api/v1/news/bulk | count={}", newsIds != null ? newsIds.size() : 0);
         newsService.deleteNewsBulk(newsIds);
         return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully (bulk)"));
     }

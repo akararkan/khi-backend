@@ -5,10 +5,7 @@ import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.ImageCollectionType;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
-import ak.dev.khi_backend.khi_app.model.publishment.image.ImageAlbumItem;
-import ak.dev.khi_backend.khi_app.model.publishment.image.ImageCollection;
-import ak.dev.khi_backend.khi_app.model.publishment.image.ImageCollectionLog;
-import ak.dev.khi_backend.khi_app.model.publishment.image.ImageContent;
+import ak.dev.khi_backend.khi_app.model.publishment.image.*;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionLogRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionRepository;
@@ -16,6 +13,9 @@ import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicR
 import ak.dev.khi_backend.khi_app.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,30 +25,11 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * سێرڤیسی کۆمەڵەی وێنە - بەڕێوەبردنی کۆلێکشنی وێنە، گەلێری، و چیرۆکی وێنەیی
- *
- * لیستی هەڵە کوردیەکان کە بەکاردێن:
- *
- * ١. "error.validation" = "هەڵەی پشتڕاستکردنەوە: زانیاری نادروستە یان پاکە" (Bad Request)
- * ٢. "media.upload.failed" = "شکستی ناردنی فایل: کێشە لە ناردنی وێنە بۆ سێرڤەری S3" (Bad Request)
- * ٣. "image.source.required" = "سەرچاوەی وێنە پێویستە: دەبێت فایل یان لینک (URL) دابنرێت" (Bad Request)
- * ٤. "imageCollection.not_found" = "کۆمەڵەی وێنە نەدۆزرایەوە: ئایدییەکە بوونی نییە لە سیستەم" (Not Found)
- * ٥. "imageCollection.single.invalid" = "هەڵەی جۆری تاک: جۆری SINGLE تەنها یەک وێنە دەقبوڵێت" (Bad Request)
- * ٦. "imageCollection.gallery.invalid" = "هەڵەی گەلێری: جۆری GALLERY پێویستی بە لانیکەم یەک وێنەیە" (Bad Request)
- * ٧. "imageCollection.photoStory.invalid" = "هەڵەی چیرۆکی وێنەیی: جۆری PHOTO_STORY پێویستی بە لانیکەم دوو وێنەیە" (Bad Request)
- * ٨. "imageCollection.type.required" = "جۆری کۆمەڵە پێویستە: دەبێت جۆر دیاری بکرێت (SINGLE, GALLERY, PHOTO_STORY)" (Bad Request)
- * ٩. "imageCollection.languages.required" = "زمانەکانی ناوەڕۆک پێویستە: دەبێت لانیکەم یەک زمان هەڵبژێردرێت" (Bad Request)
- * ١٠. "imageCollection.cover.required" = "وێنەی بەرگ پێویستە: دەبێت لانیکەم یەک وێنەی بەرگ دیاری بکرێت" (Bad Request)
- * ١١. "topic.not_found" = "بابەت نەدۆزرایەوە: ئایدیی بابەت بوونی نییە" (Not Found)
- * ١٢. "topic.type.mismatch" = "جۆری بابەت هەڵەیە: بابەتەکە بۆ IMAGE نییە" (Bad Request)
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ImageCollectionService {
 
-    /** ناوی جۆری بابەت بۆ کۆمەڵەی وێنە */
     private static final String TOPIC_ENTITY_TYPE = "IMAGE";
 
     private final ImageCollectionRepository    imageCollectionRepository;
@@ -60,23 +41,7 @@ public class ImageCollectionService {
     // دروستکردن
     // =========================================================================
 
-    /**
-     * دروستکردنی کۆمەڵەی وێنەی نوێ
-     *
-     * @param dto              زانیاری JSON
-     * @param ckbCoverImage    وێنەی بەرگی کوردیی ناوەندی (ئارەزوومەندانە)
-     * @param kmrCoverImage    وێنەی بەرگی کوردیی باکووری (ئارەزوومەندانە)
-     * @param hoverCoverImage  وێنەی بەرگی هاڤەر (ئارەزوومەندانە)
-     * @param images           وێنەکانی ئەلبوم (ئارەزوومەندانە)
-     *
-     * @throws BadRequestException    - زانیاری نادروست ("هەڵەی پشتڕاستکردنەوە")
-     * @throws BadRequestException    - جۆر دیاری نەکراوە ("جۆری کۆمەڵە پێویستە")
-     * @throws BadRequestException    - زمانی نە دیاری کراو ("زمانەکانی ناوەڕۆک پێویستە")
-     * @throws BadRequestException    - وێنەی بەرگ نە دیاری کراو ("وێنەی بەرگ پێویستە")
-     * @throws BadRequestException    - ژمارەی وێنە نادروست بۆ جۆرە خۆراوەکان
-     * @throws BadRequestException    - سەرچاوەی وێنە نە دیاری کراو ("سەرچاوەی وێنە پێویستە")
-     * @throws BadRequestException    - کێشە لە ناردنی فایل ("شکستی ناردنی فایل")
-     */
+    @CacheEvict(value = "imageCollections", allEntries = true)
     @Transactional
     public Response create(
             CreateRequest dto,
@@ -88,15 +53,12 @@ public class ImageCollectionService {
         validateCreate(dto, ckbCoverImage);
 
         try {
-            // ── دانانی وێنەی بەرگ (فایل لەسەر لینک پێشەکییە) ───────────
             String ckbCoverUrl   = resolveCoverUrl(dto.getCkbCoverUrl(),   ckbCoverImage);
             String kmrCoverUrl   = resolveCoverUrl(dto.getKmrCoverUrl(),   kmrCoverImage);
             String hoverCoverUrl = resolveCoverUrl(dto.getHoverCoverUrl(), hoverCoverImage);
 
-            // ── دۆزینەوە یان دروستکردنی بابەت ─────────────────────────────────
             PublishmentTopic topic = resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic());
 
-            // ── دروستکردنی ئینتیتی ──────────────────────────────────────────
             ImageCollection entity = ImageCollection.builder()
                     .collectionType(dto.getCollectionType())
                     .ckbCoverUrl(ckbCoverUrl)
@@ -105,30 +67,31 @@ public class ImageCollectionService {
                     .topic(topic)
                     .publishmentDate(dto.getPublishmentDate())
                     .contentLanguages(new LinkedHashSet<>(safeLangs(dto.getContentLanguages())))
-                    .tagsCkb(new LinkedHashSet<>(safeSet(dto.getTags()     != null ? dto.getTags().getCkb()     : null)))
-                    .tagsKmr(new LinkedHashSet<>(safeSet(dto.getTags()     != null ? dto.getTags().getKmr()     : null)))
-                    .keywordsCkb(new LinkedHashSet<>(safeSet(dto.getKeywords() != null ? dto.getKeywords().getCkb() : null)))
-                    .keywordsKmr(new LinkedHashSet<>(safeSet(dto.getKeywords() != null ? dto.getKeywords().getKmr() : null)))
+                    .tagsCkb(new LinkedHashSet<>(safeSet(
+                            dto.getTags() != null ? dto.getTags().getCkb() : null)))
+                    .tagsKmr(new LinkedHashSet<>(safeSet(
+                            dto.getTags() != null ? dto.getTags().getKmr() : null)))
+                    .keywordsCkb(new LinkedHashSet<>(safeSet(
+                            dto.getKeywords() != null ? dto.getKeywords().getCkb() : null)))
+                    .keywordsKmr(new LinkedHashSet<>(safeSet(
+                            dto.getKeywords() != null ? dto.getKeywords().getKmr() : null)))
                     .build();
 
-            applyContentByLanguages(entity, dto.getContentLanguages(), dto.getCkbContent(), dto.getKmrContent());
+            applyContentByLanguages(entity,
+                    dto.getContentLanguages(), dto.getCkbContent(), dto.getKmrContent());
 
-            // ── دروستکردنی مادەکانی ئەلبوم ─────────────────────────────────────
-            List<ImageAlbumItem> builtItems = buildAlbumItems(
+            List<ImageAlbumItem> items = buildAlbumItems(
                     entity, dto.getCollectionType(), dto.getImageAlbum(), images);
-            entity.getImageAlbum().clear();
-            entity.getImageAlbum().addAll(builtItems);
+            entity.getImageAlbum().addAll(items);
 
             ImageCollection saved = imageCollectionRepository.save(entity);
             createLog(saved.getId(), titleOf(saved), "CREATE",
                     "کۆمەڵەی وێنە دروستکرا — جۆر=" + saved.getCollectionType()
                             + (topic != null ? " بابەتid=" + topic.getId() : ""));
 
-            saved.getImageAlbum().size(); // init LAZY collection
             return toResponse(saved);
 
         } catch (IOException e) {
-            // هەڵە: کێشە لە ناردنی وێنە بۆ S3
             throw new BadRequestException("media.upload.failed",
                     Map.of("reason", "کێشە لە ناردنی وێنە: " + e.getMessage()));
         }
@@ -138,14 +101,7 @@ public class ImageCollectionService {
     // نوێکردنەوە
     // =========================================================================
 
-    /**
-     * نوێکردنەوەی کۆمەڵەی وێنە (تەنها خانە/فایلە نێردراوەکان دەگۆڕدرێن)
-     *
-     * @throws BadRequestException    - ئایدی بەتاڵە ("هەڵەی پشتڕاستکردنەوە")
-     * @throws NotFoundException      - کۆمەڵەکە نەدۆزرایەوە ("کۆمەڵەی وێنە نەدۆزرایەوە")
-     * @throws BadRequestException    - هەر هەڵەیەکی دیکە لە پشتڕاستکردنەوە
-     * @throws BadRequestException    - کێشە لە ناردنی فایل
-     */
+    @CacheEvict(value = "imageCollections", allEntries = true)
     @Transactional
     public Response update(
             Long id,
@@ -156,23 +112,19 @@ public class ImageCollectionService {
             List<MultipartFile> images
     ) {
         if (id == null) {
-            // هەڵە: ئایدیی کۆمەڵە پێویستە بۆ نوێکردنەوە
-            throw new BadRequestException("error.validation", Map.of("field", "id", "message", "ئایدی پێویستە"));
+            throw new BadRequestException("error.validation",
+                    Map.of("field", "id", "message", "ئایدی پێویستە"));
         }
 
-        ImageCollection entity = imageCollectionRepository.findById(id)
-                .orElseThrow(() -> {
-                    // هەڵە: کۆمەڵەی وێنە نەدۆزرایەوە لە بنکەدراو
-                    return new NotFoundException("imageCollection.not_found", Map.of("id", id));
-                });
+        ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new NotFoundException(
+                        "imageCollection.not_found", Map.of("id", id)));
 
         try {
-            // ── جۆری کۆمەڵە ───────────────────────────────────────────────
             if (dto.getCollectionType() != null) {
                 entity.setCollectionType(dto.getCollectionType());
             }
 
-            // ── وێنەی بەرگ: فایل > لینکی DTO > هێشتنەوەی کۆن ─────────
             if (hasFile(ckbCoverImage)) {
                 entity.setCkbCoverUrl(uploadFile(ckbCoverImage));
             } else if (!isBlank(dto.getCkbCoverUrl())) {
@@ -191,29 +143,24 @@ public class ImageCollectionService {
                 entity.setHoverCoverUrl(dto.getHoverCoverUrl().trim());
             }
 
-            // ── بابەت: clearTopic > topicId > newTopic ────────────────────
             if (dto.isClearTopic()) {
                 entity.setTopic(null);
             } else if (dto.getTopicId() != null || dto.getNewTopic() != null) {
                 entity.setTopic(resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic()));
             }
 
-            // ── بەرواری بڵاوکردنەوە ────────────────────────────────────────
             if (dto.getPublishmentDate() != null) {
                 entity.setPublishmentDate(dto.getPublishmentDate());
             }
 
-            // ── زمانەکان ───────────────────────────────────────────────────
             if (dto.getContentLanguages() != null) {
                 entity.getContentLanguages().clear();
                 entity.getContentLanguages().addAll(safeLangs(dto.getContentLanguages()));
             }
 
-            // ── ناوەڕۆک ────────────────────────────────────────────────────
             applyContentByLanguages(entity, entity.getContentLanguages(),
                     dto.getCkbContent(), dto.getKmrContent());
 
-            // ── تاگەکان ─────────────────────────────────────────────────────
             if (dto.getTags() != null) {
                 if (dto.getTags().getCkb() != null) {
                     entity.getTagsCkb().clear();
@@ -225,7 +172,6 @@ public class ImageCollectionService {
                 }
             }
 
-            // ── کلیلەووشەکان ────────────────────────────────────────────────
             if (dto.getKeywords() != null) {
                 if (dto.getKeywords().getCkb() != null) {
                     entity.getKeywordsCkb().clear();
@@ -237,21 +183,19 @@ public class ImageCollectionService {
                 }
             }
 
-            // ── مادەکانی ئەلبوم: تەنها کاتێک دەگۆڕدرێن کە دیاری کراون ───────
             boolean hasUploads = images != null
                     && images.stream().anyMatch(f -> f != null && !f.isEmpty());
             if (dto.getImageAlbum() != null || hasUploads) {
                 entity.getImageAlbum().clear();
-                List<ImageAlbumItem> rebuilt = buildAlbumItems(
-                        entity, entity.getCollectionType(), dto.getImageAlbum(), images);
-                entity.getImageAlbum().addAll(rebuilt);
+                entity.getImageAlbum().addAll(
+                        buildAlbumItems(entity, entity.getCollectionType(),
+                                dto.getImageAlbum(), images));
             }
 
             ImageCollection saved = imageCollectionRepository.save(entity);
             createLog(saved.getId(), titleOf(saved), "UPDATE",
                     "کۆمەڵەی وێنە نوێکرایەوە — جۆر=" + saved.getCollectionType());
 
-            saved.getImageAlbum().size();
             return toResponse(saved);
 
         } catch (IOException e) {
@@ -261,67 +205,243 @@ public class ImageCollectionService {
     }
 
     // =========================================================================
-    // هێنانی هەموو کۆمەڵەکان
+    // GET ALL — Paginated + Cached + Two-Phase @BatchSize
+    //
+    // Execution plan for page of 20:
+    //   Q1: SELECT id FROM image_collections ORDER BY date DESC   (Phase 1)
+    //   Q2: SELECT ic FROM image_collections WHERE id IN (...)    (Phase 2 bare rows)
+    //   Q3-Q8: @BatchSize fires 1 IN-query per collection type    (auto)
+    //   Total: 8 fast queries. Cache hit: <5ms.
+    // =========================================================================
+
+    @Cacheable(value = "imageCollections", key = "'all:p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<Response> getAll(int page, int size) {
+        Page<Long> idPage = imageCollectionRepository.findAllIds(PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        return new PageImpl<>(
+                hydrateAndSort(idPage.getContent()).stream()
+                        .map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // =========================================================================
+    // FILTER BY TYPE — Paginated + Cached
+    // =========================================================================
+
+    @Cacheable(value = "imageCollections",
+            key = "'type:' + #type.name() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<Response> getByType(ImageCollectionType type, int page, int size) {
+        if (type == null) {
+            throw new BadRequestException("imageCollection.type.required",
+                    Map.of("field", "type"));
+        }
+
+        Page<Long> idPage = imageCollectionRepository.findIdsByType(
+                type, PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        return new PageImpl<>(
+                hydrateAndSort(idPage.getContent()).stream()
+                        .map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // =========================================================================
+    // SEARCH BY TAG — Paginated + Cached
+    // =========================================================================
+
+    @Cacheable(value = "imageCollections",
+            key = "'tag:' + #tag.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<Response> searchByTag(String tag, int page, int size) {
+        if (isBlank(tag)) {
+            throw new BadRequestException("tag.required", Map.of("field", "tag"));
+        }
+
+        Page<Long> idPage = imageCollectionRepository.findIdsByTag(
+                tag.trim(), PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        return new PageImpl<>(
+                hydrateAndSort(idPage.getContent()).stream()
+                        .map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // =========================================================================
+    // SEARCH BY KEYWORD — Paginated + Cached
+    // =========================================================================
+
+    @Cacheable(value = "imageCollections",
+            key = "'kw:' + #keyword.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<Response> searchByKeyword(String keyword, int page, int size) {
+        if (isBlank(keyword)) {
+            throw new BadRequestException("keyword.required", Map.of("field", "keyword"));
+        }
+
+        Page<Long> idPage = imageCollectionRepository.findIdsByKeyword(
+                keyword.trim(), PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        return new PageImpl<>(
+                hydrateAndSort(idPage.getContent()).stream()
+                        .map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // =========================================================================
+    // GLOBAL SEARCH — Paginated + Cached
+    // =========================================================================
+
+    @Cacheable(value = "imageCollections",
+            key = "'search:' + #q.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<Response> globalSearch(String q, int page, int size) {
+        if (isBlank(q)) {
+            throw new BadRequestException("keyword.required", Map.of("field", "q"));
+        }
+
+        Page<Long> idPage = imageCollectionRepository.findIdsByGlobalSearch(
+                q.trim(), PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        return new PageImpl<>(
+                hydrateAndSort(idPage.getContent()).stream()
+                        .map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // =========================================================================
+    // SEARCH BY TOPIC — Paginated + Cached
+    // =========================================================================
+
+    @Cacheable(value = "imageCollections",
+            key = "'topic:' + #topicId + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<Response> getByTopic(Long topicId, int page, int size) {
+        if (topicId == null) {
+            throw new BadRequestException("error.validation", Map.of("field", "topicId"));
+        }
+
+        Page<Long> idPage = imageCollectionRepository.findIdsByTopic(
+                topicId, PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        return new PageImpl<>(
+                hydrateAndSort(idPage.getContent()).stream()
+                        .map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // =========================================================================
+    // GET BY ID
     // =========================================================================
 
     @Transactional(readOnly = true)
-    public List<Response> getAll() {
-        return imageCollectionRepository.findAll().stream()
-                .map(c -> { c.getImageAlbum().size(); return toResponse(c); })
-                .collect(Collectors.toList());
+    public Response getById(Long id) {
+        ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new NotFoundException(
+                        "imageCollection.not_found", Map.of("id", id)));
+        return toResponse(entity);
     }
 
     // =========================================================================
     // سڕینەوە
     // =========================================================================
 
-    /**
-     * سڕینەوەی کۆمەڵەی وێنە
-     *
-     * @throws NotFoundException - کۆمەڵەکە نەدۆزرایەوە ("کۆمەڵەی وێنە نەدۆزرایەوە")
-     */
+    @CacheEvict(value = "imageCollections", allEntries = true)
     @Transactional
     public void delete(Long id) {
-        ImageCollection entity = imageCollectionRepository.findById(id)
-                .orElseThrow(() -> {
-                    // هەڵە: کۆمەڵەی وێنە نەدۆزرایەوە بۆ سڕینەوە
-                    return new NotFoundException("imageCollection.not_found", Map.of("id", id));
-                });
+        ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new NotFoundException(
+                        "imageCollection.not_found", Map.of("id", id)));
         createLog(entity.getId(), titleOf(entity), "DELETE",
                 "کۆمەڵەی وێنە سڕایەوە — جۆر=" + entity.getCollectionType());
         imageCollectionRepository.delete(entity);
     }
 
     // =========================================================================
+    // CORE HYDRATION HELPER
+    //
+    // Step 1: bare rows  → 1 query
+    // Step 2: @BatchSize fires automatically per collection type
+    // Step 3: re-order to match Phase-1 pagination order
+    // =========================================================================
+
+    private List<ImageCollection> hydrateAndSort(List<Long> ids) {
+        List<ImageCollection> rows = imageCollectionRepository.findAllByIds(ids);
+
+        Map<Long, ImageCollection> indexed = new LinkedHashMap<>(rows.size());
+        for (ImageCollection ic : rows) indexed.put(ic.getId(), ic);
+
+        List<ImageCollection> ordered = new ArrayList<>(ids.size());
+        for (Long id : ids) {
+            ImageCollection ic = indexed.get(id);
+            if (ic != null) ordered.add(ic);
+        }
+        return ordered;
+    }
+
+    // =========================================================================
     // یاریدەدەرەکانی بابەت
     // =========================================================================
 
-    /**
-     * ڕیزبەندی چارەسەرکردن:
-     *   ١. ئەگەر topicId هەبێت → دۆزینەوەی بابەتی IMAGE (هەڵە ئەگەر جۆری هەڵەبێت)
-     *   ٢. ئەگەر newTopic هەبێت → دروستکردنی بابەتی IMAGEی نوێ
-     *   ٣. هیچیان نەبێت → null
-     *
-     * @throws NotFoundException   - بابەت نەدۆزرایەوە ("بابەت نەدۆزرایەوە")
-     * @throws BadRequestException - جۆری بابەت هەڵەیە ("جۆری بابەت هەڵەیە")
-     */
     private PublishmentTopic resolveOrCreateTopic(Long topicId, InlineTopicRequest newTopic) {
         if (topicId != null) {
             return findImageTopicOrThrow(topicId);
         }
         if (newTopic != null) {
             if (isBlank(newTopic.getNameCkb()) && isBlank(newTopic.getNameKmr())) {
-                // هەڵە: دەبێت لانیکەم ناوێک بە کوردی بنووسرێت
-                throw new BadRequestException("error.validation",
-                        Map.of("message", "بابەتی نوێ پێویستی بە لانیکەم ناوێکی کوردییە (ناوەندی یان باکوور)"));
+                throw new BadRequestException("error.validation", Map.of(
+                        "message",
+                        "بابەتی نوێ پێویستی بە لانیکەم ناوێکی کوردییە (ناوەندی یان باکوور)"));
             }
             PublishmentTopic created = topicRepository.save(
                     PublishmentTopic.builder()
                             .entityType(TOPIC_ENTITY_TYPE)
                             .nameCkb(trimOrNull(newTopic.getNameCkb()))
                             .nameKmr(trimOrNull(newTopic.getNameKmr()))
-                            .build()
-            );
+                            .build());
             log.info("بابەتی IMAGE دروستکرا inline id={}", created.getId());
             return created;
         }
@@ -330,12 +450,9 @@ public class ImageCollectionService {
 
     private PublishmentTopic findImageTopicOrThrow(Long topicId) {
         PublishmentTopic topic = topicRepository.findById(topicId)
-                .orElseThrow(() -> {
-                    // هەڵە: بابەتەکە نەدۆزرایەوە
-                    return new NotFoundException("topic.not_found", Map.of("id", topicId));
-                });
+                .orElseThrow(() -> new NotFoundException(
+                        "topic.not_found", Map.of("id", topicId)));
         if (!TOPIC_ENTITY_TYPE.equals(topic.getEntityType())) {
-            // هەڵە: بابەتەکە بۆ IMAGE نییە
             throw new BadRequestException("topic.type.mismatch", Map.of(
                     "message", "بابەت id=" + topicId
                             + " بۆ '" + topic.getEntityType()
@@ -348,18 +465,12 @@ public class ImageCollectionService {
     // یاریدەدەرەکانی وێنەی بەرگ
     // =========================================================================
 
-    /**
-     * دانانی وێنەی بەرگ: فایل لەسەر لینک پێشەکییە.
-     * null دەگەڕێنێتەوە کاتێک هیچیان نەبێت (ئەوی کۆن هەڵدەگیرێت).
-     */
     private String resolveCoverUrl(String dtoUrl, MultipartFile file) throws IOException {
         if (hasFile(file)) return uploadFile(file);
         return isBlank(dtoUrl) ? null : dtoUrl.trim();
     }
 
-    private boolean hasFile(MultipartFile f) {
-        return f != null && !f.isEmpty();
-    }
+    private boolean hasFile(MultipartFile f) { return f != null && !f.isEmpty(); }
 
     private String uploadFile(MultipartFile f) throws IOException {
         return s3Service.upload(f.getBytes(), f.getOriginalFilename(), f.getContentType());
@@ -376,9 +487,9 @@ public class ImageCollectionService {
             List<MultipartFile> files
     ) throws IOException {
 
-        int fileCount = (files == null) ? 0
+        int fileCount = files == null ? 0
                 : (int) files.stream().filter(f -> f != null && !f.isEmpty()).count();
-        int dtoCount  = (dtos  == null) ? 0 : dtos.size();
+        int dtoCount  = dtos == null ? 0 : dtos.size();
         int max       = Math.max(fileCount, dtoCount);
 
         validateAlbumItemCount(type, max);
@@ -424,11 +535,11 @@ public class ImageCollectionService {
         String emb = dto != null ? trimOrNull(dto.getEmbedUrl())    : null;
 
         if (isBlank(s3) && isBlank(ext) && isBlank(emb)) {
-            // هەڵە: دەبێت سەرچاوەیەکی وێنە دیاری بکرێت
             throw new BadRequestException("image.source.required", Map.of(
                     "message",
                     "هەر وێنەیەک پێویستی بە فایل یان لینکی ڕاستەقینە یان لینکی دەرەکی یان ئێمبێد هەیە"));
         }
+
         item.setImageUrl(s3);
         item.setExternalUrl(ext);
         item.setEmbedUrl(emb);
@@ -438,33 +549,24 @@ public class ImageCollectionService {
     // پشتڕاستکردنەوەی جۆری کۆمەڵە
     // =========================================================================
 
-    /**
-     * پشتڕاستکردنەوەی ژمارەی وێنەکان بەپێی جۆر:
-     * - SINGLE: تەنها ١ وێنە
-     * - GALLERY: لانیکەم ١ وێنە
-     * - PHOTO_STORY: لانیکەم ٢ وێنە
-     *
-     * @throws BadRequestException - ژمارە نادروستە
-     */
     private void validateAlbumItemCount(ImageCollectionType type, int count) {
         switch (type) {
             case SINGLE -> {
                 if (count != 1)
-                    // هەڵە: جۆری تاک پێویستی بە تەنها یەک وێنەیە
                     throw new BadRequestException("imageCollection.single.invalid",
-                            Map.of("message", "جۆری SINGLE پێویستی بە تەنها ١ وێنەیە", "count", count));
+                            Map.of("message", "جۆری SINGLE پێویستی بە تەنها ١ وێنەیە",
+                                    "count", count));
             }
             case GALLERY -> {
                 if (count < 1)
-                    // هەڵە: گەلێری پێویستی بە لانیکەم یەک وێنەیە
                     throw new BadRequestException("imageCollection.gallery.invalid",
                             Map.of("message", "جۆری GALLERY پێویستی بە لانیکەم ١ وێنەیە"));
             }
             case PHOTO_STORY -> {
                 if (count < 2)
-                    // هەڵە: چیرۆکی وێنەیی پێویستی بە لانیکەم دوو وێنەیە
                     throw new BadRequestException("imageCollection.photoStory.invalid",
-                            Map.of("message", "جۆری PHOTO_STORY پێویستی بە لانیکەم ٢ وێنەیە", "count", count));
+                            Map.of("message", "جۆری PHOTO_STORY پێویستی بە لانیکەم ٢ وێنەیە",
+                                    "count", count));
             }
         }
     }
@@ -480,7 +582,6 @@ public class ImageCollectionService {
             LanguageContentDto kmr
     ) {
         Set<Language> safe = safeLangs(langs);
-
         entity.setCkbContent(safe.contains(Language.CKB) ? buildContent(ckb) : null);
         entity.setKmrContent(safe.contains(Language.KMR) ? buildContent(kmr) : null);
     }
@@ -488,9 +589,7 @@ public class ImageCollectionService {
     private ImageContent buildContent(LanguageContentDto dto) {
         if (dto == null) return null;
         if (isBlank(dto.getTitle()) && isBlank(dto.getDescription())
-                && isBlank(dto.getTopic()) && isBlank(dto.getLocation())
-                && isBlank(dto.getCollectedBy())) return null;
-
+                && isBlank(dto.getLocation()) && isBlank(dto.getCollectedBy())) return null;
         return ImageContent.builder()
                 .title(trimOrNull(dto.getTitle()))
                 .description(trimOrNull(dto.getDescription()))
@@ -503,28 +602,16 @@ public class ImageCollectionService {
     // پشتڕاستکردنەوەی دروستکردن
     // =========================================================================
 
-    /**
-     * پشتڕاستکردنەوەی زانیاری پێش دروستکردن
-     *
-     * @throws BadRequestException - داتا بەتاڵە
-     * @throws BadRequestException - جۆر بەتاڵە
-     * @throws BadRequestException - زمانەکان بەتاڵە
-     * @throws BadRequestException - وێنەی بەرگ بەتاڵە
-     */
     private void validateCreate(CreateRequest dto, MultipartFile ckbCoverImage) {
         if (dto == null)
-            // هەڵە: داواکاری بەتاڵە
             throw new BadRequestException("error.validation", Map.of("field", "data"));
         if (dto.getCollectionType() == null)
-            // هەڵە: جۆری کۆمەڵە دیاری نەکراوە
             throw new BadRequestException("imageCollection.type.required",
                     Map.of("field", "collectionType"));
         if (safeLangs(dto.getContentLanguages()).isEmpty())
-            // هەڵە: زمانەکان دیاری نەکراون
             throw new BadRequestException("imageCollection.languages.required",
                     Map.of("field", "contentLanguages"));
 
-        // دەبێت لانیکەم یەک وێنەی بەرگ دیاری بکرێت لە کاتی دروستکردندا
         boolean hasCoverFile = hasFile(ckbCoverImage);
         boolean hasCoverUrl  = !isBlank(dto.getCkbCoverUrl())
                 || !isBlank(dto.getKmrCoverUrl())
@@ -537,28 +624,30 @@ public class ImageCollectionService {
 
     // =========================================================================
     // گۆڕین بۆ Response
+    //
+    // CRITICAL: every collection access happens inside open @Transactional.
+    // new LinkedHashSet<>(...) copies into plain Java type — prevents
+    // LazyInitializationException after session closes.
     // =========================================================================
 
     private Response toResponse(ImageCollection entity) {
         Response.ResponseBuilder b = Response.builder()
                 .id(entity.getId())
                 .collectionType(entity.getCollectionType())
-                // سێ وێنەی بەرگ
                 .ckbCoverUrl(entity.getCkbCoverUrl())
                 .kmrCoverUrl(entity.getKmrCoverUrl())
                 .hoverCoverUrl(entity.getHoverCoverUrl())
-                // بابەت
                 .topicId(entity.getTopic()      != null ? entity.getTopic().getId()      : null)
                 .topicNameCkb(entity.getTopic() != null ? entity.getTopic().getNameCkb() : null)
                 .topicNameKmr(entity.getTopic() != null ? entity.getTopic().getNameKmr() : null)
-                // مێتا
                 .publishmentDate(entity.getPublishmentDate())
+                // ← copy into plain Set — prevents LazyInitializationException
                 .contentLanguages(entity.getContentLanguages() != null
-                        ? new LinkedHashSet<>(entity.getContentLanguages()) : new LinkedHashSet<>())
+                        ? new LinkedHashSet<>(entity.getContentLanguages())
+                        : new LinkedHashSet<>())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt());
 
-        // ناوەڕۆکی CKB
         if (entity.getCkbContent() != null) {
             b.ckbContent(LanguageContentDto.builder()
                     .title(entity.getCkbContent().getTitle())
@@ -568,7 +657,6 @@ public class ImageCollectionService {
                     .build());
         }
 
-        // ناوەڕۆکی KMR
         if (entity.getKmrContent() != null) {
             b.kmrContent(LanguageContentDto.builder()
                     .title(entity.getKmrContent().getTitle())
@@ -578,7 +666,7 @@ public class ImageCollectionService {
                     .build());
         }
 
-        // تاگ و کلیلەووشەکان
+        // ← copy into plain Set
         b.tags(BilingualSet.builder()
                 .ckb(new LinkedHashSet<>(safeSet(entity.getTagsCkb())))
                 .kmr(new LinkedHashSet<>(safeSet(entity.getTagsKmr())))
@@ -588,10 +676,11 @@ public class ImageCollectionService {
                 .kmr(new LinkedHashSet<>(safeSet(entity.getKeywordsKmr())))
                 .build());
 
-        // مادەکانی ئەلبوم
+        // ← copy into plain List
         List<ImageItemDto> items = entity.getImageAlbum() == null ? List.of()
-                : entity.getImageAlbum().stream()
-                .sorted(Comparator.comparing(i -> i.getSortOrder() != null ? i.getSortOrder() : 0))
+                : new ArrayList<>(entity.getImageAlbum()).stream()
+                .sorted(Comparator.comparing(
+                        i -> i.getSortOrder() != null ? i.getSortOrder() : 0))
                 .map(i -> ImageItemDto.builder()
                         .id(i.getId())
                         .imageUrl(i.getImageUrl())
@@ -610,13 +699,13 @@ public class ImageCollectionService {
     }
 
     // =========================================================================
-    // یاریدەدەری تۆمارکردن
+    // تۆمارکردنی چالاکی
     // =========================================================================
 
-    private void createLog(Long collectionId, String title, String action, String details) {
+    private void createLog(Long id, String title, String action, String details) {
         try {
             imageCollectionLogRepository.save(ImageCollectionLog.builder()
-                    .imageCollectionId(collectionId)
+                    .imageCollectionId(id)
                     .collectionTitle(title)
                     .action(action)
                     .details(details)
@@ -624,7 +713,7 @@ public class ImageCollectionService {
                     .timestamp(LocalDateTime.now())
                     .build());
         } catch (Exception e) {
-            log.warn("شکستی تۆمارکردنی لۆگی کۆمەڵەی وێنە | id={}", collectionId, e);
+            log.warn("شکستی تۆمارکردنی لۆگی کۆمەڵەی وێنە | id={}", id, e);
         }
     }
 
@@ -641,38 +730,31 @@ public class ImageCollectionService {
         return "کۆمەڵەی وێنە#" + c.getId();
     }
 
-    private boolean isBlank(String s) { return s == null || s.isBlank(); }
-
+    private boolean isBlank(String s)   { return s == null || s.isBlank(); }
     private String trimOrNull(String s) {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
     }
-
     private Set<Language> safeLangs(Set<Language> in) {
         return in == null ? new LinkedHashSet<>() : new LinkedHashSet<>(in);
     }
-
     private Set<String> safeSet(Set<String> in) {
         return in == null ? new LinkedHashSet<>() : new LinkedHashSet<>(in);
     }
-
     private Set<String> cleanStrings(Set<String> in) {
         if (in == null) return new LinkedHashSet<>();
         LinkedHashSet<String> out = new LinkedHashSet<>();
         for (String s : in) { String t = trimOrNull(s); if (t != null) out.add(t); }
         return out;
     }
-
     private MultipartFile nextNonEmpty(List<MultipartFile> files, int start) {
         if (files == null) return null;
         for (int i = start; i < files.size(); i++) {
-            MultipartFile f = files.get(i);
-            if (f != null && !f.isEmpty()) return f;
+            if (files.get(i) != null && !files.get(i).isEmpty()) return files.get(i);
         }
         return null;
     }
-
     private int advanceFileIndex(List<MultipartFile> files, int start) {
         if (files == null) return start;
         for (int i = start; i < files.size(); i++) {

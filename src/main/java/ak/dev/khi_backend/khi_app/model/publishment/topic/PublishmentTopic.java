@@ -2,6 +2,7 @@ package ak.dev.khi_backend.khi_app.model.publishment.topic;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 
@@ -34,6 +35,7 @@ import java.time.LocalDateTime;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
 @Builder
+@BatchSize(size = 50)   // ← ADD THIS
 public class PublishmentTopic {
 
     @Id

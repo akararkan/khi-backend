@@ -4,6 +4,7 @@ import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,6 +37,12 @@ import java.util.Set;
  *    - Reuse of the same topic across many videos
  *    - Bilingual topic names (CKB + KMR) managed in one place
  *    - Frontend autocomplete from the topic table
+ *
+ * ─── Performance ──────────────────────────────────────────────────────────────
+ *  @BatchSize(size = 25) on every @ElementCollection:
+ *    Without it, loading a page of 20 videos fires 20×5 = 100 extra SELECTs.
+ *    With it, Hibernate loads all 5 collections for the whole page in 5 queries
+ *    using WHERE video_id IN (..., ..., ...) — a 20× reduction.
  */
 @Entity
 @Table(
@@ -60,11 +67,11 @@ public class Video {
 
     // ─── Cover / Thumbnail ────────────────────────────────────────────────────
 
-    @Column(name = "cover_url", length = 1000)      // ← column is "cover_url"
-    private String ckbCoverUrl;                       //   but field says "ckb"
+    @Column(name = "ckb_cover_url", length = 1000)
+    private String ckbCoverUrl;
 
-    @Column(name = "ckb_cover_url", length = 1000)  // ← column is "ckb_cover_url"
-    private String kmrCoverUrl;                       //   but field says "kmr"
+    @Column(name = "kmr_cover_url", length = 1000)
+    private String kmrCoverUrl;
 
     @Column(name = "hover_cover_url", length = 1000)
     private String hoverCoverUrl;
@@ -173,6 +180,7 @@ public class Video {
 
     // ─── Languages ────────────────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "video_content_languages", joinColumns = @JoinColumn(name = "video_id"))
@@ -182,6 +190,7 @@ public class Video {
 
     // ─── CKB Tags ─────────────────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "video_tags_ckb", joinColumns = @JoinColumn(name = "video_id"))
@@ -190,6 +199,7 @@ public class Video {
 
     // ─── KMR Tags ─────────────────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "video_tags_kmr", joinColumns = @JoinColumn(name = "video_id"))
@@ -198,6 +208,7 @@ public class Video {
 
     // ─── CKB Keywords ─────────────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "video_keywords_ckb", joinColumns = @JoinColumn(name = "video_id"))
@@ -206,6 +217,7 @@ public class Video {
 
     // ─── KMR Keywords ─────────────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "video_keywords_kmr", joinColumns = @JoinColumn(name = "video_id"))

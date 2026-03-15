@@ -70,6 +70,10 @@ public class AboutService {
         about.setSlugKmr(request.getSlugKmr() != null && !request.getSlugKmr().isBlank()
                 ? request.getSlugKmr().trim() : null);
 
+        about.setHeroImageUrl(
+                request.getHeroImageUrl() != null && !request.getHeroImageUrl().isBlank()
+                        ? request.getHeroImageUrl().trim() : null);
+
         about.setCkbContent(buildAboutContent(request.getCkbContent()));
         about.setKmrContent(buildAboutContent(request.getKmrContent()));
         about.setActive(true);
@@ -101,6 +105,16 @@ public class AboutService {
         about.setSlugKmr(request.getSlugKmr() != null && !request.getSlugKmr().isBlank()
                 ? request.getSlugKmr().trim() : null);
 
+        // If the hero image changed and the old one was an S3 URL, delete the old file
+        String oldHero = about.getHeroImageUrl();
+        String newHero = request.getHeroImageUrl() != null && !request.getHeroImageUrl().isBlank()
+                ? request.getHeroImageUrl().trim() : null;
+        if (oldHero != null && !oldHero.equals(newHero)) {
+            s3Service.deleteFile(oldHero);
+            log.info("Deleted old hero image from S3: {}", oldHero);
+        }
+        about.setHeroImageUrl(newHero);
+
         about.setCkbContent(buildAboutContent(request.getCkbContent()));
         about.setKmrContent(buildAboutContent(request.getKmrContent()));
 
@@ -127,6 +141,12 @@ public class AboutService {
                 .orElseThrow(() ->
                         new EntityNotFoundException("About not found: " + id));
 
+        // Delete dedicated hero image from S3
+        if (about.getHeroImageUrl() != null && !about.getHeroImageUrl().isBlank()) {
+            s3Service.deleteFile(about.getHeroImageUrl());
+        }
+
+        // Delete all block media from S3
         about.getBlocks().stream()
                 .filter(b -> b.getMediaUrl() != null && !b.getMediaUrl().isBlank())
                 .forEach(b -> s3Service.deleteFile(b.getMediaUrl()));
@@ -295,6 +315,7 @@ public class AboutService {
                 .id(about.getId())
                 .slugCkb(about.getSlugCkb())
                 .slugKmr(about.getSlugKmr())
+                .heroImageUrl(about.getHeroImageUrl())
                 .ckbContent(toAboutContentResponse(about.getCkbContent()))
                 .kmrContent(toAboutContentResponse(about.getKmrContent()))
                 .active(about.isActive())

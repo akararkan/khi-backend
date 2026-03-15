@@ -14,6 +14,8 @@ import ak.dev.khi_backend.khi_app.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -29,28 +31,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-/**
- * سێرڤیسی پرۆژە - بەڕێوەبردنی هەموو کردارەکانی پرۆژەکان
- *
- * لیستی هەڵە کوردیەکان کە بەکاردێن:
- *
- * ١. project.conflict - "کێشە لە دروستکردنی پرۆژە: دەستکاری پێشوەختە یان کێشەی تەکنیکی هەیە" ( Conflict )
- * ٢. error.db - "هەڵەی ناوخۆیی داتابەیس: کێشە لە پەیوەندی بە بنکەدراوە" ( Internal Server Error )
- * ٣. request.required - "داواکاری پێویستە: زانیاری نێردراو بەتاڵە" ( Bad Request )
- * ٤. project.cover_required - "وێنەی بەرگی پێویستە: دەبێت وێنەی سەرەکی بۆ پرۆژەکە دابنرێت" ( Bad Request )
- * ٥. tag.required - "تاگی پێویستە: بۆ گەڕان دەبێت تاگ بنووسرێت" ( Bad Request )
- * ٦. keyword.required - "کلیلەووشەی پێویستە: بۆ گەڕان دەبێت کلیلەووشە بنووسرێت" ( Bad Request )
- * ٧. project.ckb_type_required - "جۆری پرۆژە بە کوردیی ناوەندی (سۆرانی) پێویستە" ( Bad Request )
- * ٨. project.kmr_type_required - "جۆری پرۆژە بە کوردیی باکووری (کورمانجی) پێویستە" ( Bad Request )
- * ٩. project.languages_required - "زمانێک پێویستە: دەبێت لانیکەم یەک زمان هەڵبژێردرێت" ( Bad Request )
- * ١٠. project.ckb_title_required - "ناونیشانی کوردیی ناوەندی پێویستە" ( Bad Request )
- * ١١. project.kmr_title_required - "ناونیشانی کوردیی باکووری پێویستە" ( Bad Request )
- * ١٢. media.type_invalid - "جۆری میدیا هەڵەیە: جۆرەکە ناناسرێتەوە (IMAGE, VIDEO, AUDIO, PDF, DOCUMENT)" ( Bad Request )
- * ١٣. media.audio_video_requires_url_or_link - "ئۆدیۆ یان ڤیدیۆ پێویستی بە لینکی ڕاستەقینە یان لینکی دەرەکیە" ( Bad Request )
- * ١٤. media.url_or_text_required - "لینکی وێنە یان دەقی پێناسە پێویستە" ( Bad Request )
- * ١٥. project.not_found - "پرۆژەکە نەدۆزرایەوە: ئایدییەکە بوونی نییە لە سیستەم" ( Not Found )
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -75,13 +58,7 @@ public class ProjectService {
     // ===========================
     // دروستکردن (تەنها JSON)
     // ===========================
-    /**
-     * دروستکردنی پرۆژەی نوێ بە بەکارهێنانی زانیاری JSON
-     *
-     * @throws BadRequestException    - ئەگەر زانیاریەکان نەبن یان ناتەواون ("داواکاری پێویستە")
-     * @throws ConflictException      - ئەگەر کێشەیەک لە بنکەدراوە هەبێت ("کێشە لە دروستکردنی پرۆژە")
-     * @throws AppException          - هەڵە ناوخۆییەکانی دیکە
-     */
+    @CacheEvict(value = "projects", allEntries = true)
     public Project create(ProjectCreateRequest dto) {
         String traceId = traceId();
         log.info("دروستکردنی پرۆژە | زمانەکان={} | traceId={}", dto != null ? dto.getContentLanguages() : null, traceId);
@@ -95,7 +72,6 @@ public class ProjectService {
                 attachAllTags(project, dto);
                 attachAllKeywords(project, dto);
                 attachMediaFromDto(project, dto.getMedia());
-
                 Project p = projectRepository.save(project);
                 auditLog(p, "CREATE", "پرۆژە دروستکرا: " + safeTitle(p));
                 return p;
@@ -106,7 +82,6 @@ public class ProjectService {
 
         } catch (AppException ex) { throw ex; }
         catch (DataIntegrityViolationException ex) {
-            // هەڵە: کێشە لە تێکەڵکردنی داتا - ڕەنگە پرۆژەیەکی هاوشێوە بوونی هەبێت
             throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
         } catch (Exception ex) {
             log.error("هەڵەی چاوەڕواننەکراو لە دروستکردنی پرۆژە | traceId={}", traceId, ex);
@@ -117,25 +92,17 @@ public class ProjectService {
     // ===========================
     // دروستکردن (لەگەڵ فایلەکان)
     // ===========================
-    /**
-     * دروستکردنی پرۆژە لەگەڵ فایلی وێنە و میدیا
-     *
-     * @throws BadRequestException    - ئەگەر وێنەی بەرگ نەبێت ("وێنەی بەرگی پێویستە")
-     * @throws ConflictException      - کێشەی داتابەیس ("کێشە لە دروستکردنی پرۆژە")
-     * @throws IOException           - کێشە لە خوێندنەوەی فایلەکان
-     * @throws CompletionException   - کێشە لە ناردنی فایلەکان بۆ S3
-     */
+    @CacheEvict(value = "projects", allEntries = true)
     public Project create(ProjectCreateRequest dto,
                           MultipartFile cover,
                           List<MultipartFile> mediaFiles) throws IOException {
-        String traceId  = traceId();
-        int    mcnt     = mediaFiles != null ? mediaFiles.size() : 0;
-        log.info("دروستکردنی پرۆژە لەگەڵ فایلەکان | ژماری میدیا={} | زمانەکان={} | traceId={}",
-                mcnt, dto != null ? dto.getContentLanguages() : null, traceId);
+        String traceId = traceId();
+        int    mcnt    = mediaFiles != null ? mediaFiles.size() : 0;
+        log.info("دروستکردنی پرۆژە لەگەڵ فایلەکان | ژماری میدیا={} | traceId={}", mcnt, traceId);
 
         validate(dto, false);
 
-        String dtoCoverUrl   = dto.getCoverUrl();
+        String dtoCoverUrl = dto.getCoverUrl();
         List<UploadedMedia> uploaded = new ArrayList<>();
         ExecutorService pool = Executors.newFixedThreadPool(Math.min(8, Math.max(2, 1 + mcnt)));
 
@@ -150,7 +117,6 @@ public class ProjectService {
 
             String coverUrl = safe(coverFuture.join()).trim();
             if (isBlank(coverUrl)) {
-                // هەڵە: وێنەی بەرگی پرۆژە نەنێردراوە
                 throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
             }
 
@@ -162,7 +128,6 @@ public class ProjectService {
                 attachAllKeywords(p, dto);
                 appendUploadedMedia(p, uploaded);
                 attachMediaFromDto(p, dto.getMedia());
-
                 Project persisted = projectRepository.save(p);
                 auditLog(persisted, "CREATE", "پرۆژە لەگەڵ فایل دروستکرا: " + safeTitle(persisted));
                 return persisted;
@@ -183,12 +148,7 @@ public class ProjectService {
     // ===========================
     // نوێکردنەوە (تەنها JSON)
     // ===========================
-    /**
-     * نوێکردنەوەی زانیاری پرۆژە
-     *
-     * @throws NotFoundException   - ئەگەر پرۆژەکە نەدۆزرێتەوە ("پرۆژەکە نەدۆزرایەوە")
-     * @throws ConflictException   - کێشەی داتابەیس ("کێشە لە نوێکردنەوەی پرۆژە")
-     */
+    @CacheEvict(value = "projects", allEntries = true)
     public Project update(Long projectId, ProjectCreateRequest dto) {
         String traceId = traceId();
         log.info("نوێکردنەوەی پرۆژە | id={} | traceId={}", projectId, traceId);
@@ -219,13 +179,7 @@ public class ProjectService {
     // ===========================
     // نوێکردنەوە (لەگەڵ فایلەکان)
     // ===========================
-    /**
-     * نوێکردنەوەی پرۆژە لەگەڵ فایلی نوێ
-     *
-     * @throws NotFoundException    - پرۆژەکە نەدۆزرێتەوە ("پرۆژەکە نەدۆزرایەوە")
-     * @throws BadRequestException  - وێنەی بەرگ نەبێت ("وێنەی بەرگی پێویستە")
-     * @throws ConflictException    - کێشەی داتابەیس ("کێشە لە نوێکردنەوە")
-     */
+    @CacheEvict(value = "projects", allEntries = true)
     public Project updateWithFiles(Long projectId,
                                    ProjectCreateRequest dto,
                                    MultipartFile cover,
@@ -250,7 +204,6 @@ public class ProjectService {
 
             String coverUrl = safe(coverFuture.join()).trim();
             if (isBlank(coverUrl)) {
-                // هەڵە: وێنەی بەرگ بۆ نوێکردنەوە پێویستە
                 throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
             }
 
@@ -278,12 +231,7 @@ public class ProjectService {
     // ===========================
     // سڕینەوە
     // ===========================
-    /**
-     * سڕینەوەی پرۆژە بە تەواوی
-     *
-     * @throws NotFoundException  - پرۆژەکە نەدۆزرێتەوە ("پرۆژەکە نەدۆزرایەوە")
-     * @throws AppException      - هەڵەی داتابەیس لە کاتی سڕینەوە
-     */
+    @CacheEvict(value = "projects", allEntries = true)
     @Transactional
     public void delete(Long projectId) {
         String traceId = traceId();
@@ -293,13 +241,10 @@ public class ProjectService {
             tx().execute(status -> {
                 Project project = findOrThrow(projectId);
                 String  title   = safeTitle(project);
-
                 int logCount = projectLogRepository.deleteByProject(project);
                 log.debug("{} تۆماری چۆنێتیی پرۆژە سڕایەوە بۆ id={}", logCount, projectId);
-
                 projectRepository.delete(project);
                 log.info("پرۆژە سڕایەوە | id={} ناونیشان='{}' | traceId={}", projectId, title, traceId);
-
                 return null;
             });
 
@@ -311,88 +256,176 @@ public class ProjectService {
     }
 
     // ============================================================
-    // گەڕان و لێکدانەوە (Query Helpers)
+    // GET ALL  —  Cached + Two-Phase @BatchSize
+    //
+    // Cache key includes page+size so each page is cached separately.
+    // Cache TTL = 5 min (configured in CacheConfig).
+    // Evicted automatically on any write (create/update/delete).
     // ============================================================
+
+    @Cacheable(value = "projects", key = "'all:p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
     public Page<ProjectResponse> getAllResponse(int page, int size) {
-        return projectRepository
-                .findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")))
-                .map(this::toResponse);
+        Page<Long> idPage = projectRepository.findAllIds(
+                PageRequest.of(page, size));  // ORDER BY id DESC already in query
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        List<Project> hydrated = hydrateAndSort(idPage.getContent());
+
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
     }
 
-    /**
-     * گەڕان بەپێی تاگ
-     *
-     * @throws BadRequestException - ئەگەر تاگ بەتاڵ بێت ("تاگی پێویستە")
-     */
+    // ============================================================
+    // SEARCH BY TAG  —  Partial match, cached
+    // ============================================================
+
+    @Cacheable(value = "projects", key = "'tag:' + #tag.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
     public Page<ProjectResponse> searchByTagResponse(String tag, int page, int size) {
         if (isBlank(tag)) {
-            // هەڵە: تاگی گەڕان بەتاڵە
             throw new BadRequestException("tag.required", Map.of());
         }
-        return projectRepository.searchByTag(tag, PageRequest.of(page, size)).map(this::toResponse);
+
+        Page<Long> idPage = projectRepository.findIdsByTag(
+                tag.trim(), PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        List<Project> hydrated = hydrateAndSort(idPage.getContent());
+
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
     }
 
-    /**
-     * گەڕان بەپێی کلیلەووشە
-     *
-     * @throws BadRequestException - ئەگەر کلیلەووشە بەتاڵ بێت ("کلیلەووشەی پێویستە")
-     */
+    // ============================================================
+    // SEARCH BY KEYWORD  —  Partial match, cached
+    // ============================================================
+
+    @Cacheable(value = "projects", key = "'kw:' + #keyword.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
     public Page<ProjectResponse> searchByKeywordResponse(String keyword, int page, int size) {
         if (isBlank(keyword)) {
-            // هەڵە: کلیلەووشەی گەڕان بەتاڵە
             throw new BadRequestException("keyword.required", Map.of());
         }
-        return projectRepository.searchByKeyword(keyword, PageRequest.of(page, size)).map(this::toResponse);
+
+        Page<Long> idPage = projectRepository.findIdsByKeyword(
+                keyword.trim(), PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        List<Project> hydrated = hydrateAndSort(idPage.getContent());
+
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // ============================================================
+    // GLOBAL SEARCH  —  Searches title + description + tags + keywords
+    // This is the modern "one search box" approach.
+    // ============================================================
+
+    @Cacheable(value = "projects", key = "'search:' + #q.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<ProjectResponse> globalSearch(String q, int page, int size) {
+        if (isBlank(q)) {
+            throw new BadRequestException("keyword.required", Map.of());
+        }
+
+        Page<Long> idPage = projectRepository.findIdsByGlobalSearch(
+                q.trim(), PageRequest.of(page, size));
+
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), idPage.getPageable(), idPage.getTotalElements());
+        }
+
+        List<Project> hydrated = hydrateAndSort(idPage.getContent());
+
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    // ============================================================
+    // CORE HYDRATION HELPER
+    //
+    // Step 1: Fetch bare Project rows  → 1 query
+    // Step 2: Hibernate @BatchSize auto-fires 1 IN-query per
+    //         collection when toResponse() accesses them.
+    //
+    // Total: ~9 fast queries for any page size.
+    // Re-orders result to match Phase-1 pagination order.
+    // ============================================================
+
+    private List<Project> hydrateAndSort(List<Long> ids) {
+        List<Project> projects = projectRepository.findAllByIds(ids);
+
+        Map<Long, Project> indexed = new LinkedHashMap<>(projects.size());
+        for (Project p : projects) indexed.put(p.getId(), p);
+
+        List<Project> ordered = new ArrayList<>(ids.size());
+        for (Long id : ids) {
+            Project p = indexed.get(id);
+            if (p != null) ordered.add(p);
+        }
+        return ordered;
     }
 
     // ============================================================
     // یاریدەدەری نوێکردنەوە
     // ============================================================
     private void applyUpdate(Project project, ProjectCreateRequest dto, String resolvedCoverUrl) {
-        // زانیاری بنەڕەتی
         project.setCoverUrl(resolvedCoverUrl);
         project.setProjectDate(dto.getProjectDate());
-
-        // جۆری پرۆژە بە دوو زمانی کوردی
         project.setProjectTypeCkb(dto.getProjectTypeCkb());
         project.setProjectTypeKmr(dto.getProjectTypeKmr());
-
-        // دۆخی پرۆژە (بنەڕەتی: بەردەوامە)
         project.setStatus(dto.getStatus() != null ? dto.getStatus() : ProjectStatus.ONGOING);
 
-        // زمانەکان
         project.getContentLanguages().clear();
         if (dto.getContentLanguages() != null) {
             project.getContentLanguages().addAll(dto.getContentLanguages());
         }
 
-        // ناوەڕۆکی بەستەراو (CKB - سۆرانی)
         if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB)) {
             project.setCkbContent(dto.getCkbContent() != null
                     ? ProjectContentBlock.builder()
                     .title(dto.getCkbContent().getTitle())
                     .description(dto.getCkbContent().getDescription())
                     .location(dto.getCkbContent().getLocation())
-                    .build()
-                    : null);
+                    .build() : null);
         } else {
             project.setCkbContent(null);
         }
 
-        // ناوەڕۆکی بەستەراو (KMR - کورمانجی)
         if (dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR)) {
             project.setKmrContent(dto.getKmrContent() != null
                     ? ProjectContentBlock.builder()
                     .title(dto.getKmrContent().getTitle())
                     .description(dto.getKmrContent().getDescription())
                     .location(dto.getKmrContent().getLocation())
-                    .build()
-                    : null);
+                    .build() : null);
         } else {
             project.setKmrContent(null);
         }
 
-        // پاککردنەوەی پەیوەندییە کۆنەکان و دانانی نوێیەکان
         project.getContentsCkb().clear();
         project.getContentsKmr().clear();
         project.getTagsCkb().clear();
@@ -404,36 +437,26 @@ public class ProjectService {
         attachAllTags(project, dto);
         attachAllKeywords(project, dto);
 
-        // میدیا: پاککردنەوە و دانانی نوێ
-        if (dto.getMedia() != null) {
-            project.getMedia().clear();
-        }
+        if (dto.getMedia() != null) project.getMedia().clear();
         attachMediaFromDto(project, dto.getMedia());
     }
 
     // ============================================================
-    // یاریدەدەرەکانی ناردنی S3
+    // S3 Upload Helpers
     // ============================================================
     private String uploadCover(MultipartFile file) {
         try {
-            return s3Service.upload(
-                    file.getBytes(),
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    ProjectMediaType.IMAGE
-            );
+            return s3Service.upload(file.getBytes(), file.getOriginalFilename(),
+                    file.getContentType(), ProjectMediaType.IMAGE);
         } catch (IOException e) {
-            // هەڵە: کێشە لە خوێندنەوەی فایلی وێنە
             throw new CompletionException("کێشە لە خوێندنەوەی فایلی وێنە: " + e.getMessage(), e);
         }
     }
 
     private List<CompletableFuture<UploadedMedia>> buildMediaFutures(
             List<MultipartFile> files, ExecutorService pool) {
-
         List<CompletableFuture<UploadedMedia>> futures = new ArrayList<>();
         if (files == null || files.isEmpty()) return futures;
-
         int order = 0;
         for (MultipartFile file : files) {
             if (file == null || file.isEmpty()) continue;
@@ -441,15 +464,10 @@ public class ProjectService {
             futures.add(CompletableFuture.supplyAsync(() -> {
                 try {
                     ProjectMediaType type = detectMediaType(file);
-                    String url = s3Service.upload(
-                            file.getBytes(),
-                            file.getOriginalFilename(),
-                            file.getContentType(),
-                            type
-                    );
+                    String url = s3Service.upload(file.getBytes(), file.getOriginalFilename(),
+                            file.getContentType(), type);
                     return new UploadedMedia(type, url, null, sortOrder);
                 } catch (IOException e) {
-                    // هەڵە: کێشە لە ناردنی فایل بۆ S3
                     throw new CompletionException("کێشە لە ناردنی فایل: " + file.getOriginalFilename(), e);
                 }
             }, pool));
@@ -481,7 +499,7 @@ public class ProjectService {
     }
 
     // ============================================================
-    // دروستکردن و پشتڕاستکردنەوە
+    // Build & Validate
     // ============================================================
     private Project buildProject(ProjectCreateRequest dto) {
         Project project = new Project();
@@ -510,14 +528,9 @@ public class ProjectService {
 
     private void applyBaseFields(Project project, ProjectCreateRequest dto) {
         project.setCoverUrl(dto.getCoverUrl());
-
-        // جۆری پرۆژە بە کوردی
         project.setProjectTypeCkb(dto.getProjectTypeCkb());
         project.setProjectTypeKmr(dto.getProjectTypeKmr());
-
-        // دۆخ (بنەڕەتی بەردەوامە)
         project.setStatus(dto.getStatus() != null ? dto.getStatus() : ProjectStatus.ONGOING);
-
         project.setProjectDate(dto.getProjectDate());
         project.getContentLanguages().clear();
         if (dto.getContentLanguages() != null) {
@@ -525,57 +538,28 @@ public class ProjectService {
         }
     }
 
-    /**
-     * پشتڕاستکردنەوەی زانیاری داخڵکراو
-     *
-     * هەڵەکان بە کوردی:
-     * - "request.required" = داواکاری پێویستە (ئەگەر dto بەتاڵ بێت)
-     * - "project.ckb_type_required" = جۆری پرۆژە بە کوردیی ناوەندی پێویستە
-     * - "project.kmr_type_required" = جۆری پرۆژە بە کوردیی باکووری پێویستە
-     * - "project.languages_required" = زمانێک پێویستە (بەتاڵە یان بە بەتاڵییە)
-     * - "project.cover_required" = وێنەی بەرگی پێویستە
-     * - "project.ckb_title_required" = ناونیشانی کوردیی ناوەندی پێویستە
-     * - "project.kmr_title_required" = ناونیشانی کوردیی باکووری پێویستە
-     */
     private void validate(ProjectCreateRequest dto, boolean requireCoverUrl) {
-        if (dto == null) {
-            // هەڵە: داواکاری نەنێردراوە یان بەتاڵە
-            throw new BadRequestException("request.required", Map.of());
-        }
+        if (dto == null) throw new BadRequestException("request.required", Map.of());
 
-        // پێویستە لانیکەم یەک جۆر بۆ هەر زمانێک دیاری بکرێت
-        boolean hasCkbLang = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB);
-        boolean hasKmrLang = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR);
+        boolean hasCkb = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB);
+        boolean hasKmr = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR);
 
-        if (hasCkbLang && isBlank(dto.getProjectTypeCkb())) {
-            // هەڵە: جۆری پرۆژە بۆ زمانی کوردیی ناوەندی (سۆرانی) دیاری نەکراوە
+        if (hasCkb && isBlank(dto.getProjectTypeCkb()))
             throw new BadRequestException("project.ckb_type_required", Map.of());
-        }
-        if (hasKmrLang && isBlank(dto.getProjectTypeKmr())) {
-            // هەڵە: جۆری پرۆژە بۆ زمانی کوردیی باکووری (کورمانجی) دیاری نەکراوە
+        if (hasKmr && isBlank(dto.getProjectTypeKmr()))
             throw new BadRequestException("project.kmr_type_required", Map.of());
-        }
-
-        if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty()) {
-            // هەڵە: هیچ زمانێک دیاری نەکراوە بۆ پرۆژەکە
+        if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty())
             throw new BadRequestException("project.languages_required", Map.of());
-        }
-        if (requireCoverUrl && isBlank(dto.getCoverUrl())) {
-            // هەڵە: لینکی وێنەی بەرگ نەنێردراوە
+        if (requireCoverUrl && isBlank(dto.getCoverUrl()))
             throw new BadRequestException("project.cover_required", Map.of());
-        }
-        if (hasCkbLang && (dto.getCkbContent() == null || isBlank(dto.getCkbContent().getTitle()))) {
-            // هەڵە: ناونیشان بە کوردیی ناوەندی پێویستە
+        if (hasCkb && (dto.getCkbContent() == null || isBlank(dto.getCkbContent().getTitle())))
             throw new BadRequestException("project.ckb_title_required", Map.of());
-        }
-        if (hasKmrLang && (dto.getKmrContent() == null || isBlank(dto.getKmrContent().getTitle()))) {
-            // هەڵە: ناونیشان بە کوردیی باکووری پێویستە
+        if (hasKmr && (dto.getKmrContent() == null || isBlank(dto.getKmrContent().getTitle())))
             throw new BadRequestException("project.kmr_title_required", Map.of());
-        }
     }
 
     // ============================================================
-    // بەڕێوەبردنی پەیوەندییەکان
+    // Attach Helpers
     // ============================================================
     private void attachAllContents(Project p, ProjectCreateRequest dto) {
         attachContents(p, dto.getContentsCkb(), Language.CKB);
@@ -671,29 +655,17 @@ public class ProjectService {
     }
 
     // ============================================================
-    // بەڕێوەبردنی میدیا
+    // Media
     // ============================================================
-    /**
-     * لکاندنی میدیا لە DTO
-     *
-     * هەڵەکانی میدیا بە کوردی:
-     * - "media.type_invalid" = جۆری میدیا هەڵەیە: جۆرەکە ناناسرێتەوە
-     * - "media.audio_video_requires_url_or_link" = ئۆدیۆ/ڤیدیۆ پێویستی بە لینکی ڕاستەقینە یان لینکی دەرەکی یان ئێمبێدە
-     * - "media.url_or_text_required" = بۆ جۆرەکانی دیکە، لینکی ڕاستەقینە یان دەقی پێناسە پێویستە
-     */
     private void attachMediaFromDto(Project project, List<ProjectMediaCreateRequest> mediaList) {
         if (mediaList == null || mediaList.isEmpty()) return;
-
         for (ProjectMediaCreateRequest m : mediaList) {
             if (m == null) continue;
-
             ProjectMediaType type;
             try {
                 type = ProjectMediaType.valueOf(m.getMediaType());
             } catch (IllegalArgumentException ex) {
-                // هەڵە: جۆری میدیا نەناسراوە (ئایمێج، ڤیدیۆ، ئۆدیۆ، پی دی ئێف، دۆکیومێنت)
-                throw new BadRequestException("media.type_invalid",
-                        Map.of("mediaType", safe(m.getMediaType())));
+                throw new BadRequestException("media.type_invalid", Map.of("mediaType", safe(m.getMediaType())));
             }
 
             boolean hasUrl      = !isBlank(m.getUrl());
@@ -702,17 +674,13 @@ public class ProjectService {
             boolean hasText     = !isBlank(m.getTextBody());
 
             if (type == ProjectMediaType.AUDIO || type == ProjectMediaType.VIDEO) {
-                if (!hasUrl && !hasExternal && !hasEmbed) {
-                    // هەڵە: بۆ ئۆدیۆ یان ڤیدیۆ دەبێت لینکی ڕاستەقینە یان لینکی دەرەکی یان کۆدی ئێمبێد هەبێت
+                if (!hasUrl && !hasExternal && !hasEmbed)
                     throw new BadRequestException("media.audio_video_requires_url_or_link",
                             Map.of("mediaType", type.name()));
-                }
             } else {
-                if (!hasUrl && !hasText) {
-                    // هەڵە: بۆ وێنە و فایلی دیکە دەبێت لینک یان دەقی پێناسە هەبێت
+                if (!hasUrl && !hasText)
                     throw new BadRequestException("media.url_or_text_required",
                             Map.of("mediaType", type.name()));
-                }
             }
 
             project.addMedia(ProjectMedia.builder()
@@ -727,7 +695,7 @@ public class ProjectService {
     }
 
     // ============================================================
-    // گۆڕینی بۆ Response
+    // toResponse
     // ============================================================
     private ProjectResponse toResponse(Project project) {
         ProjectResponse.ProjectContentBlockDto ckb = null;
@@ -748,12 +716,12 @@ public class ProjectService {
                     .build();
         }
 
-        List<String> contentsCkb  = toNames(project.getContentsCkb(), ProjectContent::getName);
-        List<String> contentsKmr  = toNames(project.getContentsKmr(), ProjectContent::getName);
-        List<String> tagsCkb      = toNames(project.getTagsCkb(),     ProjectTag::getName);
-        List<String> tagsKmr      = toNames(project.getTagsKmr(),     ProjectTag::getName);
-        List<String> keywordsCkb  = toNames(project.getKeywordsCkb(), ProjectKeyword::getName);
-        List<String> keywordsKmr  = toNames(project.getKeywordsKmr(), ProjectKeyword::getName);
+        List<String> contentsCkb = toNames(project.getContentsCkb(), ProjectContent::getName);
+        List<String> contentsKmr = toNames(project.getContentsKmr(), ProjectContent::getName);
+        List<String> tagsCkb     = toNames(project.getTagsCkb(),     ProjectTag::getName);
+        List<String> tagsKmr     = toNames(project.getTagsKmr(),     ProjectTag::getName);
+        List<String> keysCkb     = toNames(project.getKeywordsCkb(), ProjectKeyword::getName);
+        List<String> keysKmr     = toNames(project.getKeywordsKmr(), ProjectKeyword::getName);
 
         List<ProjectMediaResponse> media = new ArrayList<>();
         if (project.getMedia() != null && !project.getMedia().isEmpty()) {
@@ -785,34 +753,26 @@ public class ProjectService {
                 .projectTypeKmr(project.getProjectTypeKmr())
                 .status(project.getStatus())
                 .projectDate(project.getProjectDate())
-                .contentLanguages(project.getContentLanguages())
+                .contentLanguages(                                 // ← copy into plain Set, forces load inside session
+                        project.getContentLanguages() != null
+                                ? new LinkedHashSet<>(project.getContentLanguages())
+                                : new LinkedHashSet<>()
+                )
                 .ckbContent(ckb)
                 .kmrContent(kmr)
                 .contentsCkb(contentsCkb)
                 .contentsKmr(contentsKmr)
                 .tagsCkb(tagsCkb)
                 .tagsKmr(tagsKmr)
-                .keywordsCkb(keywordsCkb)
-                .keywordsKmr(keywordsKmr)
+                .keywordsCkb(keysCkb)
+                .keywordsKmr(keysKmr)
                 .createdAt(createdAt)
                 .media(media)
                 .build();
     }
 
-    @FunctionalInterface
-    private interface NameExtractor<T> { String name(T t); }
-
-    private <T> List<String> toNames(Iterable<T> items, NameExtractor<T> fn) {
-        List<String> out = new ArrayList<>();
-        if (items == null) return out;
-        for (T item : items) {
-            if (item != null && !isBlank(fn.name(item))) out.add(fn.name(item));
-        }
-        return out;
-    }
-
     // ============================================================
-    // تۆمارکردنی چالاکی (Audit Log)
+    // Audit Log
     // ============================================================
     private void auditLog(Project project, String action, String message) {
         try {
@@ -831,23 +791,14 @@ public class ProjectService {
     }
 
     // ============================================================
-    // یاریدەدەرەکانی گشتی
+    // Utils
     // ============================================================
-
-    /**
-     * دۆزینەوەی پرۆژە یان هەڵەدان
-     *
-     * @throws NotFoundException - ئەگەر پرۆژەکە نەدۆزرێتەوە ("پرۆژەکە نەدۆزرایەوە")
-     */
     private Project findOrThrow(Long projectId) {
-        return projectRepository.findById(projectId)
+        return projectRepository.findByIdWithGraph(projectId)
                 .orElseThrow(() -> new NotFoundException(
                         "project.not_found", Map.of("id", safe(projectId))));
     }
 
-    /**
-     * ناسینەوەی جۆری میدیا لە فایل
-     */
     private ProjectMediaType detectMediaType(MultipartFile file) {
         String ct   = safe(file.getContentType()).toLowerCase();
         String name = safe(file.getOriginalFilename()).toLowerCase();
@@ -858,16 +809,23 @@ public class ProjectService {
         return ProjectMediaType.DOCUMENT;
     }
 
-    private String traceId() {
-        String t = MDC.get("traceId");
-        return t != null ? t : UUID.randomUUID().toString();
+    @FunctionalInterface
+    private interface NameExtractor<T> { String name(T t); }
+
+    private <T> List<String> toNames(Iterable<T> items, NameExtractor<T> fn) {
+        List<String> out = new ArrayList<>();
+        if (items == null) return out;
+        for (T item : items) {
+            if (item != null && !isBlank(fn.name(item))) out.add(fn.name(item));
+        }
+        return out;
     }
 
-    private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
-
-    private String safe(Object o) { return o == null ? "" : String.valueOf(o); }
-
-    private String safe(Long v)   { return v == null ? "null" : String.valueOf(v); }
+    private String traceId()           { String t = MDC.get("traceId"); return t != null ? t : UUID.randomUUID().toString(); }
+    private boolean isBlank(String s)  { return s == null || s.trim().isEmpty(); }
+    private String safe(Object o)      { return o == null ? "" : String.valueOf(o); }
+    private String safe(Long v)        { return v == null ? "null" : String.valueOf(v); }
+    private String normKey(String raw) { return safe(raw).trim().toLowerCase(); }
 
     private String safeTitle(Project p) {
         if (p == null) return "";
@@ -876,8 +834,5 @@ public class ProjectService {
         return "پرۆژە#" + p.getId();
     }
 
-    private String normKey(String raw) { return safe(raw).trim().toLowerCase(); }
-
     private record UploadedMedia(ProjectMediaType mediaType, String url, String caption, int sortOrder) {}
-
 }

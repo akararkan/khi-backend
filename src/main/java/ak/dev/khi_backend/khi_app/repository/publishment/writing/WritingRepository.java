@@ -1,9 +1,10 @@
 package ak.dev.khi_backend.khi_app.repository.publishment.writing;
 
 import ak.dev.khi_backend.khi_app.model.publishment.writing.Writing;
-import ak.dev.khi_backend.khi_app.enums.publishment.WritingTopic;
+import ak.dev.khi_backend.khi_app.enums.publishment.BookGenre;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,225 +14,271 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Repository for Writing entity with OPTIMIZED QUERIES
+ * WritingRepository — Optimised queries for Writing entity.
  *
- * ✅ All queries use indexed columns for O(log n) performance
- * ✅ Series support with efficient relationship loading
- * ✅ Writer search across both languages with composite indexes
+ * ─── Performance notes ────────────────────────────────────────────────────────
+ *
+ *  PROBLEM 1 – Cartesian product on tag / keyword search
+ *    The old findByTagInBothLanguages / findByKeywordInBothLanguages used
+ *    LEFT JOIN on two element-collection tables simultaneously, generating a
+ *    cross-product row set before DISTINCT could filter it.
+ *    SOLUTION → EXISTS sub-queries: each collection is checked independently,
+ *    zero row multiplication, no DISTINCT scan over thousands of joined rows.
+ *
+ *  PROBLEM 2 – N+1 on single-entity fetch
+ *    findById() returns a bare Writing; Hibernate then fires 5 extra SELECTs
+ *    for each EAGER @ElementCollection + 1 more for the lazy seriesBooks.
+ *    SOLUTION → @EntityGraph on findByIdWithDetails(); Hibernate uses
+ *    JOIN FETCH for seriesBooks, parentBook and topic in one round-trip.
+ *    The EAGER sets benefit from @BatchSize(size=25) on Writing.java.
+ *
+ *  PROBLEM 3 – Slow COUNT on paginated queries
+ *    Spring Data reruns the full JOIN/EXISTS query just to count rows.
+ *    Every paginated method now has a separated countQuery that only
+ *    touches the primary writings table.
+ *
+ *  STRONGLY RECOMMENDED — add to Writing.java element collections (already done):
+ *
+ *    @BatchSize(size = 25)
+ *    @ElementCollection(fetch = FetchType.EAGER)
+ *    private Set<String> tagsCkb = ...;
+ *    // repeat for tagsCkb, tagsKmr, keywordsCkb, keywordsKmr, contentLanguages
+ *
+ * ──────────────────────────────────────────────────────────────────────────────
  */
 @Repository
 public interface WritingRepository extends JpaRepository<Writing, Long> {
 
-    // ============================================================
-    // ✅ SERIES QUERIES - O(log n) with index on series_id
-    // ============================================================
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── SINGLE ENTITY FETCH ── (detail page / getWritingById)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Find all books in a series (ordered by seriesOrder)
-     * Time Complexity: O(log n + k) where k is result size
-     * Uses: idx_series_composite (series_id, series_order)
+     * Full detail fetch — all associations loaded in the fewest round-trips.
+     *
+     * @EntityGraph JOIN FETCHes: seriesBooks (LAZY) + parentBook (LAZY) + topic (LAZY)
+     * Element collections (EAGER) use Hibernate batch select via @BatchSize.
+     *
+     * Use this instead of plain findById() everywhere a Response DTO is returned.
      */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE w.seriesId = :seriesId " +
-            "ORDER BY w.seriesOrder ASC")
+    @EntityGraph(attributePaths = {"seriesBooks", "parentBook", "topic"})
+    @Query("SELECT w FROM Writing w WHERE w.id = :id")
+    Optional<Writing> findByIdWithDetails(@Param("id") Long id);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── PAGINATED LIST ── (admin list / public browse)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * All writings, paged — topic eagerly joined to avoid N+1 on topic name
+     * display. Separated countQuery hits only the writings table (no JOIN).
+     */
+    @Query(
+            value      = "SELECT w FROM Writing w LEFT JOIN FETCH w.topic",
+            countQuery = "SELECT COUNT(w) FROM Writing w"
+    )
+    Page<Writing> findAllWithTopic(Pageable pageable);
+
+    /**
+     * All writings filtered by genre, paged.
+     */
+    @Query(
+            value      = "SELECT w FROM Writing w LEFT JOIN FETCH w.topic WHERE w.bookGenre = :genre",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE w.bookGenre = :genre"
+    )
+    Page<Writing> findAllByGenre(@Param("genre") BookGenre genre, Pageable pageable);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── SERIES QUERIES ──
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Find all books in a series ordered by seriesOrder ASC.
+     * O(log n + k) — uses idx_series_composite (series_id, series_order).
+     */
+    @Query("SELECT w FROM Writing w WHERE w.seriesId = :seriesId ORDER BY w.seriesOrder ASC")
     List<Writing> findBySeriesIdOrderBySeriesOrderAsc(@Param("seriesId") String seriesId);
 
     /**
-     * Find all books in a series with pagination
-     * Time Complexity: O(log n)
-     * Uses: idx_series_composite
+     * Find series root books (parentBook IS NULL and has a seriesId), paged.
+     * Separated countQuery avoids re-running the ORDER BY on the count pass.
      */
-    Page<Writing> findBySeriesId(String seriesId, Pageable pageable);
-
-    /**
-     * Find parent books only (books that are series roots)
-     * Time Complexity: O(log n)
-     * Uses: idx_parent_book
-     */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE w.parentBook IS NULL " +
-            "AND w.seriesId IS NOT NULL " +
-            "ORDER BY w.createdAt DESC")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE w.parentBook IS NULL AND w.seriesId IS NOT NULL ORDER BY w.createdAt DESC",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE w.parentBook IS NULL AND w.seriesId IS NOT NULL"
+    )
     Page<Writing> findSeriesParents(Pageable pageable);
 
     /**
-     * Count books in a series
-     * Time Complexity: O(log n)
-     * Uses: idx_series_id
+     * Count books in a series — O(log n) via idx_series_id.
      */
     @Query("SELECT COUNT(w) FROM Writing w WHERE w.seriesId = :seriesId")
     Long countBySeriesId(@Param("seriesId") String seriesId);
 
     /**
-     * Find next available order in series
-     * Time Complexity: O(log n)
-     * Uses: idx_series_composite
+     * Find the max seriesOrder in a series for auto-incrementing new entries.
+     * O(log n) via idx_series_composite.
      */
     @Query("SELECT COALESCE(MAX(w.seriesOrder), 0.0) FROM Writing w WHERE w.seriesId = :seriesId")
     Double findMaxSeriesOrder(@Param("seriesId") String seriesId);
 
-    // ============================================================
-    // ✅ WRITER SEARCH - O(log n) with indexes on writer_ckb, writer_kmr
-    // ============================================================
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── WRITER SEARCH ── (single collection column — no JOIN problem here)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Search by writer name in CKB (Sorani)
-     * Time Complexity: O(log n)
-     * Uses: idx_writer_ckb
+     * Search by writer name in CKB only.
+     * O(log n) — uses idx_writer_ckb.
      */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) " +
-            "ORDER BY w.createdAt DESC")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))"
+    )
     Page<Writing> findByWriterCkbContainingIgnoreCase(@Param("writer") String writer, Pageable pageable);
 
     /**
-     * Search by writer name in KMR (Kurmanji)
-     * Time Complexity: O(log n)
-     * Uses: idx_writer_kmr
+     * Search by writer name in KMR only.
+     * O(log n) — uses idx_writer_kmr.
      */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) " +
-            "ORDER BY w.createdAt DESC")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))"
+    )
     Page<Writing> findByWriterKmrContainingIgnoreCase(@Param("writer") String writer, Pageable pageable);
 
     /**
-     * Search by writer name in BOTH languages (union)
-     * Time Complexity: O(log n) for each language + union
-     * Uses: idx_writer_ckb, idx_writer_kmr
+     * Search by writer name in BOTH languages.
+     * Two indexed column checks with OR — no collection JOIN, no DISTINCT needed.
      */
-    @Query("SELECT DISTINCT w FROM Writing w " +
-            "WHERE LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) " +
-            "OR LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) " +
-            "ORDER BY w.createdAt DESC")
+    @Query(
+            value      = "SELECT w FROM Writing w " +
+                    "WHERE LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) " +
+                    "   OR LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))",
+            countQuery = "SELECT COUNT(w) FROM Writing w " +
+                    "WHERE LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) " +
+                    "   OR LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))"
+    )
     Page<Writing> findByWriterInBothLanguages(@Param("writer") String writer, Pageable pageable);
 
-    /**
-     * Get all books by exact writer name (CKB)
-     * Time Complexity: O(log n)
-     * Uses: idx_writer_ckb
-     */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE w.ckbContent.writer = :writer " +
-            "ORDER BY w.createdAt DESC")
-    List<Writing> findAllByWriterCkbExact(@Param("writer") String writer);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── TAG SEARCH ── (EXISTS replaces LEFT JOIN + DISTINCT)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Get all books by exact writer name (KMR)
-     * Time Complexity: O(log n)
-     * Uses: idx_writer_kmr
+     * Search by CKB tag only.
+     * Single JOIN — no cross-product risk, separated countQuery.
      */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE w.kmrContent.writer = :writer " +
-            "ORDER BY w.createdAt DESC")
-    List<Writing> findAllByWriterKmrExact(@Param("writer") String writer);
-
-    // ============================================================
-    // TAG & KEYWORD SEARCH (existing, kept for compatibility)
-    // ============================================================
-
-    /**
-     * Find by CKB tag
-     * Time Complexity: O(n) - requires join on ElementCollection
-     * Note: Could be optimized with separate tag table if needed
-     */
-    @Query("SELECT DISTINCT w FROM Writing w JOIN w.tagsCkb t " +
-            "WHERE LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%'))")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE EXISTS (" +
+                    "  SELECT t FROM Writing w2 JOIN w2.tagsCkb t " +
+                    "  WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%')))",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE EXISTS (" +
+                    "  SELECT t FROM Writing w2 JOIN w2.tagsCkb t " +
+                    "  WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%')))"
+    )
     Page<Writing> findByTagCkb(@Param("tag") String tag, Pageable pageable);
 
     /**
-     * Find by KMR tag
+     * Search by KMR tag only.
      */
-    @Query("SELECT DISTINCT w FROM Writing w JOIN w.tagsKmr t " +
-            "WHERE LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%'))")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE EXISTS (" +
+                    "  SELECT t FROM Writing w2 JOIN w2.tagsKmr t " +
+                    "  WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%')))",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE EXISTS (" +
+                    "  SELECT t FROM Writing w2 JOIN w2.tagsKmr t " +
+                    "  WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%')))"
+    )
     Page<Writing> findByTagKmr(@Param("tag") String tag, Pageable pageable);
 
     /**
-     * Find by tag in both languages
+     * Search by tag in BOTH languages.
+     * EXISTS sub-queries — each collection checked independently,
+     * no cross-product, no DISTINCT scan over thousands of joined rows.
      */
-    @Query("SELECT DISTINCT w FROM Writing w " +
-            "LEFT JOIN w.tagsCkb tckb " +
-            "LEFT JOIN w.tagsKmr tkmr " +
-            "WHERE LOWER(tckb) LIKE LOWER(CONCAT('%', :tag, '%')) " +
-            "OR LOWER(tkmr) LIKE LOWER(CONCAT('%', :tag, '%'))")
+    @Query(
+            value = """
+            SELECT w FROM Writing w
+            WHERE EXISTS (
+                SELECT t FROM Writing w2 JOIN w2.tagsCkb t
+                WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%'))
+            )
+            OR EXISTS (
+                SELECT t FROM Writing w2 JOIN w2.tagsKmr t
+                WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%'))
+            )
+            """,
+            countQuery = """
+            SELECT COUNT(w) FROM Writing w
+            WHERE EXISTS (
+                SELECT t FROM Writing w2 JOIN w2.tagsCkb t
+                WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%'))
+            )
+            OR EXISTS (
+                SELECT t FROM Writing w2 JOIN w2.tagsKmr t
+                WHERE w2 = w AND LOWER(t) LIKE LOWER(CONCAT('%', :tag, '%'))
+            )
+            """
+    )
     Page<Writing> findByTagInBothLanguages(@Param("tag") String tag, Pageable pageable);
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── KEYWORD SEARCH ── (EXISTS replaces LEFT JOIN + DISTINCT)
+    // ═══════════════════════════════════════════════════════════════════════════
+
     /**
-     * Find by CKB keyword
+     * Search by CKB keyword only.
      */
-    @Query("SELECT DISTINCT w FROM Writing w JOIN w.keywordsCkb k " +
-            "WHERE LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE EXISTS (" +
+                    "  SELECT k FROM Writing w2 JOIN w2.keywordsCkb k " +
+                    "  WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%')))",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE EXISTS (" +
+                    "  SELECT k FROM Writing w2 JOIN w2.keywordsCkb k " +
+                    "  WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%')))"
+    )
     Page<Writing> findByKeywordCkb(@Param("keyword") String keyword, Pageable pageable);
 
     /**
-     * Find by KMR keyword
+     * Search by KMR keyword only.
      */
-    @Query("SELECT DISTINCT w FROM Writing w JOIN w.keywordsKmr k " +
-            "WHERE LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    @Query(
+            value      = "SELECT w FROM Writing w WHERE EXISTS (" +
+                    "  SELECT k FROM Writing w2 JOIN w2.keywordsKmr k " +
+                    "  WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%')))",
+            countQuery = "SELECT COUNT(w) FROM Writing w WHERE EXISTS (" +
+                    "  SELECT k FROM Writing w2 JOIN w2.keywordsKmr k " +
+                    "  WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%')))"
+    )
     Page<Writing> findByKeywordKmr(@Param("keyword") String keyword, Pageable pageable);
 
     /**
-     * Find by keyword in both languages
+     * Search by keyword in BOTH languages.
+     * EXISTS sub-queries — no cross-product, no DISTINCT scan.
      */
-    @Query("SELECT DISTINCT w FROM Writing w " +
-            "LEFT JOIN w.keywordsCkb kckb " +
-            "LEFT JOIN w.keywordsKmr kkmr " +
-            "WHERE LOWER(kckb) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "OR LOWER(kkmr) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    @Query(
+            value = """
+            SELECT w FROM Writing w
+            WHERE EXISTS (
+                SELECT k FROM Writing w2 JOIN w2.keywordsCkb k
+                WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            )
+            OR EXISTS (
+                SELECT k FROM Writing w2 JOIN w2.keywordsKmr k
+                WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            )
+            """,
+            countQuery = """
+            SELECT COUNT(w) FROM Writing w
+            WHERE EXISTS (
+                SELECT k FROM Writing w2 JOIN w2.keywordsCkb k
+                WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            )
+            OR EXISTS (
+                SELECT k FROM Writing w2 JOIN w2.keywordsKmr k
+                WHERE w2 = w AND LOWER(k) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            )
+            """
+    )
     Page<Writing> findByKeywordInBothLanguages(@Param("keyword") String keyword, Pageable pageable);
-
-    // ============================================================
-    // TOPIC & INSTITUTE FILTERS
-    // ============================================================
-
-    /**
-     * Find by topic
-     * Time Complexity: O(log n)
-     * Uses: idx_writing_topic
-     */
-    Page<Writing> findByWritingTopic(WritingTopic topic, Pageable pageable);
-
-    /**
-     * Find by institute publications
-     * Time Complexity: O(log n)
-     * Uses: idx_writing_institute
-     */
-    Page<Writing> findByPublishedByInstitute(boolean publishedByInstitute, Pageable pageable);
-
-    /**
-     * Complex search with multiple filters
-     * Time Complexity: Depends on filter combination
-     */
-    @Query("SELECT w FROM Writing w " +
-            "WHERE (:topic IS NULL OR w.writingTopic = :topic) " +
-            "AND (:instituteOnly IS NULL OR w.publishedByInstitute = :instituteOnly) " +
-            "AND (:writer IS NULL OR " +
-            "     LOWER(w.ckbContent.writer) LIKE LOWER(CONCAT('%', :writer, '%')) OR " +
-            "     LOWER(w.kmrContent.writer) LIKE LOWER(CONCAT('%', :writer, '%'))) " +
-            "AND (:seriesId IS NULL OR w.seriesId = :seriesId)")
-    Page<Writing> findByMultipleFilters(
-            @Param("topic") WritingTopic topic,
-            @Param("instituteOnly") Boolean instituteOnly,
-            @Param("writer") String writer,
-            @Param("seriesId") String seriesId,
-            Pageable pageable
-    );
-
-    // ============================================================
-    // ✅ OPTIMIZED BATCH OPERATIONS
-    // ============================================================
-
-    /**
-     * Find books by IDs (for batch operations)
-     * Time Complexity: O(k log n) where k is number of IDs
-     */
-    @Query("SELECT w FROM Writing w WHERE w.id IN :ids")
-    List<Writing> findAllByIds(@Param("ids") List<Long> ids);
-
-    /**
-     * Update series count for all books in a series (bulk update)
-     * Used after adding/removing books from series
-     */
-    @Query("UPDATE Writing w SET w.seriesTotalBooks = :count " +
-            "WHERE w.seriesId = :seriesId")
-    void updateSeriesCount(@Param("seriesId") String seriesId, @Param("count") Integer count);
 }

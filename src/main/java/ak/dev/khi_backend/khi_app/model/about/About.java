@@ -21,6 +21,11 @@ import java.util.List;
  *  Both are unique across the table.  slugKmr is nullable — a page may be
  *  published in Sorani only.
  *
+ * ─── Hero Image ───────────────────────────────────────────────────────────────
+ *  {@link #heroImageUrl} — a dedicated full-bleed banner image shown at the very
+ *  top of the public About page.  Stored as an S3 URL (or any absolute URL).
+ *  Optional: the public view falls back to the first IMAGE block when absent.
+ *
  * ─── Bilingual Content ────────────────────────────────────────────────────────
  *  Follows the same pattern as the Video entity:
  *    ckbContent  → Sorani  (CKB) version of title / subtitle / meta
@@ -71,6 +76,16 @@ public class About {
 
     @Column(name = "display_order")
     private Integer displayOrder = 0;
+
+    // ─── Hero Image ───────────────────────────────────────────────────────────
+
+    /**
+     * Dedicated full-bleed hero / banner image shown at the top of the
+     * public About page.  Stored as an S3 URL (or any absolute URL).
+     * Optional — the public view falls back to the first IMAGE block when null.
+     */
+    @Column(name = "hero_image_url", length = 1000)
+    private String heroImageUrl;
 
     // ─── CKB (Sorani) Content ─────────────────────────────────────────────────
 

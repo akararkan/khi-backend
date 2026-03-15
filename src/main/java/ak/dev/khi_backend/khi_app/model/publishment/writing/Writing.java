@@ -1,10 +1,12 @@
 package ak.dev.khi_backend.khi_app.model.publishment.writing;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
-import ak.dev.khi_backend.khi_app.enums.publishment.WritingTopic;
+import ak.dev.khi_backend.khi_app.enums.publishment.BookGenre;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
+
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -28,9 +30,20 @@ import java.util.List;
  *  Dynamic bilingual topic managed in the shared publishment_topics table.
  *  Nullable — a writing may have no topic assigned yet.
  *
+ * ─── Book Genre (enum BookGenre, column: book_genre) ─────────────────────────
+ *
+ *  Replaces the old WritingTopic / writing_topic column.
+ *  Covers all major literary and academic categories.
+ *
+ * ─── Performance ──────────────────────────────────────────────────────────────
+ *  @BatchSize(size = 25) on every @ElementCollection:
+ *    Without it, loading a page of 20 writings fires 20×5 = 100 extra SELECTs.
+ *    With it, Hibernate loads all 5 collections for the whole page in 5 queries
+ *    using WHERE writing_id IN (..., ..., ...) — a 20× reduction.
+ *
  * ─── DB Migration ─────────────────────────────────────────────────────────────
  *
- *  -- Rename old per-language cover columns → new 3-slot names
+ *  -- Rename cover columns (if needed)
  *  ALTER TABLE writings RENAME COLUMN cover_url_ckb TO ckb_cover_url;
  *  ALTER TABLE writings RENAME COLUMN cover_url_kmr TO kmr_cover_url;
  *  ALTER TABLE writings ALTER COLUMN ckb_cover_url TYPE TEXT;
@@ -40,6 +53,11 @@ import java.util.List;
  *
  *  -- Add hover cover column
  *  ALTER TABLE writings ADD COLUMN IF NOT EXISTS hover_cover_url TEXT;
+ *
+ *  -- Rename writing_topic → book_genre
+ *  ALTER TABLE writings RENAME COLUMN writing_topic TO book_genre;
+ *  DROP INDEX IF EXISTS idx_writing_topic;
+ *  CREATE INDEX idx_writing_genre ON writings (book_genre);
  *
  *  -- Add topic FK column + constraint
  *  ALTER TABLE writings ADD COLUMN IF NOT EXISTS topic_id BIGINT;
@@ -51,7 +69,7 @@ import java.util.List;
 @Table(
         name = "writings",
         indexes = {
-                @Index(name = "idx_writing_topic",      columnList = "writing_topic"),
+                @Index(name = "idx_writing_genre",      columnList = "book_genre"),
                 @Index(name = "idx_writing_topic_id",   columnList = "topic_id"),
                 @Index(name = "idx_writing_institute",  columnList = "published_by_institute"),
                 @Index(name = "idx_writing_created_at", columnList = "created_at"),
@@ -95,6 +113,17 @@ public class Writing {
      */
     @Column(name = "hover_cover_url", columnDefinition = "TEXT")
     private String hoverCoverUrl;
+
+    // ─── Book Genre ───────────────────────────────────────────────────────────
+
+    /**
+     * Primary genre / category of this book.
+     * Stored as a stable enum value — never null.
+     * Column was formerly "writing_topic"; migrated to "book_genre".
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "book_genre", nullable = false, length = 30)
+    private BookGenre bookGenre;
 
     // ─── Topic ────────────────────────────────────────────────────────────────
 
@@ -141,6 +170,7 @@ public class Writing {
 
     // ─── Bilingual Support ────────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
@@ -187,33 +217,35 @@ public class Writing {
 
     // ─── Shared Fields ────────────────────────────────────────────────────────
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "writing_topic", nullable = false, length = 30)
-    private WritingTopic writingTopic;
-
     @Column(name = "published_by_institute", nullable = false)
     private boolean publishedByInstitute;
 
-    // ─── Bilingual Tags & Keywords ────────────────────────────────────────────
+    // ─── Bilingual Keywords ───────────────────────────────────────────────────
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "writing_keywords_ckb", joinColumns = @JoinColumn(name = "writing_id"))
     @Column(name = "keyword_ckb", nullable = false, length = 120)
     private Set<String> keywordsCkb = new LinkedHashSet<>();
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "writing_keywords_kmr", joinColumns = @JoinColumn(name = "writing_id"))
     @Column(name = "keyword_kmr", nullable = false, length = 120)
     private Set<String> keywordsKmr = new LinkedHashSet<>();
 
+    // ─── Bilingual Tags ───────────────────────────────────────────────────────
+
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "writing_tags_ckb", joinColumns = @JoinColumn(name = "writing_id"))
     @Column(name = "tag_ckb", nullable = false, length = 80)
     private Set<String> tagsCkb = new LinkedHashSet<>();
 
+    @BatchSize(size = 25)
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "writing_tags_kmr", joinColumns = @JoinColumn(name = "writing_id"))

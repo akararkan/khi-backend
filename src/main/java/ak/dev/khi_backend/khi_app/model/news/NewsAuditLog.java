@@ -18,11 +18,9 @@ public class NewsAuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Which news was affected
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "news_id", nullable = false)
-    private News news;
-
+    // REPLACE with:
+    @Column(name = "news_id", nullable = false)
+    private Long newsId;
     // CREATE / UPDATE / DELETE stored as string
     @Column(nullable = false, length = 20)
     private String action;
