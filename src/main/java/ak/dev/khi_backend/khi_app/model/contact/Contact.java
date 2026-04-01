@@ -1,0 +1,127 @@
+package ak.dev.khi_backend.khi_app.model.contact;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
+
+/**
+ * Contact — Contact-page entity.
+ *
+ * ─── Bilingual Slugs ──────────────────────────────────────────────────────────
+ *  slugCkb  → Sorani   route identifier, e.g. "پەیوەندی"  or "contact-ckb"
+ *  slugKmr  → Kurmanji route identifier, e.g. "peywendî"  or "contact-kmr"
+ *
+ * ─── Hero Image ───────────────────────────────────────────────────────────────
+ *  Full-bleed banner image shown at the top of the public Contact page.
+ *
+ * ─── Bilingual Content ────────────────────────────────────────────────────────
+ *  ckbContent / kmrContent → title, subtitle, address, workingHours (per language)
+ *
+ * ─── Contact Details (language-agnostic) ─────────────────────────────────────
+ *  phone, secondaryPhone, email, mapEmbedUrl, latitude, longitude
+ */
+@Entity
+@Table(
+        name = "contact_pages",
+        indexes = {
+                @Index(name = "idx_contact_slug_ckb", columnList = "slug_ckb"),
+                @Index(name = "idx_contact_slug_kmr", columnList = "slug_kmr"),
+                @Index(name = "idx_contact_active",   columnList = "active")
+        }
+)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Contact {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // ─── Bilingual Slugs ──────────────────────────────────────────────────────
+
+    @NotBlank
+    @Column(name = "slug_ckb", unique = true, nullable = false, length = 200)
+    private String slugCkb;
+
+    @Column(name = "slug_kmr", unique = true, nullable = true, length = 200)
+    private String slugKmr;
+
+    @Builder.Default
+    private boolean active = true;
+
+    @Column(name = "display_order")
+    @Builder.Default
+    private Integer displayOrder = 0;
+
+    // ─── Hero Image ───────────────────────────────────────────────────────────
+
+    @Column(name = "hero_image_url", length = 1000)
+    private String heroImageUrl;
+
+    // ─── CKB (Sorani) Content ─────────────────────────────────────────────────
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "title",        column = @Column(name = "title_ckb",         length = 300)),
+            @AttributeOverride(name = "subtitle",     column = @Column(name = "subtitle_ckb",      length = 500)),
+            @AttributeOverride(name = "address",      column = @Column(name = "address_ckb",       length = 500)),
+            @AttributeOverride(name = "workingHours", column = @Column(name = "working_hours_ckb", length = 300))
+    })
+    private ContactContent ckbContent;
+
+    // ─── KMR (Kurmanji) Content ───────────────────────────────────────────────
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "title",        column = @Column(name = "title_kmr",         length = 300)),
+            @AttributeOverride(name = "subtitle",     column = @Column(name = "subtitle_kmr",      length = 500)),
+            @AttributeOverride(name = "address",      column = @Column(name = "address_kmr",       length = 500)),
+            @AttributeOverride(name = "workingHours", column = @Column(name = "working_hours_kmr", length = 300))
+    })
+    private ContactContent kmrContent;
+
+    // ─── Contact Details (language-agnostic) ──────────────────────────────────
+
+    /** Primary phone number — e.g. "+964 770 123 4567" */
+    @Column(name = "phone", length = 60)
+    private String phone;
+
+    /** Secondary / additional phone number */
+    @Column(name = "secondary_phone", length = 60)
+    private String secondaryPhone;
+
+    /** Primary contact email */
+    @Column(name = "email", length = 200)
+    private String email;
+
+    /**
+     * Google Maps embed URL or any iframe-compatible map URL.
+     * Used on the public contact page for the embedded map widget.
+     */
+    @Column(name = "map_embed_url", columnDefinition = "TEXT")
+    private String mapEmbedUrl;
+
+    /** Latitude for custom map marker or Open Maps link */
+    @Column(name = "latitude")
+    private Double latitude;
+
+    /** Longitude for custom map marker or Open Maps link */
+    @Column(name = "longitude")
+    private Double longitude;
+
+    // ─── Timestamps ───────────────────────────────────────────────────────────
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+}
