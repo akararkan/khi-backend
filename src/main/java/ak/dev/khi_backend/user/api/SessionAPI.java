@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,7 +48,7 @@ public class SessionAPI {
         }
 
         session.setIsActive(false);
-        session.setLogoutTimestamp(new Date());
+        session.setLogoutTimestamp(Instant.now());
         sessionRepository.save(session);
 
         return ResponseEntity.ok("Session revoked successfully");
@@ -62,7 +62,7 @@ public class SessionAPI {
         List<Session> sessions = sessionRepository.findByUserAndIsActive(user, true);
         sessions.forEach(session -> {
             session.setIsActive(false);
-            session.setLogoutTimestamp(new Date());
+            session.setLogoutTimestamp(Instant.now());
         });
         sessionRepository.saveAll(sessions);
         return ResponseEntity.ok("All sessions revoked successfully");

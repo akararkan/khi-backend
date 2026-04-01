@@ -11,6 +11,7 @@ import ak.dev.khi_backend.user.repo.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -48,6 +48,7 @@ public class UserService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final SessionRepository sessionRepository;
+    private final PasswordResetDeliveryService passwordResetDeliveryService;
 
     @Value("${app.upload.dir:uploads/profile-images}")
     private String uploadDir;
@@ -56,7 +57,7 @@ public class UserService implements UserDetailsService {
     // UserDetailsService
     // =======================
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(@NonNull String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() ->
                         new UsernameNotFoundException("User not found with username: " + username));
@@ -269,9 +270,10 @@ public class UserService implements UserDetailsService {
             user.setResetTokenExpiration(Instant.now().plus(RESET_TOKEN_EXPIRY));
             user.setUpdatedAt(Instant.now());
             userRepository.save(user);
-            return ResponseEntity.ok("Reset token generated. (For dev: token = " + token + ")");
+            passwordResetDeliveryService.deliver(user, token);
+            return ResponseEntity.ok("If an account exists for that email, password reset instructions have been prepared.");
         } catch (UsernameNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found.");
+            return ResponseEntity.ok("If an account exists for that email, password reset instructions have been prepared.");
         } catch (Exception e) {
             log.error("createPasswordResetToken error", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -314,7 +316,7 @@ public class UserService implements UserDetailsService {
 
             return ResponseEntity.ok("Password has been successfully reset.");
         } catch (UsernameNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found.");
+            return ResponseEntity.badRequest().body("Invalid reset request.");
         } catch (Exception e) {
             log.error("resetPassword error", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -450,10 +452,10 @@ public class UserService implements UserDetailsService {
             }
 
             // Generate unique filename
-            String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
+            String originalFilename = StringUtils.cleanPath(Objects.toString(file.getOriginalFilename(), "profile-image"));
             String extension = originalFilename.contains(".") ?
                     originalFilename.substring(originalFilename.lastIndexOf(".")) : ".jpg";
-            String filename = UUID.randomUUID().toString() + extension;
+            String filename = UUID.randomUUID() + extension;
 
             // Save file
             Path targetLocation = uploadPath.resolve(filename);

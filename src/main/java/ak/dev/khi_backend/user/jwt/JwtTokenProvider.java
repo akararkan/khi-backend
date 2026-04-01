@@ -8,7 +8,6 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import ak.dev.khi_backend.user.model.Session;
 import ak.dev.khi_backend.user.model.User;
 import ak.dev.khi_backend.user.repo.SessionRepository;
-import ak.dev.khi_backend.user.service.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -23,7 +22,10 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static ak.dev.khi_backend.user.consts.SecurityConstants.*;
@@ -39,7 +41,6 @@ public class JwtTokenProvider {
     @Value("${jwt.expiration-ms:86400000}")
     private long expirationTime;
 
-    private final TokenService tokenService;
     private final SessionRepository sessionRepository;
 
     public String generateToken(User user, HttpServletRequest request) {
@@ -53,8 +54,8 @@ public class JwtTokenProvider {
                     .user(user)
                     .deviceInfo(request.getHeader("User-Agent"))
                     .ipAddress(request.getRemoteAddr())
-                    .loginTimestamp(Date.from(now))
-                    .expiresAt(Date.from(expiration))
+                    .loginTimestamp(now)
+                    .expiresAt(expiration)
                     .isActive(true)
                     .build();
 
@@ -109,16 +110,10 @@ public class JwtTokenProvider {
         return verifier.verify(token).getSubject();
     }
 
-    public boolean isTokenBlacklisted(String token) {
-        String sessionId = getSessionIdFromToken(token);
-        if (sessionId == null) return true;
-        Optional<Session> sessionOpt = sessionRepository.findBySessionId(sessionId);
-        return sessionOpt.map(session -> !session.getIsActive()).orElse(true);
-    }
-
     private JWTVerifier createJWTVerifier() {
         return JWT.require(Algorithm.HMAC256(secret))
                 .withIssuer(AKAR_ARKAN)
+                .withAudience(AKAR_ARKAN_ADMINISTRATION)
                 .build();
     }
 

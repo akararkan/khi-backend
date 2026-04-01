@@ -3,84 +3,94 @@ package ak.dev.khi_backend.user.api;
 import ak.dev.khi_backend.user.dto.LoginRequestDTO;
 import ak.dev.khi_backend.user.dto.PasswordResetRequestDTO;
 import ak.dev.khi_backend.user.dto.RegisterRequestDTO;
+import ak.dev.khi_backend.user.jwt.JwtCookieService;
 import ak.dev.khi_backend.user.jwt.Token;
 import ak.dev.khi_backend.user.model.User;
 import ak.dev.khi_backend.user.repo.SessionRepository;
 import ak.dev.khi_backend.user.service.TokenService;
 import ak.dev.khi_backend.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Date;
-
 @RestController
 @RequiredArgsConstructor
+@Validated
 @RequestMapping("/api/auth")
 public class UserAPI {
 
     private final UserService    userService;
     private final TokenService   tokenService;
     private final SessionRepository sessionRepository;
+    private final JwtCookieService jwtCookieService;
 
     // ── REGISTER (JSON, no image) ─────────────────────────────────────────────
     @PostMapping("/register")
     public ResponseEntity<Token> register(
-            @RequestBody RegisterRequestDTO dto,
-            HttpServletRequest request
+            @Valid @RequestBody RegisterRequestDTO dto,
+            HttpServletRequest request,
+            HttpServletResponse response
     ) {
-        return userService.register(dto, null, request);
+        return withAuthCookie(userService.register(dto, null, request), response);
     }
 
     // ── REGISTER with optional profile image (multipart) ─────────────────────
     @PostMapping(value = "/register-with-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Token> registerWithImage(
-            @RequestPart("data")                       RegisterRequestDTO dto,
+            @Valid @RequestPart("data") RegisterRequestDTO dto,
             @RequestPart(value = "image", required = false) MultipartFile profileImage,
-            HttpServletRequest request
+            HttpServletRequest request,
+            HttpServletResponse response
     ) {
-        return userService.register(dto, profileImage, request);
+        return withAuthCookie(userService.register(dto, profileImage, request), response);
     }
 
     // ── LOGIN (username OR email) ─────────────────────────────────────────────
     @PostMapping("/login")
     public ResponseEntity<Token> login(
-            @RequestBody LoginRequestDTO dto,
-            HttpServletRequest request
+            @Valid @RequestBody LoginRequestDTO dto,
+            HttpServletRequest request,
+            HttpServletResponse response
     ) {
-        return userService.login(dto, request);
+        return withAuthCookie(userService.login(dto, request), response);
     }
 
     // ── REQUEST PASSWORD-RESET TOKEN ─────────────────────────────────────────
     @PostMapping("/reset-token")
-    public ResponseEntity<String> createResetToken(@RequestParam String email) {
+    public ResponseEntity<String> createResetToken(@RequestParam @NotBlank @Email String email) {
         return userService.createPasswordResetToken(email);
     }
 
     // ── RESET PASSWORD (requires token) ──────────────────────────────────────
     @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@RequestBody PasswordResetRequestDTO dto) {
+    public ResponseEntity<String> resetPassword(@Valid @RequestBody PasswordResetRequestDTO dto) {
         return userService.resetPassword(dto);
     }
 
     // ── LOGOUT (invalidate current session / blacklist token) ─────────────────
     @PostMapping("/logout")
     public ResponseEntity<String> logout(
+            HttpServletRequest request,
+            HttpServletResponse response,
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader
     ) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return ResponseEntity.badRequest().body("Invalid Authorization header");
-        }
-        String token = authorizationHeader.substring("Bearer ".length()).trim();
-        if (token.isEmpty()) {
-            return ResponseEntity.badRequest().body("Token is empty");
+        String token = extractToken(request, authorizationHeader);
+        if (token == null || token.isBlank()) {
+            jwtCookieService.clearAuthCookie(response);
+            return ResponseEntity.badRequest().body("Authentication token is missing");
         }
         tokenService.blacklistToken(token);
+        jwtCookieService.clearAuthCookie(response);
         return ResponseEntity.ok("Successfully logged out");
     }
 
@@ -94,6 +104,8 @@ public class UserAPI {
     @PostMapping("/logout-all")
     public ResponseEntity<String> logoutAll(
             @AuthenticationPrincipal UserDetails principal,
+            HttpServletRequest request,
+            HttpServletResponse response,
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader
     ) {
         if (principal == null) {
@@ -106,19 +118,36 @@ public class UserAPI {
         if (sessions != null && !sessions.isEmpty()) {
             sessions.forEach(s -> {
                 s.setIsActive(false);
-                s.setLogoutTimestamp(Date.from(java.time.Instant.now()));
+                s.setLogoutTimestamp(java.time.Instant.now());
             });
             sessionRepository.saveAll(sessions);
         }
 
         // 2. Blacklist the current token
+        String token = extractToken(request, authorizationHeader);
+        if (token != null && !token.isBlank()) {
+            tokenService.blacklistToken(token);
+        }
+        jwtCookieService.clearAuthCookie(response);
+
+        return ResponseEntity.ok("Logged out from all devices successfully");
+    }
+
+    private ResponseEntity<Token> withAuthCookie(ResponseEntity<Token> serviceResponse, HttpServletResponse response) {
+        Token body = serviceResponse.getBody();
+        if (serviceResponse.getStatusCode().is2xxSuccessful() && body != null && body.getToken() != null && !body.getToken().isBlank()) {
+            jwtCookieService.addAuthCookie(response, body.getToken());
+        }
+        return serviceResponse;
+    }
+
+    private String extractToken(HttpServletRequest request, String authorizationHeader) {
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             String token = authorizationHeader.substring("Bearer ".length()).trim();
             if (!token.isEmpty()) {
-                tokenService.blacklistToken(token);
+                return token;
             }
         }
-
-        return ResponseEntity.ok("Logged out from all devices successfully");
+        return jwtCookieService.resolveToken(request);
     }
 }

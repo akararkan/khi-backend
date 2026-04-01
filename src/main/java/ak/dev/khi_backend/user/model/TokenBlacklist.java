@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
+import java.time.Instant;
 
 @Entity
 @Table(name = "token_blacklist")
@@ -24,10 +24,8 @@ public class TokenBlacklist {
     private String token;
 
     @Column(name = "blacklisted_at", nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date blacklistedAt;
+    private Instant blacklistedAt;
 
     @Column(name = "expires_at", nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date expiresAt;
+    private Instant expiresAt;
 }

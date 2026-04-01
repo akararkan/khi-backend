@@ -1,39 +1,78 @@
 package ak.dev.khi_backend.user.service;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.interfaces.DecodedJWT;
+import ak.dev.khi_backend.user.jwt.JwtTokenProvider;
+import ak.dev.khi_backend.user.model.Session;
 import ak.dev.khi_backend.user.model.TokenBlacklist;
+import ak.dev.khi_backend.user.repo.SessionRepository;
 import ak.dev.khi_backend.user.repo.TokenBlacklistRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
+import java.time.Instant;
+import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class TokenService {
 
-    @Autowired
-    private TokenBlacklistRepository tokenBlacklistRepository;
+    private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final SessionRepository sessionRepository;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    // Method to check if a token is blacklisted
     public boolean isTokenBlacklisted(String token) {
-        return tokenBlacklistRepository.findByToken(token).isPresent();
+        if (token == null || token.isBlank()) {
+            return true;
+        }
+
+        if (tokenBlacklistRepository.findByToken(token).isPresent()) {
+            return true;
+        }
+
+        String sessionId = jwtTokenProvider.getSessionIdFromToken(token);
+        if (sessionId == null || sessionId.isBlank()) {
+            return true;
+        }
+
+        Optional<Session> sessionOpt = sessionRepository.findBySessionId(sessionId);
+        if (sessionOpt.isEmpty()) {
+            return true;
+        }
+
+        Session session = sessionOpt.get();
+        return !Boolean.TRUE.equals(session.getIsActive())
+                || session.getExpiresAt() == null
+                || session.getExpiresAt().isBefore(Instant.now());
     }
 
-    // Method to blacklist a token (typically called during logout)
     public void blacklistToken(String token) {
-        TokenBlacklist tokenBlacklist = new TokenBlacklist();
-        tokenBlacklist.setToken(token);
-        tokenBlacklist.setBlacklistedAt(new Date());
-        tokenBlacklist.setExpiresAt(getExpirationDateFromToken(token));
-        tokenBlacklistRepository.save(tokenBlacklist);
+        if (token == null || token.isBlank()) {
+            return;
+        }
+
+        Instant now = Instant.now();
+        Instant expiresAt = getExpirationDateFromToken(token);
+
+        tokenBlacklistRepository.findByToken(token).orElseGet(() -> {
+            TokenBlacklist tokenBlacklist = new TokenBlacklist();
+            tokenBlacklist.setToken(token);
+            tokenBlacklist.setBlacklistedAt(now);
+            tokenBlacklist.setExpiresAt(expiresAt != null ? expiresAt : now);
+            return tokenBlacklistRepository.save(tokenBlacklist);
+        });
+
+        String sessionId = jwtTokenProvider.getSessionIdFromToken(token);
+        if (sessionId == null || sessionId.isBlank()) {
+            return;
+        }
+
+        sessionRepository.findBySessionId(sessionId).ifPresent(session -> {
+            session.setIsActive(false);
+            session.setLogoutTimestamp(now);
+            sessionRepository.save(session);
+        });
     }
 
-    // Get expiration date from the token (this assumes you're storing an expiration date in the token)
-    public Date getExpirationDateFromToken(String token) {
-        // Implement logic to extract expiration date from the token (e.g., from JWT claims)
-        // For example:
-        DecodedJWT decodedJWT = JWT.decode(token);
-        return decodedJWT.getExpiresAt();
+    public Instant getExpirationDateFromToken(String token) {
+        return jwtTokenProvider.decodeToken(token).getExpiresAtAsInstant();
     }
 }

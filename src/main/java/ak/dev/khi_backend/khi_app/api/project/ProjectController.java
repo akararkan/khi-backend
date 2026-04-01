@@ -4,7 +4,6 @@ import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
-import ak.dev.khi_backend.khi_app.model.project.Project;
 import ak.dev.khi_backend.khi_app.service.project.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +31,7 @@ public class ProjectController {
     // CREATE (JSON)
     // ============================================================
     @PostMapping(value = "/create", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<Project>> create(
+    public ResponseEntity<ApiResponse<ProjectResponse>> create(
             @Valid @RequestBody ProjectCreateRequest request
     ) {
         log.info("POST /api/v1/projects/create | langs={} | mediaDtoCount={}",
@@ -40,7 +39,7 @@ public class ProjectController {
                 request.getMedia() != null ? request.getMedia().size() : 0
         );
 
-        Project project = projectService.create(request);
+        ProjectResponse project = projectService.createResponse(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -58,7 +57,7 @@ public class ProjectController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public ResponseEntity<ApiResponse<Project>> createWithFiles(
+    public ResponseEntity<ApiResponse<ProjectResponse>> createWithFiles(
             @RequestPart(value = "data") @Valid ProjectCreateRequest request,
             @RequestPart(value = "cover", required = false) MultipartFile cover,
             @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
@@ -80,7 +79,7 @@ public class ProjectController {
                 request.getMedia() != null ? request.getMedia().size() : 0
         );
 
-        Project project = projectService.create(request, cover, mediaFiles);
+        ProjectResponse project = projectService.createResponse(request, cover, mediaFiles);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -91,7 +90,7 @@ public class ProjectController {
     // UPDATE (JSON)
     // ============================================================
     @PutMapping(value = "/update/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<Project>> update(
+    public ResponseEntity<ApiResponse<ProjectResponse>> update(
             @PathVariable("id") Long id,
             @Valid @RequestBody ProjectCreateRequest request
     ) {
@@ -101,7 +100,7 @@ public class ProjectController {
                 request.getMedia() != null ? request.getMedia().size() : 0
         );
 
-        Project project = projectService.update(id, request);
+        ProjectResponse project = projectService.updateResponse(id, request);
 
         return ResponseEntity.ok(
                 ApiResponse.success(project, "Project updated successfully")
@@ -113,7 +112,7 @@ public class ProjectController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public ResponseEntity<ApiResponse<Project>> updateWithFiles(
+    public ResponseEntity<ApiResponse<ProjectResponse>> updateWithFiles(
             @PathVariable("id") Long id,
             @RequestPart(value = "data") @Valid ProjectCreateRequest request,
             @RequestPart(value = "cover", required = false) MultipartFile cover,
@@ -137,7 +136,7 @@ public class ProjectController {
                 request.getMedia() != null ? request.getMedia().size() : 0
         );
 
-        Project updated = projectService.updateWithFiles(id, request, cover, mediaFiles);
+        ProjectResponse updated = projectService.updateWithFilesResponse(id, request, cover, mediaFiles);
 
         return ResponseEntity.ok(ApiResponse.success(updated, "Project updated successfully"));
     }

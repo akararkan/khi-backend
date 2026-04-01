@@ -48,6 +48,7 @@ public class ProjectMedia {
     @Column(length = 255)
     private String caption;
 
+    @Builder.Default
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
 }

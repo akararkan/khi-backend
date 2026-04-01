@@ -72,9 +72,11 @@ public class About {
     @Column(name = "slug_kmr", unique = true, nullable = true, length = 200)
     private String slugKmr;
 
+    @Builder.Default
     private boolean active = true;
 
     @Column(name = "display_order")
+    @Builder.Default
     private Integer displayOrder = 0;
 
     // ─── Hero Image ───────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import ak.dev.khi_backend.user.dto.UserResponseDTO;
 import ak.dev.khi_backend.user.service.UserProfileService;
 import ak.dev.khi_backend.user.dto.UpdateProfileRequestDTO;
 import ak.dev.khi_backend.user.dto.ChangePasswordRequestDTO;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -45,7 +46,7 @@ public class UserProfileAPI {
     @PutMapping("/profile")
     public ResponseEntity<UserResponseDTO> updateProfile(
             Authentication auth,
-            @RequestBody UpdateProfileRequestDTO dto
+            @Valid @RequestBody UpdateProfileRequestDTO dto
     ) {
         return ResponseEntity.ok(
                 userProfileService.updateProfile(auth.getName(), dto)
@@ -56,7 +57,7 @@ public class UserProfileAPI {
     @PutMapping("/password")
     public ResponseEntity<Map<String, String>> changePassword(
             Authentication auth,
-            @RequestBody ChangePasswordRequestDTO dto
+            @Valid @RequestBody ChangePasswordRequestDTO dto
     ) {
         userProfileService.changePassword(auth.getName(), dto);
         return ResponseEntity.ok(Map.of("message", "Password updated successfully"));

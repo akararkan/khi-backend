@@ -54,6 +54,7 @@ public class AboutBlock {
     private ContentType contentType;
 
     @Column(name = "sequence")
+    @Builder.Default
     private Integer sequence = 0;
 
     // ─── CKB (Sorani) Content ─────────────────────────────────────────────────

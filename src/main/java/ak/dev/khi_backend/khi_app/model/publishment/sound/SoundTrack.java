@@ -220,7 +220,7 @@ public class SoundTrack {
             orphanRemoval = true,
             fetch = FetchType.LAZY
     )
-    @OrderColumn(name = "file_order")
+    @OrderBy("id ASC")
     private List<SoundTrackFile> files = new ArrayList<>();
 
     // ─── Multi-Album Fields ───────────────────────────────────────────────────
@@ -247,7 +247,7 @@ public class SoundTrack {
             orphanRemoval = true,
             fetch = FetchType.LAZY
     )
-    @OrderColumn(name = "attachment_order")
+    @OrderBy("id ASC")
     private List<SoundTrackAttachment> attachments = new ArrayList<>();
 
     // ─── Timestamps ───────────────────────────────────────────────────────────

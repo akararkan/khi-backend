@@ -174,7 +174,7 @@ public class SoundTrackFile {
             orphanRemoval = true,
             fetch = FetchType.LAZY
     )
-    @OrderColumn(name = "brochure_order")
+    @OrderBy("id ASC")
     private List<SoundTrackBrochure> brochures = new ArrayList<>();
 
     // ─── Owner ────────────────────────────────────────────────────────────────

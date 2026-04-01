@@ -89,6 +89,11 @@ public class ProjectService {
         }
     }
 
+    @CacheEvict(value = "projects", allEntries = true)
+    public ProjectResponse createResponse(ProjectCreateRequest dto) {
+        return toResponse(create(dto));
+    }
+
     // ===========================
     // دروستکردن (لەگەڵ فایلەکان)
     // ===========================
@@ -145,6 +150,13 @@ public class ProjectService {
         } finally { pool.shutdownNow(); }
     }
 
+    @CacheEvict(value = "projects", allEntries = true)
+    public ProjectResponse createResponse(ProjectCreateRequest dto,
+                                          MultipartFile cover,
+                                          List<MultipartFile> mediaFiles) throws IOException {
+        return toResponse(create(dto, cover, mediaFiles));
+    }
+
     // ===========================
     // نوێکردنەوە (تەنها JSON)
     // ===========================
@@ -174,6 +186,11 @@ public class ProjectService {
             log.error("هەڵە لە نوێکردنەوەی پرۆژە | traceId={}", traceId, ex);
             throw Errors.internal("error.db", Map.of("op", "update", "traceId", safe(traceId)));
         }
+    }
+
+    @CacheEvict(value = "projects", allEntries = true)
+    public ProjectResponse updateResponse(Long projectId, ProjectCreateRequest dto) {
+        return toResponse(update(projectId, dto));
     }
 
     // ===========================
@@ -226,6 +243,14 @@ public class ProjectService {
             log.error("هەڵە لە نوێکردنەوەی پرۆژە لەگەڵ فایلەکان | traceId={}", traceId, ex);
             throw Errors.internal("error.db", Map.of("op", "updateWithFiles", "traceId", safe(traceId)));
         } finally { pool.shutdownNow(); }
+    }
+
+    @CacheEvict(value = "projects", allEntries = true)
+    public ProjectResponse updateWithFilesResponse(Long projectId,
+                                                   ProjectCreateRequest dto,
+                                                   MultipartFile cover,
+                                                   List<MultipartFile> mediaFiles) throws IOException {
+        return toResponse(updateWithFiles(projectId, dto, cover, mediaFiles));
     }
 
     // ===========================

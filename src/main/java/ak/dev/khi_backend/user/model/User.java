@@ -53,6 +53,7 @@ public class User implements Serializable, UserDetails {
     private Long pincode;
 
     @Column(name = "is_activated", nullable = false)
+    @Builder.Default
     private Boolean isActivated = true;
 
     // ===== Password Reset =====
@@ -73,6 +74,7 @@ public class User implements Serializable, UserDetails {
 
     // ===== Locking =====
     @Column(name = "failed_attempts", nullable = false)
+    @Builder.Default
     private int failedAttempts = 0;
 
     @JsonIgnore
@@ -80,6 +82,7 @@ public class User implements Serializable, UserDetails {
     private Instant lockTime;
 
     @Column(name = "is_locked", nullable = false)
+    @Builder.Default
     private Boolean isLocked = false;
 
     // ===== Password expiry =====

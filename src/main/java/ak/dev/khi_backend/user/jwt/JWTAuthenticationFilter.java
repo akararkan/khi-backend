@@ -10,7 +10,6 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -34,9 +33,9 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
     private static final Logger logger = LoggerFactory.getLogger(JWTAuthenticationFilter.class);
 
     private final JwtTokenProvider jwtTokenProvider;
-    @Qualifier("userService")
     private final UserDetailsService userDetailsService;
     private final TokenService tokenService;
+    private final JwtCookieService jwtCookieService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -51,32 +50,32 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            String authorizationHeader = request.getHeader(AUTHORIZATION);
-
-            if (!hasText(authorizationHeader) || !authorizationHeader.startsWith(TOKEN_PREFIX)) {
+            String token = resolveToken(request);
+            if (!hasText(token)) {
                 filterChain.doFilter(request, response);
                 return;
             }
-
-            String token = authorizationHeader.substring(TOKEN_PREFIX.length());
-            String username = null;
+            String username;
 
             try {
                 // This will throw TokenExpiredException if expired
                 username = jwtTokenProvider.getSubject(token);
             } catch (TokenExpiredException ex) {
                 logger.warn("Token expired for request: {}", request.getRequestURI());
+                jwtCookieService.clearAuthCookie(response);
                 sendErrorResponse(response, HttpStatus.UNAUTHORIZED, "TOKEN_EXPIRED", "Session expired, please login again");
                 return;
             } catch (Exception ex) {
                 logger.error("Invalid token", ex);
+                jwtCookieService.clearAuthCookie(response);
                 sendErrorResponse(response, HttpStatus.FORBIDDEN, "INVALID_TOKEN", "Invalid token");
                 return;
             }
 
             // Check if blacklisted (session invalidated/logout)
-            if (jwtTokenProvider.isTokenBlacklisted(token)) {
+            if (tokenService.isTokenBlacklisted(token)) {
                 logger.warn("Token blacklisted for user: {}", username);
+                jwtCookieService.clearAuthCookie(response);
                 sendErrorResponse(response, HttpStatus.UNAUTHORIZED, "TOKEN_REVOKED", "Session invalidated, please login again");
                 return;
             }
@@ -113,5 +112,13 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     private boolean hasText(String str) {
         return str != null && !str.trim().isEmpty();
+    }
+
+    private String resolveToken(HttpServletRequest request) {
+        String authorizationHeader = request.getHeader(AUTHORIZATION);
+        if (hasText(authorizationHeader) && authorizationHeader.startsWith(TOKEN_PREFIX)) {
+            return authorizationHeader.substring(TOKEN_PREFIX.length()).trim();
+        }
+        return jwtCookieService.resolveToken(request);
     }
 }

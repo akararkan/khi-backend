@@ -2,15 +2,15 @@ package ak.dev.khi_backend.user.dto;
 
 import lombok.Data;
 
-import java.util.Date;
+import java.time.Instant;
 
 @Data
 public class SessionDTO {
     private String sessionId;
     private String deviceInfo;
     private String ipAddress;
-    private Date loginTimestamp;
-    private Date expiresAt;
+    private Instant loginTimestamp;
+    private Instant expiresAt;
     private Boolean isActive;
-    private Date logoutTimestamp;
+    private Instant logoutTimestamp;
 }

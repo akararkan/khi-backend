@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
+import java.time.Instant;
 
 @Entity
 @Table(name = "sessions")
@@ -34,18 +34,16 @@ public class Session {
     private String ipAddress; // IP address of the session
 
     @Column(name = "login_timestamp", nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date loginTimestamp; // When the session was created
+    private Instant loginTimestamp; // When the session was created
 
     @Column(name = "expires_at", nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date expiresAt; // When the session expires
+    private Instant expiresAt; // When the session expires
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true; // Active status
 
     // Optionally, you can add a logout timestamp
     @Column(name = "logout_timestamp")
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date logoutTimestamp;
+    private Instant logoutTimestamp;
 }
