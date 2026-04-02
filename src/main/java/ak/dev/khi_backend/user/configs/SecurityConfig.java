@@ -73,11 +73,10 @@ public class SecurityConfig {
                         // ── About Page: Admin only writes (POST, PUT, DELETE) ─────
                         // This covers: create, update, upload, upload/multiple
                         .requestMatchers("/api/v1/about/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
-
+                        .requestMatchers("/api/v1/services/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                         // ── Content: public reads ─────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
-
-                        // ── Content: writes require EMPLOYEE+ ────────────────────
+                        // ── Content: writes require EMPLOYEE+ ────────────────────"
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/projects/**",
                                 "/api/v1/news/**",
@@ -86,6 +85,7 @@ public class SecurityConfig {
                                 "/api/v1/soundtracks/**",
                                 "/api/v1/albums/**",
                                 "/api/v1/writings/**"
+
                         ).hasAnyRole("EMPLOYEE", "ADMIN", "SUPER_ADMIN")
 
                         .requestMatchers(HttpMethod.PUT,

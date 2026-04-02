@@ -6,9 +6,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -144,6 +147,36 @@ public class S3Service {
     // ============================================================
     // DELETE METHODS
     // ============================================================
+
+    /**
+     * Download file bytes from S3 by full URL.
+     */
+    public byte[] download(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new BadRequestException("s3.download.invalid", "File URL is required");
+        }
+
+        String key = extractKeyFromUrl(fileUrl);
+        if (key == null || key.isBlank()) {
+            throw new BadRequestException("s3.download.invalid", "Could not extract S3 key from URL: " + fileUrl);
+        }
+
+        try {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+
+            ResponseBytes<GetObjectResponse> objectBytes = s3Client.getObjectAsBytes(request);
+            byte[] bytes = objectBytes.asByteArray();
+
+            log.info("⬇️ Downloaded from S3: bucket={}, key={}, size={} bytes", bucket, key, bytes.length);
+            return bytes;
+        } catch (S3Exception e) {
+            log.error("❌ S3 download failed: bucket={}, key={}, error={}", bucket, key, e.getMessage(), e);
+            throw new BadRequestException("s3.download.failed", "Failed to download file from S3: " + e.getMessage());
+        }
+    }
 
     /**
      * ✅ Delete file from S3 by full URL
