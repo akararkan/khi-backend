@@ -2,14 +2,19 @@ package ak.dev.khi_backend.khi_app.service.service;
 
 import ak.dev.khi_backend.khi_app.dto.service.ServiceDTOs.*;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectMediaType;
+import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
+import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
 import ak.dev.khi_backend.khi_app.model.service.*;
 import ak.dev.khi_backend.khi_app.repository.service.*;
 import ak.dev.khi_backend.khi_app.service.MediaMetadataExtractor;
 import ak.dev.khi_backend.khi_app.service.MediaMetadataExtractor.MediaFileMeta;
 import ak.dev.khi_backend.khi_app.service.S3Service;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,36 +22,23 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
  * ServiceService — Business logic for the Service module.
  *
  * ─── Responsibilities ─────────────────────────────────────────────────────────
- *  • CRUD for {@link ak.dev.khi_backend.khi_app.model.service.Service} entities.
+ *  • Full CRUD for {@link ak.dev.khi_backend.khi_app.model.service.Service}.
  *  • Bilingual content management (CKB / KMR rows in service_contents).
  *  • Media collection + file management with full S3 lifecycle.
- *  • Automatic technical metadata extraction via {@link MediaMetadataExtractor}
- *    — clients never need to send fileSize, format, resolution, duration,
- *    codec, or bitrate.  The system detects these from the uploaded bytes.
- *
- * ─── Metadata Extraction Flow ─────────────────────────────────────────────────
- *  1. Admin calls POST /api/v1/services/upload  (multipart)
- *  2. {@link #uploadMedia} reads the raw bytes, calls
- *     {@link MediaMetadataExtractor#extract} BEFORE uploading to S3.
- *  3. The enriched {@link UploadResponse} is returned — it contains the S3 URL
- *     plus all detected technical fields (format, resolution, duration …).
- *  4. Admin creates the service, referencing file URLs from step 3.
- *     The technical metadata stored in {@link ServiceMediaFile} is carried over
- *     from the upload cache embedded in the {@link UploadResponse} returned to
- *     the admin's browser — it is auto-populated in the form, not typed.
- *
- * ─── Note on FileAddRequest Metadata ─────────────────────────────────────────
- *  When a file is added via the standalone POST /collections/{id}/files endpoint,
- *  the service downloads the file from S3 and re-extracts metadata to ensure
- *  the DB is always accurate regardless of how the file was attached.
+ *  • Automatic technical metadata extraction via {@link MediaMetadataExtractor}.
+ *  • Two-phase pagination (ID scan → batch hydration) to avoid N+1.
+ *  • Redis caching on read paths with eviction on every write.
+ *  • Audit logging for all CUD operations.
+ *  • Parallel S3 cleanup on update/delete for fast execution.
+ *  • Global search across service type, location, and bilingual content.
  */
 @Slf4j
 @Service
@@ -61,45 +53,155 @@ public class ServiceService {
     private final ServiceContentRepository         contentRepository;
     private final ServiceMediaCollectionRepository collectionRepository;
     private final ServiceMediaFileRepository       fileRepository;
+    private final ServiceAuditLogRepository        auditLogRepository;
     private final S3Service                        s3Service;
     private final MediaMetadataExtractor           metadataExtractor;
 
     // =========================================================================
-    // READ
+    // READ — Paginated + Cached (Two-Phase Hydration)
+    //
+    // Execution plan for a page of 20:
+    //   Q1: SELECT id FROM services ORDER BY published_at DESC  (Phase 1)
+    //   Q2: SELECT s  FROM services WHERE id IN (...)           (Phase 2)
+    //   Q3–Q5: @BatchSize fires 1 IN-query per collection type
+    //   Total: ~5 fast queries. Cache hit: <5ms.
     // =========================================================================
 
+    @Cacheable(value = "services", key = "'active:p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
-    public List<ServiceResponse> getAllActive() {
-        return serviceRepository
-                .findByActiveTrueOrderByPublishedAtDesc()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public Page<ServiceResponse> getAllActive(int page, int size) {
+        Page<Long> idPage = serviceRepository.findActiveIds(PageRequest.of(page, size));
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+        List<ak.dev.khi_backend.khi_app.model.service.Service> hydrated =
+                hydrateAndSort(idPage.getContent());
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
     }
 
+    /** Admin view — includes inactive services. */
+    @Cacheable(value = "services", key = "'all:p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
-    public List<ServiceResponse> getAllActiveByType(String serviceType) {
-        return serviceRepository
-                .findByActiveTrueAndServiceTypeIgnoreCaseOrderByPublishedAtDesc(serviceType)
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public Page<ServiceResponse> getAll(int page, int size) {
+        Page<Long> idPage = serviceRepository.findAllIds(PageRequest.of(page, size));
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+        List<ak.dev.khi_backend.khi_app.model.service.Service> hydrated =
+                hydrateAndSort(idPage.getContent());
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
     }
 
+    /** Active services by type — paginated, cached. */
+    @Cacheable(value = "services",
+            key = "'type:' + #serviceType.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<ServiceResponse> getAllActiveByType(String serviceType, int page, int size) {
+        if (serviceType == null || serviceType.isBlank()) {
+            throw new BadRequestException("service.type.required",
+                    Map.of("field", "serviceType"));
+        }
+        Page<Long> idPage = serviceRepository.findActiveIdsByType(
+                serviceType.trim(), PageRequest.of(page, size));
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+        List<ak.dev.khi_backend.khi_app.model.service.Service> hydrated =
+                hydrateAndSort(idPage.getContent());
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    /**
+     * Global search — searches service type, location, bilingual title/description.
+     */
+    @Cacheable(value = "services",
+            key = "'search:' + #q.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<ServiceResponse> globalSearch(String q, int page, int size) {
+        if (q == null || q.isBlank()) {
+            throw new BadRequestException("service.search.required",
+                    Map.of("field", "q"));
+        }
+        Page<Long> idPage = serviceRepository.findIdsByGlobalSearch(
+                q.trim(), PageRequest.of(page, size));
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+        List<ak.dev.khi_backend.khi_app.model.service.Service> hydrated =
+                hydrateAndSort(idPage.getContent());
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    /** Admin search — includes inactive. */
+    @Cacheable(value = "services",
+            key = "'adminSearch:' + #q.toLowerCase() + ':p' + #page + ':s' + #size")
+    @Transactional(readOnly = true)
+    public Page<ServiceResponse> adminSearch(String q, int page, int size) {
+        if (q == null || q.isBlank()) {
+            throw new BadRequestException("service.search.required",
+                    Map.of("field", "q"));
+        }
+        Page<Long> idPage = serviceRepository.findIdsByAdminSearch(
+                q.trim(), PageRequest.of(page, size));
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(),
+                    idPage.getPageable(), idPage.getTotalElements());
+        }
+        List<ak.dev.khi_backend.khi_app.model.service.Service> hydrated =
+                hydrateAndSort(idPage.getContent());
+        return new PageImpl<>(
+                hydrated.stream().map(this::toResponse).collect(Collectors.toList()),
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+    }
+
+    /** Full detail view for a single service by ID. */
     @Transactional(readOnly = true)
     public ServiceResponse getById(Long id) {
         ak.dev.khi_backend.khi_app.model.service.Service service =
                 serviceRepository.findByIdWithAll(id)
-                        .orElseThrow(() -> new EntityNotFoundException("Service not found: " + id));
+                        .orElseThrow(() -> new NotFoundException(
+                                "service.not_found", Map.of("id", id)));
         return toResponse(service);
+    }
+
+    /** Distinct service types in the DB (for filter dropdowns). */
+    @Cacheable(value = "services", key = "'types'")
+    @Transactional(readOnly = true)
+    public List<String> getServiceTypes() {
+        return serviceRepository.findDistinctServiceTypes();
     }
 
     // =========================================================================
     // CREATE
     // =========================================================================
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public ServiceResponse create(ServiceRequest request) {
+        String traceId = traceId();
+        log.info("Creating service | type={} | traceId={}", request.getServiceType(), traceId);
 
         validateContents(request.getContents());
 
@@ -125,34 +227,43 @@ public class ServiceService {
             }
         }
 
-        return toResponse(serviceRepository.save(service));
+        ak.dev.khi_backend.khi_app.model.service.Service saved =
+                serviceRepository.save(service);
+
+        auditLog(saved, "CREATE", "Service created: " + saved.getServiceType(), traceId);
+        log.info("Service created | id={} | traceId={}", saved.getId(), traceId);
+
+        return toResponse(saved);
     }
 
     // =========================================================================
     // UPDATE
     // =========================================================================
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public ServiceResponse update(Long id, ServiceRequest request) {
+        String traceId = traceId();
+        log.info("Updating service | id={} | traceId={}", id, traceId);
 
         ak.dev.khi_backend.khi_app.model.service.Service service =
                 serviceRepository.findByIdWithAll(id)
-                        .orElseThrow(() -> new EntityNotFoundException("Service not found: " + id));
+                        .orElseThrow(() -> new NotFoundException(
+                                "service.not_found", Map.of("id", id)));
 
         validateContents(request.getContents());
 
+        // ── Collect ALL old S3 URLs before mutation ──────────────────────────
+        List<String> oldUrls = collectAllMediaUrls(service);
+        String oldCover = service.getCoverMediaUrl();
+
+        // ── Scalar fields ───────────────────────────────────────────────────
         service.setServiceType(trimRequired(request.getServiceType(), "serviceType"));
         service.setLocation(trimOrNull(request.getLocation()));
-
-        // If cover media changed — delete the old S3 file
-        String oldCover = service.getCoverMediaUrl();
-        String newCover = trimOrNull(request.getCoverMediaUrl());
-        if (oldCover != null && !oldCover.equals(newCover)) {
-            s3Service.deleteFile(oldCover);
-            log.info("Deleted old cover media from S3: {}", oldCover);
-        }
-        service.setCoverMediaUrl(newCover);
         service.setPublishedAt(parseDateTime(request.getPublishedAt()));
+
+        String newCover = trimOrNull(request.getCoverMediaUrl());
+        service.setCoverMediaUrl(newCover);
 
         // ── Replace bilingual content rows ──────────────────────────────────
         service.getContents().clear();
@@ -162,10 +273,8 @@ public class ServiceService {
             }
         }
 
-        // ── Replace media collections — delete removed S3 files first ───────
-        List<String> oldUrls = collectAllMediaUrls(service);
-        service.getMediaCollections().clear();   // orphanRemoval handles DB
-
+        // ── Replace media collections — orphanRemoval handles DB ────────────
+        service.getMediaCollections().clear();
         if (request.getMediaCollections() != null) {
             int seq = 0;
             for (ServiceMediaCollectionRequest cr : request.getMediaCollections()) {
@@ -173,107 +282,249 @@ public class ServiceService {
             }
         }
 
+        ak.dev.khi_backend.khi_app.model.service.Service saved =
+                serviceRepository.save(service);
+
+        // ── Parallel S3 orphan cleanup ──────────────────────────────────────
         List<String> newUrls = collectAllMediaUrlsFromRequest(request);
+        if (newCover != null) newUrls.add(newCover);
+
+        List<String> orphanUrls = new ArrayList<>();
+        if (oldCover != null && !oldCover.equals(newCover)) {
+            orphanUrls.add(oldCover);
+        }
         oldUrls.stream()
                 .filter(url -> !newUrls.contains(url))
-                .forEach(url -> {
-                    s3Service.deleteFile(url);
-                    log.info("Deleted removed media from S3: {}", url);
-                });
+                .forEach(orphanUrls::add);
 
-        return toResponse(serviceRepository.save(service));
+        if (!orphanUrls.isEmpty()) {
+            deleteS3FilesParallel(orphanUrls, traceId);
+        }
+
+        auditLog(saved, "UPDATE", "Service updated: " + saved.getServiceType(), traceId);
+        log.info("Service updated | id={} | orphansCleaned={} | traceId={}",
+                saved.getId(), orphanUrls.size(), traceId);
+
+        return toResponse(saved);
     }
 
     // =========================================================================
     // TOGGLE ACTIVE
     // =========================================================================
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public ServiceResponse setActive(Long id, boolean active) {
+        String traceId = traceId();
+        log.info("Toggling active | id={} | active={} | traceId={}", id, active, traceId);
+
         ak.dev.khi_backend.khi_app.model.service.Service service =
                 serviceRepository.findById(id)
-                        .orElseThrow(() -> new EntityNotFoundException("Service not found: " + id));
+                        .orElseThrow(() -> new NotFoundException(
+                                "service.not_found", Map.of("id", id)));
+
         service.setActive(active);
-        return toResponse(serviceRepository.save(service));
+        ak.dev.khi_backend.khi_app.model.service.Service saved =
+                serviceRepository.save(service);
+
+        auditLog(saved, "TOGGLE_ACTIVE",
+                "Service " + (active ? "activated" : "deactivated"), traceId);
+
+        return toResponse(saved);
     }
 
     // =========================================================================
     // DELETE
     // =========================================================================
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public void delete(Long id) {
-        ak.dev.khi_backend.khi_app.model.service.Service service =
-                serviceRepository.findByIdWithAll(id)
-                        .orElseThrow(() -> new EntityNotFoundException("Service not found: " + id));
+        String traceId = traceId();
+        log.info("Deleting service | id={} | traceId={}", id, traceId);
 
-        if (service.getCoverMediaUrl() != null) {
-            s3Service.deleteFile(service.getCoverMediaUrl());
+        if (id == null) {
+            throw new BadRequestException("service.id.required",
+                    Map.of("field", "id"));
         }
 
+        ak.dev.khi_backend.khi_app.model.service.Service service =
+                serviceRepository.findByIdWithAll(id)
+                        .orElseThrow(() -> new NotFoundException(
+                                "service.not_found", Map.of("id", id)));
+
+        // Audit BEFORE delete (captures snapshot)
+        auditLog(service, "DELETE",
+                "Service deleted: " + service.getServiceType(), traceId);
+
+        // Collect all S3 URLs to clean up
+        List<String> s3Urls = new ArrayList<>();
+        if (service.getCoverMediaUrl() != null) {
+            s3Urls.add(service.getCoverMediaUrl());
+        }
         service.getMediaCollections().forEach(col ->
                 col.getFiles().forEach(f -> {
-                    if (f.getFileUrl() != null)      s3Service.deleteFile(f.getFileUrl());
-                    if (f.getThumbnailUrl() != null)  s3Service.deleteFile(f.getThumbnailUrl());
+                    if (f.getFileUrl() != null)      s3Urls.add(f.getFileUrl());
+                    if (f.getThumbnailUrl() != null)  s3Urls.add(f.getThumbnailUrl());
                 })
         );
 
         serviceRepository.delete(service);
-        log.info("Deleted service id={}", id);
+
+        // Parallel S3 cleanup
+        if (!s3Urls.isEmpty()) {
+            deleteS3FilesParallel(s3Urls, traceId);
+        }
+
+        log.info("Service deleted | id={} | s3FilesRemoved={} | traceId={}",
+                id, s3Urls.size(), traceId);
+    }
+
+    /** Bulk delete — multiple services at once with parallel S3 cleanup. */
+    @CacheEvict(value = "services", allEntries = true)
+    @Transactional
+    public void deleteBulk(List<Long> ids) {
+        String traceId = traceId();
+        log.info("Bulk deleting services | count={} | traceId={}", ids.size(), traceId);
+
+        if (ids == null || ids.isEmpty()) {
+            throw new BadRequestException("service.ids.required",
+                    Map.of("field", "ids"));
+        }
+
+        List<ak.dev.khi_backend.khi_app.model.service.Service> services =
+                serviceRepository.findAllById(ids);
+
+        if (services.isEmpty()) {
+            throw new NotFoundException("service.not_found",
+                    Map.of("ids", ids));
+        }
+
+        // Audit BEFORE delete
+        auditLogRepository.saveAll(
+                services.stream()
+                        .map(s -> buildAuditLog(s, "DELETE",
+                                "Service bulk-deleted: " + s.getServiceType(), traceId))
+                        .toList()
+        );
+
+        // Collect all S3 URLs
+        List<String> s3Urls = new ArrayList<>();
+        for (var svc : services) {
+            if (svc.getCoverMediaUrl() != null) s3Urls.add(svc.getCoverMediaUrl());
+            try {
+                svc.getMediaCollections().forEach(col ->
+                        col.getFiles().forEach(f -> {
+                            if (f.getFileUrl() != null) s3Urls.add(f.getFileUrl());
+                            if (f.getThumbnailUrl() != null) s3Urls.add(f.getThumbnailUrl());
+                        })
+                );
+            } catch (Exception e) {
+                log.warn("Could not load media for bulk-delete svc id={}: {}",
+                        svc.getId(), e.getMessage());
+            }
+        }
+
+        serviceRepository.deleteAll(services);
+
+        if (!s3Urls.isEmpty()) {
+            deleteS3FilesParallel(s3Urls, traceId);
+        }
+
+        log.info("Bulk delete complete | deleted={} | s3FilesRemoved={} | traceId={}",
+                services.size(), s3Urls.size(), traceId);
     }
 
     // =========================================================================
     // COLLECTION MANAGEMENT
     // =========================================================================
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public ServiceMediaCollectionResponse addCollection(Long serviceId,
                                                         CollectionUpsertRequest request) {
+        String traceId = traceId();
+        log.info("Adding collection | serviceId={} | traceId={}", serviceId, traceId);
+
         ak.dev.khi_backend.khi_app.model.service.Service service =
                 serviceRepository.findById(serviceId)
-                        .orElseThrow(() -> new EntityNotFoundException("Service not found: " + serviceId));
+                        .orElseThrow(() -> new NotFoundException(
+                                "service.not_found", Map.of("id", serviceId)));
 
         ServiceMediaCollection col = buildCollectionFromUpsert(
                 request, service.getMediaCollections().size());
         service.addMediaCollection(col);
         serviceRepository.save(service);
+
+        auditLog(service, "UPDATE",
+                "Collection added: " + col.getCollectionName(), traceId);
+
         return toCollectionResponse(col);
     }
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public ServiceMediaCollectionResponse updateCollection(Long serviceId,
                                                            Long collectionId,
                                                            CollectionUpsertRequest request) {
+        String traceId = traceId();
+        log.info("Updating collection | serviceId={} | colId={} | traceId={}",
+                serviceId, collectionId, traceId);
+
         ServiceMediaCollection col = collectionRepository.findById(collectionId)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + collectionId));
+                .orElseThrow(() -> new NotFoundException(
+                        "service.collection.not_found", Map.of("id", collectionId)));
 
         if (!col.getService().getId().equals(serviceId)) {
-            throw new IllegalArgumentException(
-                    "Collection " + collectionId + " does not belong to service " + serviceId);
+            throw new BadRequestException("service.collection.mismatch",
+                    Map.of("collectionId", collectionId, "serviceId", serviceId));
         }
+
         col.setCollectionName(trimRequired(request.getCollectionName(), "collectionName"));
         col.setMediaType(resolveMediaType(request.getMediaType()));
         if (request.getSortOrder() != null) col.setSortOrder(request.getSortOrder());
 
-        return toCollectionResponse(collectionRepository.save(col));
+        ServiceMediaCollection saved = collectionRepository.save(col);
+
+        auditLog(col.getService(), "UPDATE",
+                "Collection updated: " + saved.getCollectionName(), traceId);
+
+        return toCollectionResponse(saved);
     }
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public void deleteCollection(Long serviceId, Long collectionId) {
+        String traceId = traceId();
+        log.info("Deleting collection | serviceId={} | colId={} | traceId={}",
+                serviceId, collectionId, traceId);
+
         ServiceMediaCollection col = collectionRepository.findById(collectionId)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + collectionId));
+                .orElseThrow(() -> new NotFoundException(
+                        "service.collection.not_found", Map.of("id", collectionId)));
 
         if (!col.getService().getId().equals(serviceId)) {
-            throw new IllegalArgumentException(
-                    "Collection " + collectionId + " does not belong to service " + serviceId);
+            throw new BadRequestException("service.collection.mismatch",
+                    Map.of("collectionId", collectionId, "serviceId", serviceId));
         }
+
+        List<String> s3Urls = new ArrayList<>();
         col.getFiles().forEach(f -> {
-            if (f.getFileUrl() != null)      s3Service.deleteFile(f.getFileUrl());
-            if (f.getThumbnailUrl() != null)  s3Service.deleteFile(f.getThumbnailUrl());
+            if (f.getFileUrl() != null)      s3Urls.add(f.getFileUrl());
+            if (f.getThumbnailUrl() != null)  s3Urls.add(f.getThumbnailUrl());
         });
 
+        auditLog(col.getService(), "UPDATE",
+                "Collection deleted: " + col.getCollectionName(), traceId);
+
         collectionRepository.delete(col);
-        log.info("Deleted collection id={} from service id={}", collectionId, serviceId);
+
+        if (!s3Urls.isEmpty()) {
+            deleteS3FilesParallel(s3Urls, traceId);
+        }
+
+        log.info("Collection deleted | id={} | s3FilesRemoved={} | traceId={}",
+                collectionId, s3Urls.size(), traceId);
     }
 
     // =========================================================================
@@ -284,18 +535,24 @@ public class ServiceService {
      * Add a pre-uploaded file to a collection.
      * Technical metadata is re-extracted from S3 to guarantee accuracy.
      */
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public ServiceMediaFileResponse addFileToCollection(Long collectionId,
                                                         FileAddRequest request) {
+        log.info("Adding file to collection | collectionId={}", collectionId);
+
         ServiceMediaCollection col = collectionRepository.findById(collectionId)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + collectionId));
+                .orElseThrow(() -> new NotFoundException(
+                        "service.collection.not_found", Map.of("id", collectionId)));
 
         if (request.getFileUrl() == null || request.getFileUrl().isBlank()) {
-            throw new IllegalArgumentException("fileUrl is required");
+            throw new BadRequestException("service.file.url.required",
+                    Map.of("field", "fileUrl"));
         }
 
         // Re-extract metadata from S3 so it is always accurate
-        MediaFileMeta meta = fetchAndExtractFromS3(request.getFileUrl());
+        S3MetaResult metaResult = fetchAndExtractFromS3(request.getFileUrl());
+        MediaFileMeta meta = metaResult.meta();
 
         ServiceMediaFile file = ServiceMediaFile.builder()
                 .fileUrl(request.getFileUrl().trim())
@@ -309,7 +566,7 @@ public class ServiceService {
                 .durationSeconds(meta.getDurationSeconds())
                 .codec(meta.getCodec())
                 .bitrateKbps(meta.getBitrateKbps())
-                // fileSize not available when fetching from S3 URL — left null
+                .fileSize(metaResult.fileSize())
                 .build();
 
         col.addFile(file);
@@ -317,16 +574,27 @@ public class ServiceService {
         return toFileResponse(file);
     }
 
+    @CacheEvict(value = "services", allEntries = true)
     @Transactional
     public void deleteFile(Long fileId) {
-        ServiceMediaFile file = fileRepository.findById(fileId)
-                .orElseThrow(() -> new EntityNotFoundException("Media file not found: " + fileId));
+        String traceId = traceId();
+        log.info("Deleting media file | fileId={} | traceId={}", fileId, traceId);
 
-        if (file.getFileUrl() != null)      s3Service.deleteFile(file.getFileUrl());
-        if (file.getThumbnailUrl() != null)  s3Service.deleteFile(file.getThumbnailUrl());
+        ServiceMediaFile file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new NotFoundException(
+                        "service.file.not_found", Map.of("id", fileId)));
+
+        List<String> s3Urls = new ArrayList<>();
+        if (file.getFileUrl() != null)      s3Urls.add(file.getFileUrl());
+        if (file.getThumbnailUrl() != null)  s3Urls.add(file.getThumbnailUrl());
 
         fileRepository.delete(file);
-        log.info("Deleted media file id={}", fileId);
+
+        if (!s3Urls.isEmpty()) {
+            deleteS3FilesParallel(s3Urls, traceId);
+        }
+
+        log.info("Media file deleted | id={} | traceId={}", fileId, traceId);
     }
 
     // =========================================================================
@@ -335,16 +603,6 @@ public class ServiceService {
 
     /**
      * Upload a single file to S3 and auto-extract all technical metadata.
-     *
-     * The returned {@link UploadResponse} includes:
-     *   • fileUrl      — S3 URL to embed in ServiceMediaFileRequest
-     *   • fileFormat   — "JPEG" / "MP4" / "MP3" …
-     *   • widthPx / heightPx  — image and video resolution
-     *   • durationSeconds     — video / audio length
-     *   • codec / bitrateKbps — video / audio encoding info
-     *
-     * The admin panel should display all these as read-only fields — the user
-     * never types them.
      *
      * @param file  uploaded multipart file
      * @param type  optional hint: "image" | "video" | "audio" | "gallery"
@@ -356,7 +614,7 @@ public class ServiceService {
 
         byte[] bytes = file.getBytes();
 
-        // ── 1. Extract metadata from raw bytes BEFORE uploading ───────────────
+        // 1. Extract metadata from raw bytes BEFORE uploading
         MediaFileMeta meta = metadataExtractor.extract(
                 bytes, file.getContentType(), file.getOriginalFilename());
 
@@ -368,7 +626,7 @@ public class ServiceService {
             log.warn("No metadata extracted for: {}", file.getOriginalFilename());
         }
 
-        // ── 2. Upload to S3 ───────────────────────────────────────────────────
+        // 2. Upload to S3
         ProjectMediaType mediaType = resolveProjectMediaType(type);
         String fileUrl = mediaType != null
                 ? s3Service.upload(bytes, file.getOriginalFilename(),
@@ -378,7 +636,7 @@ public class ServiceService {
 
         log.info("Upload successful: {}", fileUrl);
 
-        // ── 3. Build enriched response ────────────────────────────────────────
+        // 3. Build enriched response
         String resolution       = buildResolution(meta.getWidthPx(), meta.getHeightPx());
         String formattedDuration = formatDuration(meta.getDurationSeconds());
         String formattedSize     = formatFileSize(file.getSize());
@@ -406,8 +664,7 @@ public class ServiceService {
     }
 
     /**
-     * Bulk upload — all files in the batch share the same optional type hint.
-     * Returns results in the same order as the input list.
+     * Bulk upload — all files share the same optional type hint.
      */
     public List<UploadResponse> uploadMultipleMedia(List<MultipartFile> files, String type) {
         return files.stream()
@@ -432,30 +689,70 @@ public class ServiceService {
     }
 
     // =========================================================================
-    // PRIVATE HELPERS
+    // PRIVATE — Hydration (Phase-2)
     // =========================================================================
 
-    // ─── S3 re-extraction (for FileAddRequest flow) ───────────────────────────
+    private List<ak.dev.khi_backend.khi_app.model.service.Service> hydrateAndSort(List<Long> ids) {
+        List<ak.dev.khi_backend.khi_app.model.service.Service> entities =
+                serviceRepository.findAllByIds(ids);
 
-    /**
-     * Download a file from S3 by its URL and extract its technical metadata.
-     * Used when a file is added to a collection via the standalone endpoint
-     * (the original upload bytes are no longer in memory at that point).
-     * If the download fails, returns {@link MediaFileMeta#empty()} gracefully.
-     */
-    private MediaFileMeta fetchAndExtractFromS3(String fileUrl) {
+        Map<Long, ak.dev.khi_backend.khi_app.model.service.Service> byId =
+                entities.stream().collect(Collectors.toMap(
+                        ak.dev.khi_backend.khi_app.model.service.Service::getId,
+                        s -> s));
+
+        return ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    // =========================================================================
+    // PRIVATE — Parallel S3 Cleanup
+    // =========================================================================
+
+    private void deleteS3FilesParallel(List<String> urls, String traceId) {
+        if (urls.isEmpty()) return;
+
+        int poolSize = Math.min(8, urls.size());
+        ExecutorService pool = Executors.newFixedThreadPool(poolSize);
+        try {
+            List<CompletableFuture<Void>> futures = urls.stream()
+                    .map(url -> CompletableFuture.runAsync(() -> {
+                        try {
+                            s3Service.deleteFile(url);
+                            log.debug("S3 deleted: {} | traceId={}", url, traceId);
+                        } catch (Exception e) {
+                            log.warn("S3 delete failed: {} | error={} | traceId={}",
+                                    url, e.getMessage(), traceId);
+                        }
+                    }, pool))
+                    .toList();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    // =========================================================================
+    // PRIVATE — S3 Re-extraction
+    // =========================================================================
+
+    private S3MetaResult fetchAndExtractFromS3(String fileUrl) {
         try {
             byte[] bytes = s3Service.download(fileUrl);
             String contentType = guessContentTypeFromUrl(fileUrl);
             String filename    = fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
-            return metadataExtractor.extract(bytes, contentType, filename);
+            MediaFileMeta meta = metadataExtractor.extract(bytes, contentType, filename);
+            return new S3MetaResult(meta, (long) bytes.length);
         } catch (Exception e) {
             log.warn("Could not re-extract metadata from S3 URL {}: {}", fileUrl, e.getMessage());
-            return MediaFileMeta.empty();
+            return new S3MetaResult(MediaFileMeta.empty(), null);
         }
     }
 
-    /** Derive a MIME type from the file extension in the URL. Best-effort only. */
+    private record S3MetaResult(MediaFileMeta meta, Long fileSize) {}
+
     private String guessContentTypeFromUrl(String url) {
         if (url == null) return null;
         String lower = url.toLowerCase();
@@ -476,7 +773,39 @@ public class ServiceService {
         return null;
     }
 
-    // ─── Validation ───────────────────────────────────────────────────────────
+    // =========================================================================
+    // PRIVATE — URL Collectors (orphan cleanup)
+    // =========================================================================
+
+    private List<String> collectAllMediaUrls(ak.dev.khi_backend.khi_app.model.service.Service service) {
+        return service.getMediaCollections().stream()
+                .flatMap(col -> col.getFiles().stream())
+                .flatMap(f -> {
+                    List<String> urls = new ArrayList<>();
+                    if (f.getFileUrl() != null)     urls.add(f.getFileUrl());
+                    if (f.getThumbnailUrl() != null) urls.add(f.getThumbnailUrl());
+                    return urls.stream();
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<String> collectAllMediaUrlsFromRequest(ServiceRequest request) {
+        if (request.getMediaCollections() == null) return new ArrayList<>();
+        return request.getMediaCollections().stream()
+                .filter(c -> c.getFiles() != null)
+                .flatMap(c -> c.getFiles().stream())
+                .flatMap(f -> {
+                    List<String> urls = new ArrayList<>();
+                    if (f.getFileUrl() != null)     urls.add(f.getFileUrl());
+                    if (f.getThumbnailUrl() != null) urls.add(f.getThumbnailUrl());
+                    return urls.stream();
+                })
+                .collect(Collectors.toList());
+    }
+
+    // =========================================================================
+    // PRIVATE — Validation
+    // =========================================================================
 
     private void validateContents(List<ServiceContentRequest> contents) {
         if (contents == null || contents.isEmpty()) return;
@@ -486,27 +815,31 @@ public class ServiceService {
                 .distinct().count();
 
         if (distinctCodes < contents.size()) {
-            throw new IllegalArgumentException("Duplicate language codes in contents list");
+            throw new BadRequestException("service.content.duplicate_language",
+                    Map.of("message", "Duplicate language codes in contents list"));
         }
 
         for (ServiceContentRequest cr : contents) {
             if (cr.getLanguageCode() == null || cr.getLanguageCode().isBlank()) {
-                throw new IllegalArgumentException("languageCode is required for each content entry");
+                throw new BadRequestException("service.content.language.required",
+                        Map.of("field", "languageCode"));
             }
             String code = cr.getLanguageCode().toUpperCase();
             if (!ALLOWED_LANG_CODES.contains(code)) {
-                throw new IllegalArgumentException(
-                        "Unsupported language code: " + cr.getLanguageCode()
-                                + ". Accepted: " + ALLOWED_LANG_CODES);
+                throw new BadRequestException("service.content.language.unsupported",
+                        Map.of("languageCode", cr.getLanguageCode(),
+                                "allowed", ALLOWED_LANG_CODES));
             }
             if (cr.getTitle() == null || cr.getTitle().isBlank()) {
-                throw new IllegalArgumentException(
-                        "title is required for language: " + cr.getLanguageCode());
+                throw new BadRequestException("service.content.title.required",
+                        Map.of("languageCode", cr.getLanguageCode()));
             }
         }
     }
 
-    // ─── Entity Builders ──────────────────────────────────────────────────────
+    // =========================================================================
+    // PRIVATE — Entity Builders
+    // =========================================================================
 
     private ServiceContent buildContent(ServiceContentRequest req) {
         return ServiceContent.builder()
@@ -540,21 +873,10 @@ public class ServiceService {
                 .build();
     }
 
-    /**
-     * Build a {@link ServiceMediaFile} from a request DTO.
-     *
-     * Technical metadata fields (format, resolution, codec…) are NOT in the
-     * request.  When the service is created / updated in one shot, the admin
-     * client should carry over the values returned by the upload endpoint.
-     * We therefore intentionally leave those fields null here — they will be
-     * populated via the upload flow (stored in DB after extraction).
-     *
-     * If you want guaranteed metadata, use {@link #addFileToCollection} which
-     * re-downloads from S3 and re-extracts.
-     */
     private ServiceMediaFile buildFileFromRequest(ServiceMediaFileRequest req, int defaultOrder) {
         if (req.getFileUrl() == null || req.getFileUrl().isBlank()) {
-            throw new IllegalArgumentException("fileUrl is required for each media file");
+            throw new BadRequestException("service.file.url.required",
+                    Map.of("field", "fileUrl"));
         }
         return ServiceMediaFile.builder()
                 .fileUrl(req.getFileUrl().trim())
@@ -562,7 +884,6 @@ public class ServiceService {
                 .ckbContent(buildFileContent(req.getCkbContent()))
                 .kmrContent(buildFileContent(req.getKmrContent()))
                 .sortOrder(req.getSortOrder() != null ? req.getSortOrder() : defaultOrder)
-                // Technical metadata not in request — populated at upload time
                 .build();
     }
 
@@ -575,45 +896,20 @@ public class ServiceService {
                 .build();
     }
 
-    // ─── S3 URL collection (for orphan cleanup on update) ────────────────────
-
-    private List<String> collectAllMediaUrls(ak.dev.khi_backend.khi_app.model.service.Service service) {
-        return service.getMediaCollections().stream()
-                .flatMap(col -> col.getFiles().stream())
-                .flatMap(f -> {
-                    List<String> urls = new java.util.ArrayList<>();
-                    if (f.getFileUrl() != null)     urls.add(f.getFileUrl());
-                    if (f.getThumbnailUrl() != null) urls.add(f.getThumbnailUrl());
-                    return urls.stream();
-                })
-                .collect(Collectors.toList());
-    }
-
-    private List<String> collectAllMediaUrlsFromRequest(ServiceRequest request) {
-        if (request.getMediaCollections() == null) return List.of();
-        return request.getMediaCollections().stream()
-                .filter(c -> c.getFiles() != null)
-                .flatMap(c -> c.getFiles().stream())
-                .flatMap(f -> {
-                    List<String> urls = new java.util.ArrayList<>();
-                    if (f.getFileUrl() != null)     urls.add(f.getFileUrl());
-                    if (f.getThumbnailUrl() != null) urls.add(f.getThumbnailUrl());
-                    return urls.stream();
-                })
-                .collect(Collectors.toList());
-    }
-
-    // ─── Type Resolvers ───────────────────────────────────────────────────────
+    // =========================================================================
+    // PRIVATE — Type Resolvers
+    // =========================================================================
 
     private ServiceMediaCollection.MediaType resolveMediaType(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new IllegalArgumentException("mediaType is required for a collection");
+            throw new BadRequestException("service.collection.mediaType.required",
+                    Map.of("field", "mediaType"));
         }
         try {
             return ServiceMediaCollection.MediaType.valueOf(raw.toUpperCase().trim());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Invalid mediaType: " + raw + ". Accepted: IMAGE, VIDEO, AUDIO");
+            throw new BadRequestException("service.collection.mediaType.invalid",
+                    Map.of("mediaType", raw, "allowed", "IMAGE, VIDEO, AUDIO"));
         }
     }
 
@@ -627,15 +923,17 @@ public class ServiceService {
         };
     }
 
-    // ─── Formatting ───────────────────────────────────────────────────────────
+    // =========================================================================
+    // PRIVATE — Formatting
+    // =========================================================================
 
     private LocalDateTime parseDateTime(String raw) {
         if (raw == null || raw.isBlank()) return null;
         try {
             return LocalDateTime.parse(raw, FORMATTER);
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    "Invalid publishedAt format. Expected: yyyy-MM-dd HH:mm:ss, got: " + raw);
+            throw new BadRequestException("service.publishedAt.invalid",
+                    Map.of("expected", "yyyy-MM-dd HH:mm:ss", "got", raw));
         }
     }
 
@@ -661,13 +959,48 @@ public class ServiceService {
 
     private String trimRequired(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(field + " is required");
+            throw new BadRequestException("service.field.required",
+                    Map.of("field", field));
         }
         return value.trim();
     }
 
     private String trimOrNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    // =========================================================================
+    // PRIVATE — Audit Logging
+    // =========================================================================
+
+    private void auditLog(ak.dev.khi_backend.khi_app.model.service.Service service,
+                          String action, String details, String traceId) {
+        auditLogRepository.save(buildAuditLog(service, action, details, traceId));
+    }
+
+    private ServiceAuditLog buildAuditLog(ak.dev.khi_backend.khi_app.model.service.Service service,
+                                          String action, String details, String traceId) {
+        return ServiceAuditLog.builder()
+                .serviceId(service.getId())
+                .serviceType(service.getServiceType())
+                .action(action)
+                .details(details)
+                .performedBy("system")
+                .requestId(traceId)
+                .build();
+    }
+
+    // =========================================================================
+    // PRIVATE — Trace ID
+    // =========================================================================
+
+    private String traceId() {
+        String id = MDC.get("traceId");
+        if (id == null || id.isBlank()) {
+            id = UUID.randomUUID().toString().substring(0, 8);
+            MDC.put("traceId", id);
+        }
+        return id;
     }
 
     // =========================================================================
@@ -687,7 +1020,7 @@ public class ServiceService {
                         .map(this::toContentResponse)
                         .collect(Collectors.toList()))
                 .mediaCollections(service.getMediaCollections().stream()
-                        .sorted(java.util.Comparator.comparingInt(ServiceMediaCollection::getSortOrder))
+                        .sorted(Comparator.comparingInt(ServiceMediaCollection::getSortOrder))
                         .map(this::toCollectionResponse)
                         .collect(Collectors.toList()))
                 .createdAt(service.getCreatedAt() != null
@@ -715,7 +1048,7 @@ public class ServiceService {
                 .createdAt(col.getCreatedAt() != null
                         ? col.getCreatedAt().format(FORMATTER) : null)
                 .files(col.getFiles().stream()
-                        .sorted(java.util.Comparator.comparingInt(ServiceMediaFile::getSortOrder))
+                        .sorted(Comparator.comparingInt(ServiceMediaFile::getSortOrder))
                         .map(this::toFileResponse)
                         .collect(Collectors.toList()))
                 .build();
@@ -728,7 +1061,6 @@ public class ServiceService {
                 .thumbnailUrl(f.getThumbnailUrl())
                 .ckbContent(toFileContentResponse(f.getCkbContent()))
                 .kmrContent(toFileContentResponse(f.getKmrContent()))
-                // ── Technical metadata (auto-extracted, read-only) ─────────────
                 .fileFormat(f.getFileFormat())
                 .widthPx(f.getWidthPx())
                 .heightPx(f.getHeightPx())
@@ -739,7 +1071,6 @@ public class ServiceService {
                 .bitrateKbps(f.getBitrateKbps())
                 .fileSize(f.getFileSize())
                 .formattedFileSize(f.getFormattedFileSize())
-                // ──────────────────────────────────────────────────────────────
                 .sortOrder(f.getSortOrder())
                 .createdAt(f.getCreatedAt() != null
                         ? f.getCreatedAt().format(FORMATTER) : null)
@@ -755,3 +1086,4 @@ public class ServiceService {
                 .build();
     }
 }
+

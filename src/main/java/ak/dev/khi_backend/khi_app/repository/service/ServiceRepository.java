@@ -1,24 +1,104 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// FILE 1 — ServiceRepository.java
-// ─────────────────────────────────────────────────────────────────────────────
 package ak.dev.khi_backend.khi_app.repository.service;
 
 import ak.dev.khi_backend.khi_app.model.service.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ServiceRepository extends JpaRepository<Service, Long> {
 
-    /** All active services, ordered by publishedAt DESC (latest first). */
-    List<Service> findByActiveTrueOrderByPublishedAtDesc();
+    // =========================================================================
+    // PHASE-1: ID-ONLY QUERIES (lightweight, paginated, index-friendly)
+    // =========================================================================
 
-    /** Filter active services by type (case-insensitive). */
-    List<Service> findByActiveTrueAndServiceTypeIgnoreCaseOrderByPublishedAtDesc(String serviceType);
+    /**
+     * GET ALL — Phase 1.  All services (admin view, includes inactive).
+     * Hits idx_service_published_at index directly.
+     */
+    @Query("SELECT s.id FROM Service s ORDER BY s.publishedAt DESC, s.createdAt DESC")
+    Page<Long> findAllIds(Pageable pageable);
+
+    /**
+     * GET ALL ACTIVE — Phase 1.  Only active services (public view).
+     */
+    @Query("SELECT s.id FROM Service s WHERE s.active = true ORDER BY s.publishedAt DESC, s.createdAt DESC")
+    Page<Long> findActiveIds(Pageable pageable);
+
+    /**
+     * FILTER BY TYPE (active only) — Phase 1.
+     */
+    @Query("""
+            SELECT s.id FROM Service s
+            WHERE s.active = true
+              AND lower(s.serviceType) = lower(:serviceType)
+            ORDER BY s.publishedAt DESC, s.createdAt DESC
+            """)
+    Page<Long> findActiveIdsByType(@Param("serviceType") String serviceType, Pageable pageable);
+
+    /**
+     * FILTER BY TYPE (all, including inactive) — Phase 1.
+     */
+    @Query("""
+            SELECT s.id FROM Service s
+            WHERE lower(s.serviceType) = lower(:serviceType)
+            ORDER BY s.publishedAt DESC, s.createdAt DESC
+            """)
+    Page<Long> findIdsByType(@Param("serviceType") String serviceType, Pageable pageable);
+
+    /**
+     * GLOBAL SEARCH — Phase 1.
+     * One search box that covers: service type, location, content title, content description.
+     * Both CKB + KMR languages.
+     */
+    @Query("""
+            SELECT DISTINCT s.id FROM Service s
+            LEFT JOIN s.contents c
+            WHERE s.active = true
+              AND (lower(s.serviceType) LIKE lower(concat('%', :q, '%'))
+                OR lower(s.location) LIKE lower(concat('%', :q, '%'))
+                OR lower(c.title) LIKE lower(concat('%', :q, '%'))
+                OR lower(c.description) LIKE lower(concat('%', :q, '%')))
+            ORDER BY s.publishedAt DESC, s.createdAt DESC
+            """)
+    Page<Long> findIdsByGlobalSearch(@Param("q") String q, Pageable pageable);
+
+    /**
+     * ADMIN GLOBAL SEARCH — includes inactive services.
+     */
+    @Query("""
+            SELECT DISTINCT s.id FROM Service s
+            LEFT JOIN s.contents c
+            WHERE lower(s.serviceType) LIKE lower(concat('%', :q, '%'))
+               OR lower(s.location) LIKE lower(concat('%', :q, '%'))
+               OR lower(c.title) LIKE lower(concat('%', :q, '%'))
+               OR lower(c.description) LIKE lower(concat('%', :q, '%'))
+            ORDER BY s.publishedAt DESC, s.createdAt DESC
+            """)
+    Page<Long> findIdsByAdminSearch(@Param("q") String q, Pageable pageable);
+
+    // =========================================================================
+    // PHASE-2: BATCH HYDRATION
+    //
+    // No @EntityGraph — @BatchSize on entity collections fires automatically:
+    //   Q1: SELECT s   FROM services                   WHERE id IN (...)
+    //   Q2: SELECT ... FROM service_contents            WHERE service_id IN (...)
+    //   Q3: SELECT ... FROM service_media_collections   WHERE service_id IN (...)
+    //   Q4: SELECT ... FROM service_media_files         WHERE collection_id IN (...)
+    // =========================================================================
+
+    @Query("SELECT s FROM Service s WHERE s.id IN :ids ORDER BY s.publishedAt DESC, s.createdAt DESC")
+    List<Service> findAllByIds(@Param("ids") List<Long> ids);
+
+    // =========================================================================
+    // SINGLE LOOKUP — Full eager fetch for single-entity views
+    // =========================================================================
 
     /**
      * Fetch a service together with its contents and collections
@@ -31,7 +111,24 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
             LEFT JOIN FETCH mc.files
             WHERE s.id = :id
             """)
-    java.util.Optional<Service> findByIdWithAll(@Param("id") Long id);
+    Optional<Service> findByIdWithAll(@Param("id") Long id);
+
+    // =========================================================================
+    // SIMPLE QUERIES (non-paginated, backward-compatible)
+    // =========================================================================
+
+    /** All active services, ordered by publishedAt DESC (latest first). */
+    List<Service> findByActiveTrueOrderByPublishedAtDesc();
+
+    /** Filter active services by type (case-insensitive). */
+    List<Service> findByActiveTrueAndServiceTypeIgnoreCaseOrderByPublishedAtDesc(String serviceType);
+
+    /** Count active services (for dashboard). */
+    long countByActiveTrue();
+
+    /** Distinct service types currently in the DB. */
+    @Query("SELECT DISTINCT s.serviceType FROM Service s ORDER BY s.serviceType")
+    List<String> findDistinctServiceTypes();
 }
 
 

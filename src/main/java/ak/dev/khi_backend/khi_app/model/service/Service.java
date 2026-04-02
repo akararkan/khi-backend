@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.model.service;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -98,6 +99,7 @@ public class Service {
      * Unique constraint on (service_id, language_code) prevents duplicates.
      */
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<ServiceContent> contents = new ArrayList<>();
 
@@ -105,6 +107,7 @@ public class Service {
 
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<ServiceMediaCollection> mediaCollections = new ArrayList<>();
 

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -29,7 +30,7 @@ import java.util.List;
  *
  * ─── Ordering ─────────────────────────────────────────────────────────────────
  *  {@link #sortOrder} controls the display order of collections on the page.
- *  Files within a collection are ordered by {@link ServiceMediaFile#sortOrder}.
+ *  Files within a collection are ordered by {@link ServiceMediaFile#}.
  */
 @Entity
 @Table(
@@ -88,6 +89,7 @@ public class ServiceMediaCollection {
 
     @OneToMany(mappedBy = "collection", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<ServiceMediaFile> files = new ArrayList<>();
 
