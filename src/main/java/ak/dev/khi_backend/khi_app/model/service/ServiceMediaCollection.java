@@ -8,8 +8,8 @@ import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * ServiceMediaCollection — A named, typed group of media files for a {@link Service}.
@@ -91,7 +91,7 @@ public class ServiceMediaCollection {
     @OrderBy("sortOrder ASC")
     @BatchSize(size = 50)
     @Builder.Default
-    private List<ServiceMediaFile> files = new ArrayList<>();
+    private Set<ServiceMediaFile> files = new HashSet<>();
 
     // ─── Parent ───────────────────────────────────────────────────────────────
 

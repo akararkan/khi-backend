@@ -32,8 +32,10 @@ import java.util.List;
  *  GET    /api/v1/services/types                          → distinct service type names
  *  GET    /api/v1/services/search?q={query}               → global search (active, paginated)
  *  GET    /api/v1/services/search/admin?q={query}         → admin search (all, paginated)
- *  POST   /api/v1/services                                → create service
- *  PUT    /api/v1/services/{id}                           → full update
+ *  POST   /api/v1/services                                → create service (JSON)
+ *  POST   /api/v1/services/with-files                     → create + upload media (multipart)
+ *  PUT    /api/v1/services/{id}                           → full update (JSON)
+ *  PUT    /api/v1/services/{id}/with-files                → update + upload media (multipart)
  *  PATCH  /api/v1/services/{id}/active?value=false        → soft toggle
  *  DELETE /api/v1/services/{id}                           → delete + S3 cleanup
  *  DELETE /api/v1/services/bulk                           → bulk delete
@@ -146,7 +148,7 @@ public class ServiceController {
     }
 
     /**
-     * Create a new service.
+     * Create a new service (JSON only — files must be pre-uploaded).
      */
     @PostMapping
     public ResponseEntity<ApiResponse<ServiceResponse>> create(
@@ -158,7 +160,42 @@ public class ServiceController {
     }
 
     /**
-     * Full update — replaces all content rows and media collections.
+     * Create a new service with inline media file uploads (multipart).
+     *
+     * Parts:
+     *  - data   : JSON {@link ServiceRequest}  (required)
+     *  - cover  : optional cover image file
+     *  - images : optional collection of image files
+     *  - videos : optional collection of video files
+     *  - audios : optional collection of audio files
+     *
+     * Auto-generated collections ("Images", "Videos", "Audios") are appended
+     * after any collections already declared in the JSON data part.
+     */
+    @PostMapping(value = "/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ServiceResponse>> createWithFiles(
+            @RequestPart("data") ServiceRequest request,
+            @RequestPart(value = "cover",  required = false) MultipartFile cover,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images,
+            @RequestPart(value = "videos", required = false) List<MultipartFile> videos,
+            @RequestPart(value = "audios", required = false) List<MultipartFile> audios
+    ) throws IOException {
+
+        int imgCount   = images != null ? images.size() : 0;
+        int vidCount   = videos != null ? videos.size() : 0;
+        int audCount   = audios != null ? audios.size() : 0;
+        boolean hasCover = cover != null && !cover.isEmpty();
+
+        log.info("POST /with-files | type={} | cover={} | images={} | videos={} | audios={}",
+                request.getServiceType(), hasCover, imgCount, vidCount, audCount);
+
+        ServiceResponse response = serviceService.createWithFiles(request, cover, images, videos, audios);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Service created successfully"));
+    }
+
+    /**
+     * Full update (JSON only) — replaces all content rows and media collections.
      * S3 files that are no longer referenced are automatically deleted.
      */
     @PutMapping("/{id}")
@@ -169,6 +206,34 @@ public class ServiceController {
         return ResponseEntity.ok(
                 ApiResponse.success(serviceService.update(id, request),
                         "Service updated successfully"));
+    }
+
+    /**
+     * Full update with inline media file uploads (multipart).
+     *
+     * Same parts as {@link #createWithFiles}. S3 orphans are cleaned up.
+     */
+    @PutMapping(value = "/{id}/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ServiceResponse>> updateWithFiles(
+            @PathVariable Long id,
+            @RequestPart("data") ServiceRequest request,
+            @RequestPart(value = "cover",  required = false) MultipartFile cover,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images,
+            @RequestPart(value = "videos", required = false) List<MultipartFile> videos,
+            @RequestPart(value = "audios", required = false) List<MultipartFile> audios
+    ) throws IOException {
+
+        int imgCount   = images != null ? images.size() : 0;
+        int vidCount   = videos != null ? videos.size() : 0;
+        int audCount   = audios != null ? audios.size() : 0;
+        boolean hasCover = cover != null && !cover.isEmpty();
+
+        log.info("PUT /{}/with-files | cover={} | images={} | videos={} | audios={}",
+                id, hasCover, imgCount, vidCount, audCount);
+
+        ServiceResponse response = serviceService.updateWithFiles(id, request, cover, images, videos, audios);
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "Service updated successfully"));
     }
 
     /**

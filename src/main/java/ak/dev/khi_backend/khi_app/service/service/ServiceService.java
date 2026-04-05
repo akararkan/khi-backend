@@ -237,6 +237,157 @@ public class ServiceService {
     }
 
     // =========================================================================
+    // CREATE WITH FILES (multipart — upload + save in one request)
+    // =========================================================================
+
+    /**
+     * Creates a service AND uploads media files in a single request.
+     *
+     * <p>Auto-generated collections ("Images", "Videos", "Audios") are appended
+     * after any collections already declared in the JSON {@code request} part.</p>
+     *
+     * @param request  service JSON payload (may already contain pre-uploaded mediaCollections)
+     * @param cover    optional cover image file — uploaded to S3, URL set as coverMediaUrl
+     * @param images   optional collection of image files
+     * @param videos   optional collection of video files
+     * @param audios   optional collection of audio files
+     */
+    @CacheEvict(value = "services", allEntries = true)
+    @Transactional
+    public ServiceResponse createWithFiles(ServiceRequest request,
+                                           MultipartFile cover,
+                                           List<MultipartFile> images,
+                                           List<MultipartFile> videos,
+                                           List<MultipartFile> audios) throws IOException {
+        String traceId = traceId();
+        log.info("Creating service with files | type={} | traceId={}", request.getServiceType(), traceId);
+
+        validateContents(request.getContents());
+
+        // 1. Upload cover to S3 if provided
+        String coverUrl = uploadCoverIfPresent(cover, request.getCoverMediaUrl());
+
+        // 2. Build base entity
+        ak.dev.khi_backend.khi_app.model.service.Service service =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType(trimRequired(request.getServiceType(), "serviceType"))
+                        .location(trimOrNull(request.getLocation()))
+                        .coverMediaUrl(coverUrl)
+                        .active(true)
+                        .publishedAt(parseDateTime(request.getPublishedAt()))
+                        .build();
+
+        // 3. Add bilingual content
+        if (request.getContents() != null) {
+            for (ServiceContentRequest cr : request.getContents()) {
+                service.addContent(buildContent(cr));
+            }
+        }
+
+        // 4. Add pre-existing collections from JSON
+        int seq = 0;
+        if (request.getMediaCollections() != null) {
+            for (ServiceMediaCollectionRequest cr : request.getMediaCollections()) {
+                service.addMediaCollection(buildCollection(cr, seq++));
+            }
+        }
+
+        // 5. Upload files in parallel and build auto-generated collections
+        appendUploadedCollections(service, images, videos, audios, seq);
+
+        // 6. Persist
+        ak.dev.khi_backend.khi_app.model.service.Service saved =
+                serviceRepository.save(service);
+
+        auditLog(saved, "CREATE", "Service created (with files): " + saved.getServiceType(), traceId);
+        log.info("Service created with files | id={} | traceId={}", saved.getId(), traceId);
+
+        return toResponse(saved);
+    }
+
+    // =========================================================================
+    // UPDATE WITH FILES (multipart)
+    // =========================================================================
+
+    @CacheEvict(value = "services", allEntries = true)
+    @Transactional
+    public ServiceResponse updateWithFiles(Long id,
+                                           ServiceRequest request,
+                                           MultipartFile cover,
+                                           List<MultipartFile> images,
+                                           List<MultipartFile> videos,
+                                           List<MultipartFile> audios) throws IOException {
+        String traceId = traceId();
+        log.info("Updating service with files | id={} | traceId={}", id, traceId);
+
+        ak.dev.khi_backend.khi_app.model.service.Service service =
+                serviceRepository.findByIdWithAll(id)
+                        .orElseThrow(() -> new NotFoundException(
+                                "service.not_found", Map.of("id", id)));
+
+        validateContents(request.getContents());
+
+        // ── Collect ALL old S3 URLs before mutation ──────────────────────────
+        List<String> oldUrls = collectAllMediaUrls(service);
+        String oldCover = service.getCoverMediaUrl();
+
+        // ── Upload cover ─────────────────────────────────────────────────────
+        String newCover = uploadCoverIfPresent(cover, request.getCoverMediaUrl());
+
+        // ── Scalar fields ────────────────────────────────────────────────────
+        service.setServiceType(trimRequired(request.getServiceType(), "serviceType"));
+        service.setLocation(trimOrNull(request.getLocation()));
+        service.setPublishedAt(parseDateTime(request.getPublishedAt()));
+        service.setCoverMediaUrl(newCover);
+
+        // ── Replace content + collections ────────────────────────────────────
+        service.getContents().clear();
+        service.getMediaCollections().clear();
+        serviceRepository.saveAndFlush(service);
+
+        if (request.getContents() != null) {
+            for (ServiceContentRequest cr : request.getContents()) {
+                service.addContent(buildContent(cr));
+            }
+        }
+
+        int seq = 0;
+        if (request.getMediaCollections() != null) {
+            for (ServiceMediaCollectionRequest cr : request.getMediaCollections()) {
+                service.addMediaCollection(buildCollection(cr, seq++));
+            }
+        }
+
+        // ── Upload files + append auto-generated collections ─────────────────
+        appendUploadedCollections(service, images, videos, audios, seq);
+
+        ak.dev.khi_backend.khi_app.model.service.Service saved =
+                serviceRepository.save(service);
+
+        // ── Parallel S3 orphan cleanup ──────────────────────────────────────
+        List<String> newUrls = collectAllMediaUrls(saved);
+        if (saved.getCoverMediaUrl() != null) newUrls.add(saved.getCoverMediaUrl());
+
+        List<String> orphanUrls = new ArrayList<>();
+        if (oldCover != null && !oldCover.equals(newCover)) {
+            orphanUrls.add(oldCover);
+        }
+        oldUrls.stream()
+                .filter(url -> !newUrls.contains(url))
+                .forEach(orphanUrls::add);
+
+        if (!orphanUrls.isEmpty()) {
+            deleteS3FilesParallel(orphanUrls, traceId);
+        }
+
+        auditLog(saved, "UPDATE", "Service updated (with files): " + saved.getServiceType(), traceId);
+        log.info("Service updated with files | id={} | orphansCleaned={} | traceId={}",
+                saved.getId(), orphanUrls.size(), traceId);
+
+        return toResponse(saved);
+    }
+
+    // =========================================================================
     // UPDATE
     // =========================================================================
 
@@ -265,16 +416,19 @@ public class ServiceService {
         String newCover = trimOrNull(request.getCoverMediaUrl());
         service.setCoverMediaUrl(newCover);
 
-        // ── Replace bilingual content rows ──────────────────────────────────
+        // ── Replace bilingual content rows + media collections ────────────
+        // Clear first, then flush to force DELETEs before INSERTs
+        // (prevents unique-constraint violations on re-insert)
         service.getContents().clear();
+        service.getMediaCollections().clear();
+        serviceRepository.saveAndFlush(service);
+
         if (request.getContents() != null) {
             for (ServiceContentRequest cr : request.getContents()) {
                 service.addContent(buildContent(cr));
             }
         }
 
-        // ── Replace media collections — orphanRemoval handles DB ────────────
-        service.getMediaCollections().clear();
         if (request.getMediaCollections() != null) {
             int seq = 0;
             for (ServiceMediaCollectionRequest cr : request.getMediaCollections()) {
@@ -481,7 +635,12 @@ public class ServiceService {
         }
 
         col.setCollectionName(trimRequired(request.getCollectionName(), "collectionName"));
-        col.setMediaType(resolveMediaType(request.getMediaType()));
+        ServiceMediaCollection.MediaType type = resolveMediaType(request.getMediaType());
+        if (type == null) {
+            throw new BadRequestException("service.collection.mediaType.required",
+                    Map.of("field", "mediaType"));
+        }
+        col.setMediaType(type);
         if (request.getSortOrder() != null) col.setSortOrder(request.getSortOrder());
 
         ServiceMediaCollection saved = collectionRepository.save(col);
@@ -753,6 +912,114 @@ public class ServiceService {
 
     private record S3MetaResult(MediaFileMeta meta, Long fileSize) {}
 
+    // =========================================================================
+    // PRIVATE — Multipart Upload Helpers
+    // =========================================================================
+
+    /**
+     * Upload a cover image file to S3 if present, otherwise fall back to the
+     * existing URL from the JSON payload.
+     */
+    private String uploadCoverIfPresent(MultipartFile cover, String fallbackUrl) throws IOException {
+        if (cover != null && !cover.isEmpty()) {
+            UploadResponse uploaded = uploadMedia(cover, "image");
+            return uploaded.getFileUrl();
+        }
+        return trimOrNull(fallbackUrl);
+    }
+
+    /**
+     * Upload image/video/audio file lists in parallel and append auto-generated
+     * collections to the service entity.
+     */
+    private void appendUploadedCollections(ak.dev.khi_backend.khi_app.model.service.Service service,
+                                           List<MultipartFile> images,
+                                           List<MultipartFile> videos,
+                                           List<MultipartFile> audios,
+                                           int startOrder) {
+        int seq = startOrder;
+
+        if (images != null && !images.isEmpty()) {
+            List<UploadResponse> uploaded = uploadFilesParallel(images, "image");
+            service.addMediaCollection(
+                    buildCollectionFromUploads("Images", ServiceMediaCollection.MediaType.IMAGE, uploaded, seq++));
+        }
+
+        if (videos != null && !videos.isEmpty()) {
+            List<UploadResponse> uploaded = uploadFilesParallel(videos, "video");
+            service.addMediaCollection(
+                    buildCollectionFromUploads("Videos", ServiceMediaCollection.MediaType.VIDEO, uploaded, seq++));
+        }
+
+        if (audios != null && !audios.isEmpty()) {
+            List<UploadResponse> uploaded = uploadFilesParallel(audios, "audio");
+            service.addMediaCollection(
+                    buildCollectionFromUploads("Audios", ServiceMediaCollection.MediaType.AUDIO, uploaded, seq));
+        }
+    }
+
+    /**
+     * Upload multiple files to S3 in parallel, returning metadata for each.
+     */
+    private List<UploadResponse> uploadFilesParallel(List<MultipartFile> files, String typeHint) {
+        int poolSize = Math.min(8, files.size());
+        ExecutorService pool = Executors.newFixedThreadPool(poolSize);
+        try {
+            List<CompletableFuture<UploadResponse>> futures = files.stream()
+                    .map(file -> CompletableFuture.supplyAsync(() -> {
+                        try {
+                            return uploadMedia(file, typeHint);
+                        } catch (IOException e) {
+                            log.error("Upload failed: {}", file.getOriginalFilename(), e);
+                            throw new CompletionException(e);
+                        }
+                    }, pool))
+                    .toList();
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+            return futures.stream()
+                    .map(CompletableFuture::join)
+                    .collect(Collectors.toList());
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    /**
+     * Convert a list of S3 upload results into a fully populated
+     * {@link ServiceMediaCollection} entity with {@link ServiceMediaFile} children.
+     */
+    private ServiceMediaCollection buildCollectionFromUploads(String collectionName,
+                                                              ServiceMediaCollection.MediaType mediaType,
+                                                              List<UploadResponse> uploads,
+                                                              int sortOrder) {
+        ServiceMediaCollection col = ServiceMediaCollection.builder()
+                .collectionName(collectionName)
+                .mediaType(mediaType)
+                .sortOrder(sortOrder)
+                .build();
+
+        int fileSeq = 0;
+        for (UploadResponse up : uploads) {
+            ServiceMediaFile file = ServiceMediaFile.builder()
+                    .fileUrl(up.getFileUrl())
+                    .fileFormat(up.getFileFormat())
+                    .widthPx(up.getWidthPx())
+                    .heightPx(up.getHeightPx())
+                    .durationSeconds(up.getDurationSeconds())
+                    .codec(up.getCodec())
+                    .bitrateKbps(up.getBitrateKbps())
+                    .fileSize(up.getFileSize())
+                    .sortOrder(fileSeq++)
+                    .ckbContent(new ServiceMediaFileContent())
+                    .kmrContent(new ServiceMediaFileContent())
+                    .build();
+            col.addFile(file);
+        }
+        return col;
+    }
+
     private String guessContentTypeFromUrl(String url) {
         if (url == null) return null;
         String lower = url.toLowerCase();
@@ -852,7 +1119,7 @@ public class ServiceService {
     private ServiceMediaCollection buildCollection(ServiceMediaCollectionRequest req, int defaultOrder) {
         ServiceMediaCollection col = ServiceMediaCollection.builder()
                 .collectionName(trimRequired(req.getCollectionName(), "collectionName"))
-                .mediaType(resolveMediaType(req.getMediaType()))
+                .mediaType(resolveMediaTypeWithFallback(req.getMediaType(), req.getFiles()))
                 .sortOrder(req.getSortOrder() != null ? req.getSortOrder() : defaultOrder)
                 .build();
 
@@ -866,9 +1133,14 @@ public class ServiceService {
     }
 
     private ServiceMediaCollection buildCollectionFromUpsert(CollectionUpsertRequest req, int defaultOrder) {
+        ServiceMediaCollection.MediaType type = resolveMediaType(req.getMediaType());
+        if (type == null) {
+            throw new BadRequestException("service.collection.mediaType.required",
+                    Map.of("field", "mediaType"));
+        }
         return ServiceMediaCollection.builder()
                 .collectionName(trimRequired(req.getCollectionName(), "collectionName"))
-                .mediaType(resolveMediaType(req.getMediaType()))
+                .mediaType(type)
                 .sortOrder(req.getSortOrder() != null ? req.getSortOrder() : defaultOrder)
                 .build();
     }
@@ -902,8 +1174,7 @@ public class ServiceService {
 
     private ServiceMediaCollection.MediaType resolveMediaType(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new BadRequestException("service.collection.mediaType.required",
-                    Map.of("field", "mediaType"));
+            return null;   // caller decides the fallback
         }
         try {
             return ServiceMediaCollection.MediaType.valueOf(raw.toUpperCase().trim());
@@ -911,6 +1182,52 @@ public class ServiceService {
             throw new BadRequestException("service.collection.mediaType.invalid",
                     Map.of("mediaType", raw, "allowed", "IMAGE, VIDEO, AUDIO"));
         }
+    }
+
+    /**
+     * Resolve collection media type: explicit value → infer from file URLs → default IMAGE.
+     */
+    private ServiceMediaCollection.MediaType resolveMediaTypeWithFallback(
+            String raw, List<ServiceMediaFileRequest> files) {
+
+        // 1. Explicit value — use it
+        ServiceMediaCollection.MediaType explicit = resolveMediaType(raw);
+        if (explicit != null) return explicit;
+
+        // 2. Infer from the first file URL extension
+        if (files != null && !files.isEmpty()) {
+            for (ServiceMediaFileRequest f : files) {
+                ServiceMediaCollection.MediaType guessed = guessMediaTypeFromUrl(f.getFileUrl());
+                if (guessed != null) return guessed;
+            }
+        }
+
+        // 3. Default
+        return ServiceMediaCollection.MediaType.IMAGE;
+    }
+
+    /**
+     * Guess IMAGE / VIDEO / AUDIO from a file URL extension.
+     */
+    private ServiceMediaCollection.MediaType guessMediaTypeFromUrl(String url) {
+        if (url == null) return null;
+        String lower = url.toLowerCase();
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")
+                || lower.endsWith(".webp") || lower.endsWith(".gif") || lower.endsWith(".svg")
+                || lower.endsWith(".bmp") || lower.endsWith(".tiff")) {
+            return ServiceMediaCollection.MediaType.IMAGE;
+        }
+        if (lower.endsWith(".mp4") || lower.endsWith(".mov") || lower.endsWith(".avi")
+                || lower.endsWith(".mkv") || lower.endsWith(".webm") || lower.endsWith(".wmv")
+                || lower.endsWith(".flv")) {
+            return ServiceMediaCollection.MediaType.VIDEO;
+        }
+        if (lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".aac")
+                || lower.endsWith(".flac") || lower.endsWith(".ogg") || lower.endsWith(".wma")
+                || lower.endsWith(".m4a")) {
+            return ServiceMediaCollection.MediaType.AUDIO;
+        }
+        return null;
     }
 
     private ProjectMediaType resolveProjectMediaType(String hint) {

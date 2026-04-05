@@ -8,8 +8,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Service — A single institute service (Training, Event, Program, etc.).
@@ -101,7 +101,7 @@ public class Service {
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @BatchSize(size = 50)
     @Builder.Default
-    private List<ServiceContent> contents = new ArrayList<>();
+    private Set<ServiceContent> contents = new HashSet<>();
 
     // ─── Media Collections ────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ public class Service {
     @OrderBy("sortOrder ASC")
     @BatchSize(size = 50)
     @Builder.Default
-    private List<ServiceMediaCollection> mediaCollections = new ArrayList<>();
+    private Set<ServiceMediaCollection> mediaCollections = new HashSet<>();
 
     // ─── Timestamps ───────────────────────────────────────────────────────────
 
