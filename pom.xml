@@ -104,10 +104,10 @@
 			<artifactId>metadata-extractor</artifactId>
 			<version>2.19.0</version>
 		</dependency>
-		<!-- Source: https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api -->
+		<!-- Validation: Hibernate Validator (implementation) + jakarta.validation-api (spec) -->
 		<dependency>
-			<groupId>jakarta.validation</groupId>
-			<artifactId>jakarta.validation-api</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
 		<!-- Source: https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
@@ -224,5 +224,4 @@
 			</properties>
 		</profile>
 	</profiles>
-
 </project>

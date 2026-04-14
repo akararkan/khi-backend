@@ -5,6 +5,7 @@ import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.BookGenre;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.model.publishment.writing.Writing;
 import ak.dev.khi_backend.khi_app.model.publishment.writing.WritingContent;
@@ -314,7 +315,7 @@ public class WritingService {
     private PublishmentTopic resolveTopic(Long topicId, TopicPayload newTopic) {
         if (topicId != null) {
             return topicRepository.findById(topicId)
-                    .orElseThrow(() -> new NotFoundException("topic.not_found", Map.of("topicId", topicId)));
+                    .orElseThrow(() -> Errors.notFound("topic.not_found", Map.of("topicId", topicId)));
         }
         if (newTopic != null && (!isBlank(newTopic.getNameCkb()) || !isBlank(newTopic.getNameKmr()))) {
             PublishmentTopic created = PublishmentTopic.builder()
@@ -554,7 +555,10 @@ public class WritingService {
 
     private Writing findOrThrow(Long id, String errorCode) {
         return writingRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new NotFoundException(errorCode, Map.of("id", id)));
+                .orElseThrow(() -> {
+                    if ("writing.not_found".equals(errorCode)) return Errors.writingNotFound(id);
+                    return Errors.notFound(errorCode, Map.of("id", id));
+                });
     }
 
     private String getCombinedTitle(Writing w) {

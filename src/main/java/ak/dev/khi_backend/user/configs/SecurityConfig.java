@@ -52,9 +52,20 @@ public class SecurityConfig {
                         // ── Preflight ──────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // ── Session management (authenticated users manage own sessions)
+                        // MUST come before the /api/auth/** wildcard
+                        .requestMatchers("/api/auth/sessions/**").authenticated()
+
+                        // ── Logout (must be authenticated) ─────────────────────────
+                        .requestMatchers("/api/auth/logout", "/api/auth/logout-all").authenticated()
+
                         // ── Public auth & OAuth2 endpoints ─────────────────────────
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/api/auth/register",
+                                "/api/auth/register-with-image",
+                                "/api/auth/login",
+                                "/api/auth/reset-token",
+                                "/api/auth/reset-password",
                                 "/api/users/auth/**",
                                 "/oauth2/**",
                                 "/login/oauth2/**"
@@ -65,7 +76,6 @@ public class SecurityConfig {
 
                         // ── Admin: user management ────────────────────────────────
                         .requestMatchers("/api/users/**").hasRole("SUPER_ADMIN")
-                        .requestMatchers("/api/auth/sessions/**").hasRole("SUPER_ADMIN")
 
                         // ── About Page: Public reads (GET all, GET by slug) ───────
                         .requestMatchers(HttpMethod.GET, "/api/v1/about/**").permitAll()

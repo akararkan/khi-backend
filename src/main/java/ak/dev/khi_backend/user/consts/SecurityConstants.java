@@ -19,4 +19,10 @@ public class SecurityConstants {
         "/api/auth/admin/reset-password"
     };
 
+    // ── Account locking ───────────────────────────────────────────────────────
+    /** Number of failed login attempts before the account is locked. */
+    public static final int  MAX_FAILED_ATTEMPTS   = 5;
+    /** How long (minutes) the account stays locked before auto-unlock. */
+    public static final long LOCK_DURATION_MINUTES = 1;
+
 }

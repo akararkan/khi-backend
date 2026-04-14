@@ -1,20 +1,14 @@
-//package ak.dev.khi_backend.user.exceptions;
-//
-//import org.springframework.http.HttpStatus;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.web.bind.annotation.ExceptionHandler;
-//import org.springframework.web.bind.annotation.RestControllerAdvice;
-//
-//@RestControllerAdvice
-//public class GlobalExceptionHandler {
-//
-//    @ExceptionHandler(UserAlreadyExistsException.class)
-//    public ResponseEntity<String> handleUserAlreadyExistsException(UserAlreadyExistsException ex) {
-//        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
-//    }
-//
-//    @ExceptionHandler(Exception.class)
-//    public ResponseEntity<String> handleGeneralException(Exception ex) {
-//        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred. Please try again later.");
-//    }
-//}
+package ak.dev.khi_backend.user.exceptions;
+
+/**
+ * ⚠️  This class is intentionally empty.
+ *
+ * All exception handling (including user/auth exceptions) is centralized in:
+ *   {@link ak.dev.khi_backend.khi_app.exceptions.GlobalExceptionHandler}
+ *
+ * Having two @RestControllerAdvice beans with the same name causes a
+ * ConflictingBeanDefinitionException on startup.
+ */
+final class UserExceptionHandlerPlaceholder {
+    private UserExceptionHandlerPlaceholder() {}
+}

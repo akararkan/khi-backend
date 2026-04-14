@@ -3,7 +3,7 @@ package ak.dev.khi_backend.khi_app.service.publishment.video;
 import ak.dev.khi_backend.khi_app.dto.publishment.video.VideoDTO;
 import ak.dev.khi_backend.khi_app.dto.publishment.video.VideoMapper;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
-import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.model.publishment.video.Video;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoClipItem;
@@ -344,10 +344,7 @@ public class VideoService {
 
     private PublishmentTopic findTopicOrThrow(Long topicId) {
         PublishmentTopic topic = topicRepository.findById(topicId)
-                .orElseThrow(() -> {
-                    // هەڵە: بابەتەکە نەدۆزرایەوە
-                    return new NotFoundException("topic.not_found", Map.of("id", topicId));
-                });
+                .orElseThrow(() -> Errors.notFound("topic.not_found", Map.of("id", topicId)));
         if (!Objects.equals(TOPIC_ENTITY_TYPE, topic.getEntityType())) {
             // هەڵە: بابەتەکە بۆ VIDEO نییە
             throw new BadRequestException("topic.type.mismatch",
@@ -511,10 +508,7 @@ public class VideoService {
             throw new BadRequestException("video.id.required", Map.of("field", "id"));
         }
         return videoRepository.findById(id)
-                .orElseThrow(() -> {
-                    // هەڵە: ڤیدیۆکە نەدۆزرایەوە
-                    return new NotFoundException("video.not_found", Map.of("id", id));
-                });
+                .orElseThrow(() -> Errors.videoNotFound(id));
     }
 
     /**

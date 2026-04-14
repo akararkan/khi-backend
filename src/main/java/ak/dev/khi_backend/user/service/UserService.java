@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.user.service;
 
+import ak.dev.khi_backend.user.consts.ValidationPatterns;
 import ak.dev.khi_backend.user.enums.Role;
 import ak.dev.khi_backend.user.dto.*;
 import ak.dev.khi_backend.user.exceptions.UserAlreadyExistsException;
@@ -8,7 +9,12 @@ import ak.dev.khi_backend.user.jwt.Token;
 import ak.dev.khi_backend.user.model.User;
 import ak.dev.khi_backend.user.repo.SessionRepository;
 import ak.dev.khi_backend.user.repo.UserRepository;
+import ak.dev.khi_backend.user.consts.SecurityConstants;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.jspecify.annotations.NonNull;
@@ -22,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -35,10 +42,11 @@ import java.util.*;
 @RequiredArgsConstructor
 @Transactional
 @Primary
+@Validated   // ← enables AOP-based validation on every public method
 public class UserService implements UserDetailsService {
 
-    private static final Duration ACCOUNT_LOCK_DURATION = Duration.ofMinutes(5);
-    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final Duration ACCOUNT_LOCK_DURATION = Duration.ofMinutes(SecurityConstants.LOCK_DURATION_MINUTES);
+    private static final int MAX_FAILED_ATTEMPTS     = SecurityConstants.MAX_FAILED_ATTEMPTS;
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList("image/jpeg", "image/png", "image/gif", "image/webp");
     private static final Duration PASSWORD_EXPIRY = Duration.ofDays(90);
@@ -49,6 +57,7 @@ public class UserService implements UserDetailsService {
     private final JwtTokenProvider jwtTokenProvider;
     private final SessionRepository sessionRepository;
     private final PasswordResetDeliveryService passwordResetDeliveryService;
+    private final UserValidator userValidator;
 
     @Value("${app.upload.dir:uploads/profile-images}")
     private String uploadDir;
@@ -63,7 +72,9 @@ public class UserService implements UserDetailsService {
                         new UsernameNotFoundException("User not found with username: " + username));
         unlockIfLockExpired(user);
         if (Boolean.TRUE.equals(user.getIsLocked())) {
-            throw new LockedException("Account is locked. Please try again later.");
+            throw new LockedException("Account is locked due to " + MAX_FAILED_ATTEMPTS
+                    + " failed attempts. Please try again after "
+                    + SecurityConstants.LOCK_DURATION_MINUTES + " minute(s).");
         }
         if (user.isPasswordExpired()) {
             throw new LockedException("Your password has expired. Please reset it.");
@@ -74,8 +85,15 @@ public class UserService implements UserDetailsService {
     // =======================
     // Register (with optional image)
     // =======================
-    public ResponseEntity<Token> register(RegisterRequestDTO dto, MultipartFile profileImage, HttpServletRequest request) {
+    public ResponseEntity<Token> register(@Valid RegisterRequestDTO dto, MultipartFile profileImage, HttpServletRequest request) {
         try {
+            // ── Validate & normalize email ───────────────────────────────────
+            String normalizedEmail = userValidator.validateAndNormalizeEmail(dto.getEmail());
+            dto.setEmail(normalizedEmail);
+
+            // ── Validate password (complexity + personal-info + blocklist) ───
+            userValidator.validatePassword(dto.getPassword(), dto.getUsername(), dto.getEmail(), dto.getName());
+
             if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
                 throw new UserAlreadyExistsException("Username is already taken.");
             }
@@ -136,20 +154,31 @@ public class UserService implements UserDetailsService {
     // =======================
     // Login
     // =======================
-    public ResponseEntity<Token> login(LoginRequestDTO dto, HttpServletRequest request) {
+    public ResponseEntity<Token> login(@Valid LoginRequestDTO dto, HttpServletRequest request) {
         try {
             User existingUser = findUserByUsernameOrEmail(dto.getUsername());
             unlockIfLockExpired(existingUser);
 
             if (Boolean.TRUE.equals(existingUser.getIsLocked())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new Token(null, "Account is locked. Please try again after 5 minutes."));
+                        .body(new Token(null, "Account is locked due to " + MAX_FAILED_ATTEMPTS
+                                + " failed attempts. Please try again after "
+                                + SecurityConstants.LOCK_DURATION_MINUTES + " minute(s)."));
             }
 
             if (!passwordEncoder.matches(dto.getPassword(), existingUser.getPassword())) {
-                recordFailedLoginAttempt(existingUser);
+                int remaining = recordFailedLoginAttempt(existingUser);
+                if (remaining <= 0) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(new Token(null,
+                                    "Account locked after " + MAX_FAILED_ATTEMPTS + " failed attempts. " +
+                                    "Please try again in " + SecurityConstants.LOCK_DURATION_MINUTES + " minute(s), " +
+                                    "or use 'Forgot password' to regain access immediately."));
+                }
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(new Token(null, "Invalid credentials"));
+                        .body(new Token(null,
+                                "Invalid credentials. You have " + remaining + " attempt(s) remaining " +
+                                "before your account is temporarily locked."));
             }
 
             resetFailedAttempts(existingUser);
@@ -262,7 +291,14 @@ public class UserService implements UserDetailsService {
     // =======================
     // Reset Password Token
     // =======================
-    public ResponseEntity<String> createPasswordResetToken(String email) {
+    public ResponseEntity<String> createPasswordResetToken(
+            @NotBlank(message = "Email is required")
+            @Email(
+                regexp  = ValidationPatterns.EMAIL,
+                message = "Email must be a valid address with a domain (e.g. user@example.com)"
+            )
+            @Size(max = 160, message = "Email must not exceed 160 characters")
+            String email) {
         try {
             User user = findUserByUsernameOrEmail(email);
             String token = UUID.randomUUID().toString();
@@ -284,7 +320,7 @@ public class UserService implements UserDetailsService {
     // =======================
     // Reset Password
     // =======================
-    public ResponseEntity<String> resetPassword(PasswordResetRequestDTO req) {
+    public ResponseEntity<String> resetPassword(@Valid PasswordResetRequestDTO req) {
         try {
             User user = findUserByUsernameOrEmail(req.getEmail());
 
@@ -292,6 +328,13 @@ public class UserService implements UserDetailsService {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body("New password and confirm password do not match.");
             }
+
+            // ── Validate password (complexity + personal-info + blocklist) ───
+            userValidator.validatePassword(req.getNewPassword(), user.getUsername(), user.getEmail(), user.getName());
+
+            // ── Prevent reuse of the current password ────────────────────────
+            userValidator.validatePasswordNotReused(req.getNewPassword(), user.getPassword(), passwordEncoder);
+
             if (user.getResetToken() == null || user.getResetTokenExpiration() == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body("No reset token found. Please request a new reset token.");
@@ -327,7 +370,14 @@ public class UserService implements UserDetailsService {
     // =======================
     // CRUD Operations (with image support)
     // =======================
-    public UserResponseDTO createUser(UserCreateRequestDTO dto, MultipartFile profileImage) {
+    public UserResponseDTO createUser(@Valid UserCreateRequestDTO dto, MultipartFile profileImage) {
+        // ── Validate & normalize email ───────────────────────────────────────
+        String normalizedEmail = userValidator.validateAndNormalizeEmail(dto.getEmail());
+        dto.setEmail(normalizedEmail);
+
+        // ── Validate password (complexity + personal-info + blocklist) ────────
+        userValidator.validatePassword(dto.getPassword(), dto.getUsername(), dto.getEmail(), dto.getName());
+
         if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
             throw new UserAlreadyExistsException("Username is already taken.");
         }
@@ -375,7 +425,7 @@ public class UserService implements UserDetailsService {
     /**
      * Update user - now uses DTO and optional image file
      */
-    public UserResponseDTO updateUser(Long userId, UserUpdateRequestDTO dto, MultipartFile newProfileImage) {
+    public UserResponseDTO updateUser(Long userId, @Valid UserUpdateRequestDTO dto, MultipartFile newProfileImage) {
         User u = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with ID: " + userId));
 
@@ -383,9 +433,14 @@ public class UserService implements UserDetailsService {
                 && userRepository.findByUsername(dto.getUsername()).isPresent()) {
             throw new UserAlreadyExistsException("Username is already taken.");
         }
-        if (dto.getEmail() != null && !dto.getEmail().equals(u.getEmail())
-                && userRepository.findByEmail(dto.getEmail()).isPresent()) {
-            throw new UserAlreadyExistsException("Email is already registered.");
+        if (dto.getEmail() != null && !dto.getEmail().equals(u.getEmail())) {
+            // ── Validate & normalize the new email ───────────────────────────
+            String normalizedEmail = userValidator.validateAndNormalizeEmail(dto.getEmail());
+            dto.setEmail(normalizedEmail);
+
+            if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+                throw new UserAlreadyExistsException("Email is already registered.");
+            }
         }
 
         if (dto.getName() != null) u.setName(dto.getName());
@@ -396,6 +451,14 @@ public class UserService implements UserDetailsService {
         if (dto.getIsActivated() != null) u.setIsActivated(dto.getIsActivated());
 
         if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+            // resolve the effective username and email (possibly just updated above)
+            String effectiveUsername = dto.getUsername() != null ? dto.getUsername() : u.getUsername();
+            String effectiveEmail   = dto.getEmail()    != null ? dto.getEmail()    : u.getEmail();
+            String effectiveName    = dto.getName()     != null ? dto.getName()     : u.getName();
+
+            userValidator.validatePassword(dto.getPassword(), effectiveUsername, effectiveEmail, effectiveName);
+            userValidator.validatePasswordNotReused(dto.getPassword(), u.getPassword(), passwordEncoder);
+
             u.setPassword(passwordEncoder.encode(dto.getPassword()));
             u.setPasswordExpiryDate(Instant.now().plus(PASSWORD_EXPIRY));
         }
@@ -482,14 +545,34 @@ public class UserService implements UserDetailsService {
     }
 
     // =======================
-    // Other Helpers
+    // 2-Phase User Search
     // =======================
+    /**
+     * Phase 1 — Exact match: single DB round-trip using indexed columns (username, email).
+     *           Handles the 99 % case — user types their username or email exactly.
+     *
+     * Phase 2 — Case-insensitive fallback: catches users who type their email in a
+     *           different case (e.g. "AKAR@GMAIL.COM" vs stored "akar@gmail.com").
+     *           Runs only when Phase 1 produces no result.
+     *
+     * This pattern is the best of both worlds: index-speed for normal logins,
+     * correctness for edge cases — without a full-table scan on every request.
+     */
     private User findUserByUsernameOrEmail(String identifier) {
         if (identifier == null || identifier.isBlank()) {
             throw new UsernameNotFoundException("User not found.");
         }
-        return userRepository.findByUsername(identifier)
-                .or(() -> userRepository.findByEmail(identifier))
+
+        // ── Phase 1: Exact match via combined JPQL (single DB query, uses indexes) ──
+        Optional<User> found = userRepository.findByUsernameOrEmailExact(identifier);
+        if (found.isPresent()) {
+            log.debug("2-phase search Phase 1 hit for identifier='{}'", identifier);
+            return found.get();
+        }
+
+        // ── Phase 2: Case-insensitive fallback (catches email case mismatches) ──────
+        log.debug("2-phase search Phase 1 miss — trying case-insensitive for identifier='{}'", identifier);
+        return userRepository.findByUsernameOrEmailIgnoreCase(identifier)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found."));
     }
 
@@ -503,14 +586,23 @@ public class UserService implements UserDetailsService {
         return candidate;
     }
 
-    private void recordFailedLoginAttempt(User user) {
-        user.setFailedAttempts(user.getFailedAttempts() + 1);
-        if (user.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
+    private int recordFailedLoginAttempt(User user) {
+        int attempts = user.getFailedAttempts() + 1;
+        user.setFailedAttempts(attempts);
+        int remaining = MAX_FAILED_ATTEMPTS - attempts;
+        if (remaining <= 0) {
             user.setIsLocked(true);
             user.setLockTime(Instant.now());
+            remaining = 0;
+            log.warn("Account locked for user '{}' after {} failed attempts. Locked for {} minute(s).",
+                    user.getUsername(), attempts, SecurityConstants.LOCK_DURATION_MINUTES);
+        } else {
+            log.warn("Failed login attempt {}/{} for user '{}'. {} attempt(s) remaining.",
+                    attempts, MAX_FAILED_ATTEMPTS, user.getUsername(), remaining);
         }
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
+        return remaining;
     }
 
     private void resetFailedAttempts(User user) {
@@ -556,6 +648,7 @@ public class UserService implements UserDetailsService {
                 .provider(u.getProvider())
                 .createdAt(u.getCreatedAt())
                 .updatedAt(u.getUpdatedAt())
+                .passwordExpiryDate(u.getPasswordExpiryDate())
                 .build();
     }
 }

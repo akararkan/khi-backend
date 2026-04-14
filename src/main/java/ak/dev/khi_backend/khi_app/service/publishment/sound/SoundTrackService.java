@@ -4,8 +4,8 @@ import ak.dev.khi_backend.khi_app.dto.publishment.sound.SoundTrackDtos.*;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.AttachmentType;
 import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
-import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.publishment.sound.*;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackLogRepository;
@@ -105,8 +105,8 @@ public class SoundTrackService {
             return toResponse(saved);
 
         } catch (IOException e) {
-            throw new BadRequestException("media.upload.failed",
-                    Map.of("reason", "کێشە لە ناردنی فایل: " + e.getMessage()));
+            throw Errors.soundStorageFailed("sound.media_upload_failed",
+                    Map.of("reason", "کێشە لە ناردنی فایل: " + e.getMessage()), e);
         }
     }
 
@@ -127,12 +127,11 @@ public class SoundTrackService {
             List<MultipartFile>  attachmentFiles
     ) {
         if (id == null)
-            throw new BadRequestException("error.validation",
+            throw Errors.soundValidation("error.validation",
                     Map.of("field", "id", "message", "ئایدی پێویستە"));
 
         SoundTrack entity = soundTrackRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "soundTrack.not_found", Map.of("id", id)));
+                .orElseThrow(() -> Errors.soundNotFound(id));
 
         try {
             // ── Cover images ──────────────────────────────────────────────
@@ -250,8 +249,8 @@ public class SoundTrackService {
             return toResponse(saved);
 
         } catch (IOException e) {
-            throw new BadRequestException("media.upload.failed",
-                    Map.of("reason", "کێشە لە ناردنی فایل: " + e.getMessage()));
+            throw Errors.soundStorageFailed("sound.media_upload_failed",
+                    Map.of("reason", "کێشە لە ناردنی فایل: " + e.getMessage()), e);
         }
     }
 
@@ -270,7 +269,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Page<Response> getByState(TrackState state, int page, int size) {
         if (state == null)
-            throw new BadRequestException("soundTrack.state.required", Map.of("field", "state"));
+            throw Errors.soundValidation("soundTrack.state.required", Map.of("field", "state"));
         return hydratePage(soundTrackRepository.findIdsByState(state, PageRequest.of(page, size)));
     }
 
@@ -279,7 +278,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Page<Response> getBySoundType(String soundType, int page, int size) {
         if (isBlank(soundType))
-            throw new BadRequestException("soundTrack.soundType.required",
+            throw Errors.soundValidation("soundTrack.soundType.required",
                     Map.of("field", "soundType"));
         return hydratePage(soundTrackRepository.findIdsBySoundType(
                 soundType.trim(), PageRequest.of(page, size)));
@@ -290,7 +289,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Page<Response> getByTopic(Long topicId, int page, int size) {
         if (topicId == null)
-            throw new BadRequestException("error.validation", Map.of("field", "topicId"));
+            throw Errors.soundValidation("error.validation", Map.of("field", "topicId"));
         return hydratePage(soundTrackRepository.findIdsByTopic(
                 topicId, PageRequest.of(page, size)));
     }
@@ -306,7 +305,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Page<Response> searchByTag(String tag, int page, int size) {
         if (isBlank(tag))
-            throw new BadRequestException("tag.required", Map.of("field", "tag"));
+            throw Errors.badRequest("tag.required", Map.of("field", "tag"));
         return hydratePage(soundTrackRepository.findIdsByTag(tag.trim(), PageRequest.of(page, size)));
     }
 
@@ -315,7 +314,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Page<Response> searchByKeyword(String keyword, int page, int size) {
         if (isBlank(keyword))
-            throw new BadRequestException("keyword.required", Map.of("field", "keyword"));
+            throw Errors.badRequest("keyword.required", Map.of("field", "keyword"));
         return hydratePage(soundTrackRepository.findIdsByKeyword(
                 keyword.trim(), PageRequest.of(page, size)));
     }
@@ -325,7 +324,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Page<Response> globalSearch(String q, int page, int size) {
         if (isBlank(q))
-            throw new BadRequestException("keyword.required", Map.of("field", "q"));
+            throw Errors.badRequest("keyword.required", Map.of("field", "q"));
         return hydratePage(soundTrackRepository.findIdsByGlobalSearch(
                 q.trim(), PageRequest.of(page, size)));
     }
@@ -333,8 +332,7 @@ public class SoundTrackService {
     @Transactional(readOnly = true)
     public Response getById(Long id) {
         return toResponse(soundTrackRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "soundTrack.not_found", Map.of("id", id))));
+                .orElseThrow(() -> Errors.soundNotFound(id)));
     }
 
     // =========================================================================
@@ -345,8 +343,7 @@ public class SoundTrackService {
     @Transactional
     public void delete(Long id) {
         SoundTrack entity = soundTrackRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "soundTrack.not_found", Map.of("id", id)));
+                .orElseThrow(() -> Errors.soundNotFound(id));
         createLog(entity.getId(), titleOf(entity), "DELETED",
                 "سەدا سڕایەوە — جۆر=" + entity.getSoundType()
                         + " دۆخ=" + entity.getTrackState());
@@ -419,7 +416,7 @@ public class SoundTrackService {
             }
 
             if (isBlank(fileUrl) && isBlank(externalUrl) && isBlank(embedUrl))
-                throw new BadRequestException("soundTrack.file.source.required", Map.of(
+                throw Errors.soundValidation("soundTrack.file.source.required", Map.of(
                         "index", i,
                         "message",
                         "هەر فایلێک پێویستی بە لانیکەم fileUrl، externalUrl، یان embedUrl هەیە"));
@@ -560,7 +557,7 @@ public class SoundTrackService {
         if (topicId != null) return findSoundTopicOrThrow(topicId);
         if (newTopic != null) {
             if (isBlank(newTopic.getNameCkb()) && isBlank(newTopic.getNameKmr()))
-                throw new BadRequestException("error.validation", Map.of(
+                throw Errors.soundValidation("error.validation", Map.of(
                         "message",
                         "بابەتی نوێ پێویستی بە لانیکەم ناوێکی کوردییە (ناوەندی یان باکوور)"));
             PublishmentTopic created = topicRepository.save(
@@ -577,10 +574,9 @@ public class SoundTrackService {
 
     private PublishmentTopic findSoundTopicOrThrow(Long topicId) {
         PublishmentTopic topic = topicRepository.findById(topicId)
-                .orElseThrow(() -> new NotFoundException(
-                        "topic.not_found", Map.of("id", topicId)));
+                .orElseThrow(() -> Errors.notFound("topic.not_found", Map.of("id", topicId)));
         if (!TOPIC_ENTITY_TYPE.equals(topic.getEntityType()))
-            throw new BadRequestException("topic.type.mismatch", Map.of(
+            throw Errors.soundValidation("topic.type.mismatch", Map.of(
                     "message", "بابەت id=" + topicId + " بۆ '"
                             + topic.getEntityType() + "'ە، چاوەڕوان دەکرێت 'SOUND' بێت"));
         return topic;
@@ -615,15 +611,15 @@ public class SoundTrackService {
 
     private void validateCreate(CreateRequest dto) {
         if (dto == null)
-            throw new BadRequestException("error.validation", Map.of("field", "data"));
+            throw Errors.soundValidation("error.validation", Map.of("field", "data"));
         if (isBlank(dto.getSoundType()))
-            throw new BadRequestException("error.validation",
+            throw Errors.soundValidation("error.validation",
                     Map.of("field", "soundType", "message", "جۆری دەنگ پێویستە"));
         if (dto.getTrackState() == null)
-            throw new BadRequestException("error.validation",
+            throw Errors.soundValidation("error.validation",
                     Map.of("field", "trackState", "message", "دۆخی تراک پێویستە"));
         if (safeLangs(dto.getContentLanguages()).isEmpty())
-            throw new BadRequestException("soundTrack.languages.required",
+            throw Errors.soundValidation("soundTrack.languages.required",
                     Map.of("field", "contentLanguages"));
     }
 

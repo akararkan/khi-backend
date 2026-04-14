@@ -57,6 +57,7 @@ public class UserProfileService {
     private final SessionRepository sessionRepository;
     private final PasswordEncoder   passwordEncoder;
     private final S3Service         s3Service;          // ← injected; replaces local-disk logic
+    private final UserValidator     userValidator;
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -106,9 +107,16 @@ public class UserProfileService {
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
             throw new BadCredentialsException("وشەی نهێنیی ئێستا هەڵەیە");
         }
-        if (dto.getNewPassword().length() < 6) {
-            throw new IllegalArgumentException("وشەی نهێنیی نوێ دەبێت کەمترین ٦ پیت بێت");
+        // confirmPassword must equal newPassword (DTO-level format already validated by @Valid)
+        if (!dto.getNewPassword().equals(dto.getConfirmPassword())) {
+            throw new IllegalArgumentException(
+                    "New password and confirm password do not match.");
         }
+        // Validate password (complexity + personal-info + blocklist + sequences)
+        userValidator.validatePassword(dto.getNewPassword(), user.getUsername(), user.getEmail(), user.getName());
+
+        // Prevent reuse of the current password
+        userValidator.validatePasswordNotReused(dto.getNewPassword(), user.getPassword(), passwordEncoder);
 
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         user.setPasswordExpiryDate(Instant.now().plus(PASSWORD_EXPIRY));

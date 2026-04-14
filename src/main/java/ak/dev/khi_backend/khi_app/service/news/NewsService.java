@@ -5,6 +5,7 @@ import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.news.NewsMediaType;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.news.*;
 import ak.dev.khi_backend.khi_app.repository.news.NewsAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsCategoryRepository;
@@ -71,7 +72,7 @@ public class NewsService {
                                 coverImage.getOriginalFilename(),
                                 coverImage.getContentType());
                     } catch (IOException e) {
-                        throw new CompletionException("کێشە لە ناردنی وێنەی بەرگ", e);
+                        throw new CompletionException(Errors.newsStorageFailed("news.cover_upload_failed", Map.of("traceId", traceId), e));
                     }
                 }, pool);
             }
@@ -81,7 +82,7 @@ public class NewsService {
 
             String coverUrl = trimOrNull(coverFuture.join());
             if (isBlank(coverUrl)) {
-                throw new BadRequestException("news.cover.required",
+                throw Errors.newsValidation("news.cover.required",
                         Map.of("field", "coverImage_or_coverUrl", "traceId", traceId));
             }
 
@@ -109,10 +110,10 @@ public class NewsService {
             // force collection init inside session boundary
             return toDto(saved);
 
-        } catch (CompletionException ex) {
-            Throwable root = ex.getCause() != null ? ex.getCause() : ex;
+            } catch (CompletionException ex) {
+            Throwable root = rootCause(ex);
             if (root instanceof IOException) {
-                throw new BadRequestException("media.upload.failed", Map.of("traceId", traceId));
+                throw Errors.newsStorageFailed("news.media_upload_failed", Map.of("traceId", traceId), (IOException) root);
             }
             throw ex;
         } finally {
@@ -127,13 +128,13 @@ public class NewsService {
     @CacheEvict(value = "news", allEntries = true)
     public List<NewsDto> addNewsBulk(List<NewsDto> list) {
         if (list == null || list.isEmpty()) {
-            throw new BadRequestException("error.validation",
+            throw Errors.newsValidation("error.validation",
                     Map.of("field", "list", "message", "لیستی هەواڵەکان بەتاڵە"));
         }
         for (NewsDto dto : list) {
             validate(dto, false, false);
             if (isBlank(dto.getCoverUrl())) {
-                throw new BadRequestException("news.coverUrl.required",
+                throw Errors.newsValidation("news.coverUrl.required",
                         Map.of("field", "coverUrl"));
             }
         }
@@ -363,8 +364,7 @@ public class NewsService {
     @Transactional(readOnly = true)
     public NewsDto getNewsById(Long id) {
         News news = newsRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "news.not_found", Map.of("id", id)));
+                .orElseThrow(() -> Errors.newsNotFound(id));
         return toDto(news);
     }
 
@@ -418,8 +418,7 @@ public class NewsService {
 
             News updated = transactionTemplate.execute(status -> {
                 News news = newsRepository.findByIdWithGraph(newsId)
-                        .orElseThrow(() -> new BadRequestException(
-                                "news.not_found", Map.of("id", newsId)));
+                        .orElseThrow(() -> Errors.newsNotFound(newsId));
 
                 // Cover logic — never allow null result
                 if (!isBlank(uploadedCoverUrl)) {
@@ -427,7 +426,7 @@ public class NewsService {
                 } else if (!isBlank(dto.getCoverUrl())) {
                     news.setCoverUrl(dto.getCoverUrl().trim());
                 } else if (isBlank(news.getCoverUrl())) {
-                    throw new BadRequestException("news.cover.required",
+                    throw Errors.newsValidation("news.cover.required",
                             Map.of("field", "coverImage_or_coverUrl"));
                 }
 
@@ -465,7 +464,7 @@ public class NewsService {
             return toDto(updated);
 
         } catch (CompletionException ex) {
-            Throwable root = ex.getCause() != null ? ex.getCause() : ex;
+            Throwable root = rootCause(ex);
             if (root instanceof IOException) {
                 throw new BadRequestException("media.upload.failed",
                         Map.of("traceId", traceId));
@@ -483,7 +482,7 @@ public class NewsService {
     @CacheEvict(value = "news", allEntries = true)
     public void deleteNews(Long newsId) {
         if (newsId == null) {
-            throw new BadRequestException("error.validation",
+            throw Errors.newsValidation("error.validation",
                     Map.of("field", "id", "message", "ئایدیی هەواڵ بۆ سڕینەوە پێویستە"));
         }
         transactionTemplate.executeWithoutResult(status -> {
@@ -567,43 +566,43 @@ public class NewsService {
 
     private void validate(NewsDto dto, boolean createRequiresCover, boolean hasCoverFile) {
         if (dto == null) {
-            throw new BadRequestException("error.validation",
+            throw Errors.newsValidation("error.validation",
                     Map.of("field", "body", "message", "داواکاری پێویستە"));
         }
 
         Set<Language> langs = safeLangs(dto.getContentLanguages());
         if (langs.isEmpty()) {
-            throw new BadRequestException("news.languages.required",
+            throw Errors.newsValidation("news.languages.required",
                     Map.of("field", "contentLanguages"));
         }
 
         if (createRequiresCover && !hasCoverFile && isBlank(dto.getCoverUrl())) {
-            throw new BadRequestException("news.cover.required",
+            throw Errors.newsValidation("news.cover.required",
                     Map.of("field", "coverImage_or_coverUrl"));
         }
 
         if (dto.getCategory() == null
                 || isBlank(dto.getCategory().getCkbName())
                 || isBlank(dto.getCategory().getKmrName())) {
-            throw new BadRequestException("news.category.required",
+            throw Errors.newsValidation("news.category.required",
                     Map.of("field", "category"));
         }
         if (dto.getSubCategory() == null
                 || isBlank(dto.getSubCategory().getCkbName())
                 || isBlank(dto.getSubCategory().getKmrName())) {
-            throw new BadRequestException("news.subcategory.required",
+            throw Errors.newsValidation("news.subcategory.required",
                     Map.of("field", "subCategory"));
         }
 
         if (langs.contains(Language.CKB)) {
             if (dto.getCkbContent() == null || isBlank(dto.getCkbContent().getTitle())) {
-                throw new BadRequestException("news.ckb.title.required",
+                throw Errors.newsValidation("news.ckb.title.required",
                         Map.of("field", "ckbContent.title"));
             }
         }
         if (langs.contains(Language.KMR)) {
             if (dto.getKmrContent() == null || isBlank(dto.getKmrContent().getTitle())) {
-                throw new BadRequestException("news.kmr.title.required",
+                throw Errors.newsValidation("news.kmr.title.required",
                         Map.of("field", "kmrContent.title"));
             }
         }
@@ -832,9 +831,9 @@ public class NewsService {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             for (CompletableFuture<UploadedMedia> f : futures) result.add(f.join());
         } catch (CompletionException ex) {
-            Throwable root = ex.getCause() != null ? ex.getCause() : ex;
+            Throwable root = rootCause(ex);
             if (root instanceof RuntimeException re) throw re;
-            throw ex;
+            throw new CompletionException(root);
         }
         return result;
     }
@@ -974,6 +973,18 @@ public class NewsService {
     private String traceId() {
         String t = MDC.get("traceId");
         return (t != null && !t.isBlank()) ? t : UUID.randomUUID().toString();
+    }
+
+    /**
+     * Unwrap nested CompletionException / ExecutionException layers to find the real root cause.
+     */
+    private Throwable rootCause(Throwable t) {
+        if (t == null) return null;
+        Throwable r = t;
+        while (r.getCause() != null && (r instanceof CompletionException || r instanceof java.util.concurrent.ExecutionException)) {
+            r = r.getCause();
+        }
+        return r;
     }
 
     private record UploadedMedia(NewsMediaType type, String url, int sortOrder) {}

@@ -4,9 +4,7 @@ import ak.dev.khi_backend.user.dto.SessionDTO;
 import ak.dev.khi_backend.user.model.Session;
 import ak.dev.khi_backend.user.model.User;
 import ak.dev.khi_backend.user.repo.SessionRepository;
-import ak.dev.khi_backend.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -20,16 +18,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SessionAPI {
 
-
     private final SessionRepository sessionRepository;
-
-//    private final UserService userService; // Service to fetch current user
 
     /**
      * Get all active sessions for the authenticated user
      */
     @GetMapping("/getAllSessions")
-    public ResponseEntity<List<SessionDTO>> getAllSessions(@AuthenticationPrincipal User user) {
+    public ResponseEntity<?> getAllSessions(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
         List<Session> sessions = sessionRepository.findByUserAndIsActive(user, true);
         List<SessionDTO> sessionDTOs = sessions.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(sessionDTOs);
@@ -40,9 +38,15 @@ public class SessionAPI {
      */
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<?> revokeSession(@PathVariable String sessionId, @AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
         Session session = sessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElse(null);
 
+        if (session == null) {
+            return ResponseEntity.status(404).body("Session not found");
+        }
         if (!session.getUser().getUserId().equals(user.getUserId())) {
             return ResponseEntity.status(403).body("You can only revoke your own sessions");
         }
@@ -55,10 +59,13 @@ public class SessionAPI {
     }
 
     /**
-     * Revoke all sessions for the authenticated user (optional)
+     * Revoke all sessions for the authenticated user
      */
     @DeleteMapping("/revokeAll")
     public ResponseEntity<?> revokeAllSessions(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
         List<Session> sessions = sessionRepository.findByUserAndIsActive(user, true);
         sessions.forEach(session -> {
             session.setIsActive(false);

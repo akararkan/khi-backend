@@ -8,6 +8,7 @@ import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectMediaType;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
 import ak.dev.khi_backend.khi_app.exceptions.*;
+import ak.dev.khi_backend.khi_app.exceptions.project.*;
 import ak.dev.khi_backend.khi_app.model.project.*;
 import ak.dev.khi_backend.khi_app.repository.project.*;
 import ak.dev.khi_backend.khi_app.service.S3Service;
@@ -82,10 +83,10 @@ public class ProjectService {
 
         } catch (AppException ex) { throw ex; }
         catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
+            throw Errors.projectConflict(traceId);
         } catch (Exception ex) {
             log.error("هەڵەی چاوەڕواننەکراو لە دروستکردنی پرۆژە | traceId={}", traceId, ex);
-            throw Errors.internal("error.db", Map.of("op", "create", "traceId", safe(traceId)));
+            throw Errors.projectCreateFailed(traceId, ex);
         }
     }
 
@@ -122,7 +123,7 @@ public class ProjectService {
 
             String coverUrl = safe(coverFuture.join()).trim();
             if (isBlank(coverUrl)) {
-                throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
+                throw ProjectValidationException.coverRequired();
             }
 
             Project saved = tx().execute(status -> {
@@ -143,10 +144,10 @@ public class ProjectService {
 
         } catch (AppException ex) { throw ex; }
         catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
+            throw Errors.projectConflict(traceId);
         } catch (Exception ex) {
             log.error("هەڵەی چاوەڕواننەکراو | traceId={}", traceId, ex);
-            throw Errors.internal("error.db", Map.of("op", "createWithFiles", "traceId", safe(traceId)));
+            throw Errors.projectCreateFailed(traceId, ex);
         } finally { pool.shutdownNow(); }
     }
 
@@ -181,10 +182,10 @@ public class ProjectService {
 
         } catch (AppException ex) { throw ex; }
         catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
+            throw Errors.projectConflict(traceId);
         } catch (Exception ex) {
             log.error("هەڵە لە نوێکردنەوەی پرۆژە | traceId={}", traceId, ex);
-            throw Errors.internal("error.db", Map.of("op", "update", "traceId", safe(traceId)));
+            throw Errors.projectUpdateFailed(projectId, traceId, ex);
         }
     }
 
@@ -221,7 +222,7 @@ public class ProjectService {
 
             String coverUrl = safe(coverFuture.join()).trim();
             if (isBlank(coverUrl)) {
-                throw new BadRequestException("project.cover_required", Map.of("traceId", safe(traceId)));
+                throw ProjectValidationException.coverRequired();
             }
 
             Project saved = tx().execute(status -> {
@@ -238,10 +239,10 @@ public class ProjectService {
 
         } catch (AppException ex) { throw ex; }
         catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("project.conflict", Map.of("traceId", safe(traceId)));
+            throw Errors.projectConflict(traceId);
         } catch (Exception ex) {
             log.error("هەڵە لە نوێکردنەوەی پرۆژە لەگەڵ فایلەکان | traceId={}", traceId, ex);
-            throw Errors.internal("error.db", Map.of("op", "updateWithFiles", "traceId", safe(traceId)));
+            throw Errors.projectUpdateFailed(projectId, traceId, ex);
         } finally { pool.shutdownNow(); }
     }
 
@@ -276,7 +277,7 @@ public class ProjectService {
         } catch (AppException ex) { throw ex; }
         catch (Exception ex) {
             log.error("هەڵە لە سڕینەوەی پرۆژە | id={} | traceId={}", projectId, traceId, ex);
-            throw Errors.internal("error.db", Map.of("op", "delete", "traceId", safe(traceId)));
+            throw Errors.projectDeleteFailed(projectId, traceId, ex);
         }
     }
 
@@ -474,7 +475,8 @@ public class ProjectService {
             return s3Service.upload(file.getBytes(), file.getOriginalFilename(),
                     file.getContentType(), ProjectMediaType.IMAGE);
         } catch (IOException e) {
-            throw new CompletionException("کێشە لە خوێندنەوەی فایلی وێنە: " + e.getMessage(), e);
+            // Wrap in CompletionException so async callers will unwrap and rethrow the underlying AppException
+            throw new CompletionException(Errors.projectCoverUploadFailed(e));
         }
     }
 
@@ -493,7 +495,7 @@ public class ProjectService {
                             file.getContentType(), type);
                     return new UploadedMedia(type, url, null, sortOrder);
                 } catch (IOException e) {
-                    throw new CompletionException("کێشە لە ناردنی فایل: " + file.getOriginalFilename(), e);
+                    throw new CompletionException(Errors.projectMediaUploadFailed(file.getOriginalFilename(), e));
                 }
             }, pool));
         }
@@ -564,23 +566,23 @@ public class ProjectService {
     }
 
     private void validate(ProjectCreateRequest dto, boolean requireCoverUrl) {
-        if (dto == null) throw new BadRequestException("request.required", Map.of());
+        if (dto == null) throw ProjectValidationException.requestRequired();
 
         boolean hasCkb = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.CKB);
         boolean hasKmr = dto.getContentLanguages() != null && dto.getContentLanguages().contains(Language.KMR);
 
         if (hasCkb && isBlank(dto.getProjectTypeCkb()))
-            throw new BadRequestException("project.ckb_type_required", Map.of());
+            throw ProjectValidationException.ckbTypeRequired();
         if (hasKmr && isBlank(dto.getProjectTypeKmr()))
-            throw new BadRequestException("project.kmr_type_required", Map.of());
+            throw ProjectValidationException.kmrTypeRequired();
         if (dto.getContentLanguages() == null || dto.getContentLanguages().isEmpty())
-            throw new BadRequestException("project.languages_required", Map.of());
+            throw ProjectValidationException.languagesRequired();
         if (requireCoverUrl && isBlank(dto.getCoverUrl()))
-            throw new BadRequestException("project.cover_required", Map.of());
+            throw ProjectValidationException.coverRequired();
         if (hasCkb && (dto.getCkbContent() == null || isBlank(dto.getCkbContent().getTitle())))
-            throw new BadRequestException("project.ckb_title_required", Map.of());
+            throw ProjectValidationException.ckbTitleRequired();
         if (hasKmr && (dto.getKmrContent() == null || isBlank(dto.getKmrContent().getTitle())))
-            throw new BadRequestException("project.kmr_title_required", Map.of());
+            throw ProjectValidationException.kmrTitleRequired();
     }
 
     // ============================================================
@@ -820,8 +822,7 @@ public class ProjectService {
     // ============================================================
     private Project findOrThrow(Long projectId) {
         return projectRepository.findByIdWithGraph(projectId)
-                .orElseThrow(() -> new NotFoundException(
-                        "project.not_found", Map.of("id", safe(projectId))));
+                .orElseThrow(() -> Errors.projectNotFound(projectId));
     }
 
     private ProjectMediaType detectMediaType(MultipartFile file) {

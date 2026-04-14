@@ -3,7 +3,7 @@ package ak.dev.khi_backend.khi_app.api.project;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
-import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.service.project.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -66,7 +66,7 @@ public class ProjectController {
         // ✅ EASIEST GUARANTEE:
         // coverUrl must come either from uploaded cover file OR from request.coverUrl
         if ((cover == null || cover.isEmpty()) && isBlank(request.getCoverUrl())) {
-            throw new BadRequestException("project.cover_required", Map.of());
+            throw Errors.projectValidation("project.cover_required", Map.of());
         }
 
         int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
@@ -122,7 +122,7 @@ public class ProjectController {
         // ✅ EASIEST GUARANTEE:
         // If client doesn't upload new cover, they must send existing coverUrl in JSON.
         if ((cover == null || cover.isEmpty()) && isBlank(request.getCoverUrl())) {
-            throw new BadRequestException("project.cover_required", Map.of());
+            throw Errors.projectValidation("project.cover_required", Map.of());
         }
 
         int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;

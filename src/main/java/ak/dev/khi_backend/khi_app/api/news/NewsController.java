@@ -2,7 +2,7 @@ package ak.dev.khi_backend.khi_app.api.news;
 
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.news.NewsDto;
-import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.service.news.NewsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +42,7 @@ public class NewsController {
 
         String json = newsJson != null ? newsJson : dataJson;
         if (json == null) {
-            throw new BadRequestException("error.validation", Map.of("field", "news or data"));
+            throw Errors.newsValidation("error.validation", Map.of("field", "news or data"));
         }
 
         NewsDto dto       = objectMapper.readValue(json, NewsDto.class);
@@ -220,7 +220,7 @@ public class NewsController {
 
         String json = newsJson != null ? newsJson : dataJson;
         if (json == null) {
-            throw new BadRequestException("error.validation", Map.of("field", "news or data"));
+            throw Errors.newsValidation("error.validation", Map.of("field", "news or data"));
         }
 
         NewsDto dto       = objectMapper.readValue(json, NewsDto.class);
@@ -248,7 +248,7 @@ public class NewsController {
 
         String json = newsJson != null ? newsJson : dataJson;
         if (json == null) {
-            throw new BadRequestException("error.validation", Map.of("field", "news or data"));
+            throw Errors.newsValidation("error.validation", Map.of("field", "news or data"));
         }
 
         NewsDto dto       = objectMapper.readValue(json, NewsDto.class);

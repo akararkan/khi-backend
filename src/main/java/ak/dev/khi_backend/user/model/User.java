@@ -7,6 +7,8 @@ import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import ak.dev.khi_backend.user.consts.SecurityConstants;
+
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Collection;
@@ -118,7 +120,7 @@ public class User implements Serializable, UserDetails {
     public boolean isAccountNonLocked() {
         if (Boolean.TRUE.equals(isLocked) && lockTime != null) {
             long lockMs = Instant.now().toEpochMilli() - lockTime.toEpochMilli();
-            return lockMs > (5 * 60 * 1000);
+            return lockMs > (SecurityConstants.LOCK_DURATION_MINUTES * 60 * 1000);
         }
         return !Boolean.TRUE.equals(isLocked);
     }

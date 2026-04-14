@@ -6,10 +6,10 @@ spring:
   # DATASOURCE (PostgreSQL)
   # ===============================
   datasource:
-    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
-    username: ${PGUSER}
-    password: ${PGPASSWORD}
-
+    url: jdbc:postgresql://localhost:5432/khi_web_db
+    username: khi
+    password: ""
+    driver-class-name: org.postgresql.Driver
   # ===============================
   # JPA / HIBERNATE
   # ===============================
@@ -17,7 +17,7 @@ spring:
     open-in-view: false
     show-sql: true
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     properties:
       hibernate:
         format_sql: true
@@ -103,8 +103,8 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope:
               - email
               - profile

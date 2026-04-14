@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class Token {
-    public String token;
-    public String response;
+    private String token;
+    private String response;
     public Token(String response){
         this.response = response;
     }

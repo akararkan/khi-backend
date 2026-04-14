@@ -3,8 +3,8 @@ package ak.dev.khi_backend.khi_app.service.publishment.image;
 import ak.dev.khi_backend.khi_app.dto.publishment.image.ImageCollectionDTO.*;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.ImageCollectionType;
-import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.publishment.image.*;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionLogRepository;
@@ -97,8 +97,8 @@ public class ImageCollectionService {
             return toResponse(saved);
 
         } catch (IOException e) {
-            throw new BadRequestException("media.upload.failed",
-                    Map.of("reason", "کێشە لە ناردنی وێنە: " + e.getMessage()));
+            throw Errors.imageStorageFailed("image.media_upload_failed",
+                    Map.of("reason", "کێشە لە ناردنی وێنە: " + e.getMessage()), e);
         }
     }
 
@@ -117,13 +117,12 @@ public class ImageCollectionService {
             List<MultipartFile> images
     ) {
         if (id == null) {
-            throw new BadRequestException("error.validation",
+            throw Errors.imageValidation("error.validation",
                     Map.of("field", "id", "message", "ئایدی پێویستە"));
         }
 
         ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "imageCollection.not_found", Map.of("id", id)));
+                .orElseThrow(() -> Errors.imageNotFound(id));
 
         try {
             if (dto.getCollectionType() != null) {
@@ -204,8 +203,8 @@ public class ImageCollectionService {
             return toResponse(saved);
 
         } catch (IOException e) {
-            throw new BadRequestException("media.upload.failed",
-                    Map.of("reason", "کێشە لە ناردنی وێنە: " + e.getMessage()));
+            throw Errors.imageStorageFailed("image.media_upload_failed",
+                    Map.of("reason", "کێشە لە ناردنی وێنە: " + e.getMessage()), e);
         }
     }
 
@@ -240,7 +239,7 @@ public class ImageCollectionService {
     @Transactional(readOnly = true)
     public Page<Response> getByType(ImageCollectionType type, int page, int size) {
         if (type == null) {
-            throw new BadRequestException("imageCollection.type.required",
+            throw Errors.imageValidation("imageCollection.type.required",
                     Map.of("field", "type"));
         }
 
@@ -269,7 +268,7 @@ public class ImageCollectionService {
     @Transactional(readOnly = true)
     public Page<Response> searchByTag(String tag, int page, int size) {
         if (isBlank(tag)) {
-            throw new BadRequestException("tag.required", Map.of("field", "tag"));
+            throw Errors.badRequest("tag.required", Map.of("field", "tag"));
         }
 
         Page<Long> idPage = imageCollectionRepository.findIdsByTag(
@@ -297,7 +296,7 @@ public class ImageCollectionService {
     @Transactional(readOnly = true)
     public Page<Response> searchByKeyword(String keyword, int page, int size) {
         if (isBlank(keyword)) {
-            throw new BadRequestException("keyword.required", Map.of("field", "keyword"));
+            throw Errors.badRequest("keyword.required", Map.of("field", "keyword"));
         }
 
         Page<Long> idPage = imageCollectionRepository.findIdsByKeyword(
@@ -325,7 +324,7 @@ public class ImageCollectionService {
     @Transactional(readOnly = true)
     public Page<Response> globalSearch(String q, int page, int size) {
         if (isBlank(q)) {
-            throw new BadRequestException("keyword.required", Map.of("field", "q"));
+            throw Errors.badRequest("keyword.required", Map.of("field", "q"));
         }
 
         Page<Long> idPage = imageCollectionRepository.findIdsByGlobalSearch(
@@ -353,7 +352,7 @@ public class ImageCollectionService {
     @Transactional(readOnly = true)
     public Page<Response> getByTopic(Long topicId, int page, int size) {
         if (topicId == null) {
-            throw new BadRequestException("error.validation", Map.of("field", "topicId"));
+            throw Errors.imageValidation("error.validation", Map.of("field", "topicId"));
         }
 
         Page<Long> idPage = imageCollectionRepository.findIdsByTopic(
@@ -379,8 +378,7 @@ public class ImageCollectionService {
     @Transactional(readOnly = true)
     public Response getById(Long id) {
         ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "imageCollection.not_found", Map.of("id", id)));
+                .orElseThrow(() -> Errors.imageNotFound(id));
         return toResponse(entity);
     }
 
@@ -392,8 +390,7 @@ public class ImageCollectionService {
     @Transactional
     public void delete(Long id) {
         ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new NotFoundException(
-                        "imageCollection.not_found", Map.of("id", id)));
+                .orElseThrow(() -> Errors.imageNotFound(id));
         createLog(entity.getId(), titleOf(entity), "DELETE",
                 "کۆمەڵەی وێنە سڕایەوە — جۆر=" + entity.getCollectionType());
         imageCollectionRepository.delete(entity);
@@ -427,7 +424,7 @@ public class ImageCollectionService {
         }
         if (newTopic != null) {
             if (isBlank(newTopic.getNameCkb()) && isBlank(newTopic.getNameKmr())) {
-                throw new BadRequestException("error.validation", Map.of(
+                throw Errors.imageValidation("error.validation", Map.of(
                         "message",
                         "بابەتی نوێ پێویستی بە لانیکەم ناوێکی کوردییە (ناوەندی یان باکوور)"));
             }
@@ -445,10 +442,9 @@ public class ImageCollectionService {
 
     private PublishmentTopic findImageTopicOrThrow(Long topicId) {
         PublishmentTopic topic = topicRepository.findById(topicId)
-                .orElseThrow(() -> new NotFoundException(
-                        "topic.not_found", Map.of("id", topicId)));
-        if (!TOPIC_ENTITY_TYPE.equals(topic.getEntityType())) {
-            throw new BadRequestException("topic.type.mismatch", Map.of(
+                .orElseThrow(() -> Errors.notFound("topic.not_found", Map.of("id", topicId)));
+            if (!TOPIC_ENTITY_TYPE.equals(topic.getEntityType())) {
+            throw Errors.imageValidation("topic.type.mismatch", Map.of(
                     "message", "بابەت id=" + topicId
                             + " بۆ '" + topic.getEntityType()
                             + "'ە، چاوەڕوان دەکرێت 'IMAGE' بێت"));
@@ -583,7 +579,7 @@ public class ImageCollectionService {
         String emb = dto != null ? trimOrNull(dto.getEmbedUrl())    : null;
 
         if (isBlank(s3) && isBlank(ext) && isBlank(emb)) {
-            throw new BadRequestException("image.source.required", Map.of(
+            throw Errors.imageValidation("image.source.required", Map.of(
                     "message",
                     "هەر وێنەیەک پێویستی بە فایل یان لینکی ڕاستەقینە یان لینکی دەرەکی یان ئێمبێد هەیە"));
         }
@@ -607,18 +603,18 @@ public class ImageCollectionService {
         switch (type) {
             case SINGLE -> {
                 if (count != 1)
-                    throw new BadRequestException("imageCollection.single.invalid",
+                    throw Errors.imageValidation("imageCollection.single.invalid",
                             Map.of("message", "جۆری SINGLE پێویستی بە تەنها ١ وێنەیە",
                                     "count", count));
             }
             case GALLERY -> {
                 if (count < 1)
-                    throw new BadRequestException("imageCollection.gallery.invalid",
+                    throw Errors.imageValidation("imageCollection.gallery.invalid",
                             Map.of("message", "جۆری GALLERY پێویستی بە لانیکەم ١ وێنەیە"));
             }
             case PHOTO_STORY -> {
                 if (count < 2)
-                    throw new BadRequestException("imageCollection.photoStory.invalid",
+                    throw Errors.imageValidation("imageCollection.photoStory.invalid",
                             Map.of("message", "جۆری PHOTO_STORY پێویستی بە لانیکەم ٢ وێنەیە",
                                     "count", count));
             }
@@ -658,12 +654,12 @@ public class ImageCollectionService {
 
     private void validateCreate(CreateRequest dto, MultipartFile ckbCoverImage) {
         if (dto == null)
-            throw new BadRequestException("error.validation", Map.of("field", "data"));
+            throw Errors.imageValidation("error.validation", Map.of("field", "data"));
         if (dto.getCollectionType() == null)
-            throw new BadRequestException("imageCollection.type.required",
+            throw Errors.imageValidation("imageCollection.type.required",
                     Map.of("field", "collectionType"));
         if (safeLangs(dto.getContentLanguages()).isEmpty())
-            throw new BadRequestException("imageCollection.languages.required",
+            throw Errors.imageValidation("imageCollection.languages.required",
                     Map.of("field", "contentLanguages"));
 
         boolean hasCoverFile = hasFile(ckbCoverImage);
@@ -671,7 +667,7 @@ public class ImageCollectionService {
                 || !isBlank(dto.getKmrCoverUrl())
                 || !isBlank(dto.getHoverCoverUrl());
         if (!hasCoverFile && !hasCoverUrl) {
-            throw new BadRequestException("imageCollection.cover.required", Map.of(
+            throw Errors.imageValidation("imageCollection.cover.required", Map.of(
                     "field", "ckbCoverImage | ckbCoverUrl | kmrCoverUrl | hoverCoverUrl"));
         }
     }

@@ -120,7 +120,7 @@ public class JwtTokenProvider {
     public List<GrantedAuthority> getAuthorities(String token) {
         String[] claims = extractAuthoritiesFromToken(token);
         return Arrays.stream(claims)
-                .map(claim -> new SimpleGrantedAuthority(claim.replace(":", "_").toUpperCase()))
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
     }
 
@@ -145,9 +145,7 @@ public class JwtTokenProvider {
     }
 
     public DecodedJWT decodeToken(String token) {
-        JWTVerifier verifier = JWT.require(Algorithm.HMAC256(secret))
-                .withIssuer(AKAR_ARKAN)
-                .build();
+        JWTVerifier verifier = createJWTVerifier();
         return verifier.verify(token);
     }
 

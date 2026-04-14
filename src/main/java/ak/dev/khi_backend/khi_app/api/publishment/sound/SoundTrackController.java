@@ -6,6 +6,7 @@ import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.publishment.sound.SoundTrackService;
+import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -227,6 +228,7 @@ public class SoundTrackController {
             @RequestParam(defaultValue = "20") int size
     ) {
         log.info("GET /api/v1/sound-tracks/by-state | state={} page={} size={}", state, page, size);
+        if (state == null) throw Errors.soundValidation("soundTrack.state.required", Map.of("field", "state"));
         return ResponseEntity.ok(ApiResponse.success(
                 soundTrackService.getByState(state, page, size),
                 "SoundTracks by state fetched successfully"));
@@ -244,6 +246,7 @@ public class SoundTrackController {
     ) {
         log.info("GET /api/v1/sound-tracks/by-sound-type | soundType={} page={} size={}",
                 soundType, page, size);
+        if (soundType == null || soundType.isBlank()) throw Errors.soundValidation("soundTrack.soundType.required", Map.of("field", "soundType"));
         return ResponseEntity.ok(ApiResponse.success(
                 soundTrackService.getBySoundType(soundType, page, size),
                 "SoundTracks by sound type fetched successfully"));
@@ -261,6 +264,7 @@ public class SoundTrackController {
     ) {
         log.info("GET /api/v1/sound-tracks/by-topic | topicId={} page={} size={}",
                 topicId, page, size);
+        if (topicId == null) throw Errors.soundValidation("error.validation", Map.of("field", "topicId"));
         return ResponseEntity.ok(ApiResponse.success(
                 soundTrackService.getByTopic(topicId, page, size),
                 "SoundTracks by topic fetched successfully"));
@@ -292,6 +296,7 @@ public class SoundTrackController {
             @RequestParam(defaultValue = "20") int size
     ) {
         log.info("GET /api/v1/sound-tracks/search/tag | tag={} page={} size={}", tag, page, size);
+        if (tag == null || tag.isBlank()) throw Errors.badRequest("tag.required", Map.of("field", "tag"));
         return ResponseEntity.ok(ApiResponse.success(
                 soundTrackService.searchByTag(tag, page, size),
                 "SoundTracks by tag fetched successfully"));
@@ -309,6 +314,7 @@ public class SoundTrackController {
     ) {
         log.info("GET /api/v1/sound-tracks/search/keyword | keyword={} page={} size={}",
                 keyword, page, size);
+        if (keyword == null || keyword.isBlank()) throw Errors.badRequest("keyword.required", Map.of("field", "keyword"));
         return ResponseEntity.ok(ApiResponse.success(
                 soundTrackService.searchByKeyword(keyword, page, size),
                 "SoundTracks by keyword fetched successfully"));
@@ -325,6 +331,7 @@ public class SoundTrackController {
             @RequestParam(defaultValue = "20") int size
     ) {
         log.info("GET /api/v1/sound-tracks/search | q={} page={} size={}", q, page, size);
+        if (q == null || q.isBlank()) throw Errors.badRequest("keyword.required", Map.of("field", "q"));
         return ResponseEntity.ok(ApiResponse.success(
                 soundTrackService.globalSearch(q, page, size),
                 "SoundTracks global search fetched successfully"));

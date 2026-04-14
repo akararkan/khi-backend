@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.user.api;
 
+import ak.dev.khi_backend.user.consts.ValidationPatterns;
 import ak.dev.khi_backend.user.dto.LoginRequestDTO;
 import ak.dev.khi_backend.user.dto.PasswordResetRequestDTO;
 import ak.dev.khi_backend.user.dto.RegisterRequestDTO;
@@ -14,6 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -67,7 +69,15 @@ public class UserAPI {
 
     // ── REQUEST PASSWORD-RESET TOKEN ─────────────────────────────────────────
     @PostMapping("/reset-token")
-    public ResponseEntity<String> createResetToken(@RequestParam @NotBlank @Email String email) {
+    public ResponseEntity<String> createResetToken(
+            @RequestParam
+            @NotBlank(message = "Email is required")
+            @Email(
+                regexp  = ValidationPatterns.EMAIL,
+                message = "Email must be a valid address with a domain (e.g. user@example.com)"
+            )
+            @Size(max = 160, message = "Email must not exceed 160 characters")
+            String email) {
         return userService.createPasswordResetToken(email);
     }
 
