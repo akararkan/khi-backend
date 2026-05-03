@@ -6,10 +6,10 @@ spring:
   # DATASOURCE (PostgreSQL)
   # ===============================
   datasource:
-    url: jdbc:postgresql://localhost:5432/khi_web_db
-    username: khi
-    password: ""
-    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
+    username: ${PGUSER}
+    password: ${PGPASSWORD}
+
   # ===============================
   # JPA / HIBERNATE
   # ===============================
@@ -17,7 +17,7 @@ spring:
     open-in-view: false
     show-sql: true
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true
@@ -103,8 +103,8 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:}
-            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
             scope:
               - email
               - profile
@@ -122,22 +122,22 @@ spring:
 # ===============================
 jwt:
   secret: ${JWT_SECRET}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
-  cookie-name: ${JWT_COOKIE_NAME:khi_auth_token}
-  cookie-secure: ${JWT_COOKIE_SECURE:true}
-  cookie-http-only: ${JWT_COOKIE_HTTP_ONLY:true}
-  cookie-same-site: ${JWT_COOKIE_SAME_SITE:None}
-  cookie-path: ${JWT_COOKIE_PATH:/}
-  cookie-max-age: ${JWT_COOKIE_MAX_AGE:86400}
+  expiration-ms: ${JWT_EXPIRATION_MS}
+  cookie-name: ${JWT_COOKIE_NAME}
+  cookie-secure: ${JWT_COOKIE_SECURE}  # Set to true in production (HTTPS)
+  cookie-http-only: ${JWT_COOKIE_HTTP_ONLY}
+  cookie-same-site: ${JWT_COOKIE_SAME_SITE}
+  cookie-path: ${JWT_COOKIE_PATH}
+  cookie-max-age: ${JWT_COOKIE_MAX_AGE}  # 24 hours in seconds
 
 # ===============================
 # APP CUSTOM CONFIG
 # ===============================
 app:
   oauth2:
-    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:5173/oauth2/redirect}
+    redirect-uri: ${OAUTH2_REDIRECT_URI}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,https://khi-frontend-production.up.railway.app}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://khi-frontend.vercel.app,https://khi-frontend-*.vercel.app,http://localhost:5173,http://localhost:3000}
     allowed-methods: GET,POST,PUT,DELETE,OPTIONS,PATCH
     allowed-headers: "*"
     allow-credentials: true

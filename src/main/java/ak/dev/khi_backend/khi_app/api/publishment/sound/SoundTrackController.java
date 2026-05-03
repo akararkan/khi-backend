@@ -63,7 +63,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/soundtracks")
+@RequestMapping("/api/v1/sound-tracks")
 @RequiredArgsConstructor
 public class SoundTrackController {
 
