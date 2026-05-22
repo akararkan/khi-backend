@@ -4,36 +4,40 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * About — About-page entity.
+ * About — About-page entity (Tiptap migration).
  *
  * ─── Bilingual Slugs ──────────────────────────────────────────────────────────
  *  Each language has its own unique URL slug:
- *    slugCkb  → Sorani   route identifier, e.g. "دەربارەی-ئێمە"  or "about-ckb"
- *    slugKmr  → Kurmanji route identifier, e.g. "derbare-me"      or "about-kmr"
- *
- *  Both are unique across the table.  slugKmr is nullable — a page may be
- *  published in Sorani only.
+ *    slugCkb  → Sorani   route identifier
+ *    slugKmr  → Kurmanji route identifier (nullable — page may be CKB-only)
  *
  * ─── Hero Image ───────────────────────────────────────────────────────────────
- *  {@link #heroImageUrl} — a dedicated full-bleed banner image shown at the very
- *  top of the public About page.  Stored as an S3 URL (or any absolute URL).
- *  Optional: the public view falls back to the first IMAGE block when absent.
+ *  {@link #heroImageUrl} — the full-bleed banner at the top of the page.
+ *  Either set or absent — there is no longer a "fallback to first block image"
+ *  rule, because blocks have been removed.
  *
  * ─── Bilingual Content ────────────────────────────────────────────────────────
- *  Follows the same pattern as the Video entity:
- *    ckbContent  → Sorani  (CKB) version of title / subtitle / meta
- *    kmrContent  → Kurmanji (KMR) version of title / subtitle / meta
+ *  ckbContent  → Sorani  (CKB) title / subtitle / meta / Tiptap body
+ *  kmrContent  → Kurmanji (KMR) title / subtitle / meta / Tiptap body
  *
- * ─── Blocks ───────────────────────────────────────────────────────────────────
- *  Rich content sections — each {@link AboutBlock} carries its own CKB / KMR
- *  text via {@link AboutBlockContent} embeddables.
+ *  The {@code body} field on {@link AboutContent} replaces the old per-page
+ *  block collection. The Tiptap editor produces full HTML for each language,
+ *  including inline images / audio / video whose URLs already point at S3
+ *  (uploaded via the shared /api/v1/media/upload endpoint).
+ *
+ * ─── Stats ────────────────────────────────────────────────────────────────────
+ *  The STATS section (array of {labelCkb, labelKmr, value}) survives as a
+ *  dedicated JSONB column. It cannot be embedded cleanly in HTML and the
+ *  frontend renders it from structured JSON.
  */
 @Entity
 @Table(
@@ -54,21 +58,10 @@ public class About {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ─── Bilingual Slugs ──────────────────────────────────────────────────────
-
-    /**
-     * Sorani (CKB) URL slug — unique, required.
-     * e.g. "derbare-ckb", "stanford-derbare"
-     */
     @NotBlank
     @Column(name = "slug_ckb", unique = true, nullable = false, length = 200)
     private String slugCkb;
 
-    /**
-     * Kurmanji (KMR) URL slug — unique, optional.
-     * e.g. "derbare-kmr", "stanford-about"
-     * Null when the page has no Kurmanji version yet.
-     */
     @Column(name = "slug_kmr", unique = true, nullable = true, length = 200)
     private String slugKmr;
 
@@ -79,44 +72,35 @@ public class About {
     @Builder.Default
     private Integer displayOrder = 0;
 
-    // ─── Hero Image ───────────────────────────────────────────────────────────
-
-    /**
-     * Dedicated full-bleed hero / banner image shown at the top of the
-     * public About page.  Stored as an S3 URL (or any absolute URL).
-     * Optional — the public view falls back to the first IMAGE block when null.
-     */
     @Column(name = "hero_image_url", length = 1000)
     private String heroImageUrl;
-
-    // ─── CKB (Sorani) Content ─────────────────────────────────────────────────
 
     @Embedded
     @AttributeOverrides({
             @AttributeOverride(name = "title",           column = @Column(name = "title_ckb",            length = 300)),
             @AttributeOverride(name = "subtitle",        column = @Column(name = "subtitle_ckb",         length = 500)),
-            @AttributeOverride(name = "metaDescription", column = @Column(name = "meta_description_ckb", length = 2500))
+            @AttributeOverride(name = "metaDescription", column = @Column(name = "meta_description_ckb", length = 2500)),
+            @AttributeOverride(name = "body",            column = @Column(name = "body_ckb",             columnDefinition = "TEXT"))
     })
     private AboutContent ckbContent;
-
-    // ─── KMR (Kurmanji) Content ───────────────────────────────────────────────
 
     @Embedded
     @AttributeOverrides({
             @AttributeOverride(name = "title",           column = @Column(name = "title_kmr",            length = 300)),
             @AttributeOverride(name = "subtitle",        column = @Column(name = "subtitle_kmr",         length = 500)),
-            @AttributeOverride(name = "metaDescription", column = @Column(name = "meta_description_kmr", length = 2500))
+            @AttributeOverride(name = "metaDescription", column = @Column(name = "meta_description_kmr", length = 2500)),
+            @AttributeOverride(name = "body",            column = @Column(name = "body_kmr",             columnDefinition = "TEXT"))
     })
     private AboutContent kmrContent;
 
-    // ─── Blocks ───────────────────────────────────────────────────────────────
-
-    @OneToMany(mappedBy = "about", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @OrderBy("sequence ASC")
+    /**
+     * Structured stats — array of {labelCkb, labelKmr, value}.
+     * Stored as JSONB so the order and shape are preserved.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "stats", columnDefinition = "jsonb")
     @Builder.Default
-    private List<AboutBlock> blocks = new ArrayList<>();
-
-    // ─── Timestamps ───────────────────────────────────────────────────────────
+    private List<StatItem> stats = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -125,16 +109,4 @@ public class About {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    // ─── Helper Methods ───────────────────────────────────────────────────────
-
-    public void addBlock(AboutBlock block) {
-        blocks.add(block);
-        block.setAbout(this);
-    }
-
-    public void removeBlock(AboutBlock block) {
-        blocks.remove(block);
-        block.setAbout(null);
-    }
 }

@@ -91,19 +91,9 @@ public final class Errors {
         return new ProjectValidationException(messageKey, details);
     }
 
-    /** 400 — Project media validation failed */
-    public static ProjectMediaException projectMediaInvalid(String messageKey, Map<String, Object> details) {
-        return new ProjectMediaException(messageKey, details);
-    }
-
-    /** 502 — Cover upload failed */
+    /** 502 — Cover upload failed (legacy — covers now go through the shared media endpoint) */
     public static ProjectStorageException projectCoverUploadFailed(Throwable cause) {
         return ProjectStorageException.coverUploadFailed(cause);
-    }
-
-    /** 502 — Media file upload failed */
-    public static ProjectStorageException projectMediaUploadFailed(String fileName, Throwable cause) {
-        return ProjectStorageException.mediaUploadFailed(fileName, cause);
     }
 
     /** 500 — Unexpected error during project create */
@@ -139,11 +129,6 @@ public final class Errors {
     /** 400 — News validation failed */
     public static ak.dev.khi_backend.khi_app.exceptions.news.NewsValidationException newsValidation(String key, Map<String, Object> details) {
         return new ak.dev.khi_backend.khi_app.exceptions.news.NewsValidationException(key, details);
-    }
-
-    /** 400 — News media invalid */
-    public static ak.dev.khi_backend.khi_app.exceptions.news.NewsMediaException newsMediaInvalid(String key, Map<String, Object> details) {
-        return new ak.dev.khi_backend.khi_app.exceptions.news.NewsMediaException(key, details);
     }
 
     /** 502 — News storage error */

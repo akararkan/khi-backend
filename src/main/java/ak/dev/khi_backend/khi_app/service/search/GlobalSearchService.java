@@ -330,11 +330,16 @@ public class GlobalSearchService {
 
     /**
      * Returns a description snippet (max 200 chars).
-     * Keeps the response compact for search result cards.
+     * Strips Tiptap HTML tags so search result cards stay clean.
      */
     private String snippet(String raw) {
         if (raw == null || raw.isBlank()) return "";
-        return raw.length() <= 200 ? raw : raw.substring(0, 200) + "…";
+        // Strip tags + collapse whitespace; descriptions now contain Tiptap HTML.
+        String plain = raw.replaceAll("<[^>]+>", " ")
+                          .replaceAll("\\s+", " ")
+                          .trim();
+        if (plain.isEmpty()) return "";
+        return plain.length() <= 200 ? plain : plain.substring(0, 200) + "…";
     }
 
     /** Returns the first non-null/non-blank string from a varargs list. */

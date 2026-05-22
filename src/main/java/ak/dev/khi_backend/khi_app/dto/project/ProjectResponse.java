@@ -9,6 +9,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * ProjectResponse — Tiptap migration.
+ *
+ * The {@code description} inside each content block now contains Tiptap HTML
+ * (with inline image / audio / video URLs already pointing at S3). The old
+ * {@code media[]} array and {@code contentsCkb / contentsKmr} string lists
+ * are gone.
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,11 +26,9 @@ public class ProjectResponse {
     private Long id;
     private String coverUrl;
 
-    // ✅ Bilingual project type
     private String projectTypeCkb;
     private String projectTypeKmr;
 
-    // ✅ Project status
     private ProjectStatus status;
 
     private LocalDate projectDate;
@@ -30,9 +36,6 @@ public class ProjectResponse {
 
     private ProjectContentBlockDto ckbContent;
     private ProjectContentBlockDto kmrContent;
-
-    private List<String> contentsCkb;
-    private List<String> contentsKmr;
 
     private List<String> tagsCkb;
     private List<String> tagsKmr;
@@ -45,15 +48,13 @@ public class ProjectResponse {
     private String  createdBy;
     private String  updatedBy;
 
-    private List<ProjectMediaResponse> media;
-
-    // ── Nested DTO ──────────────────────────────────────────────
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ProjectContentBlockDto {
         private String title;
+        /** Tiptap HTML output. */
         private String description;
         private String location;
     }

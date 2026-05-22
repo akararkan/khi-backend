@@ -3,7 +3,6 @@ package ak.dev.khi_backend.khi_app.api.project;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
-import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.service.project.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,12 +12,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
+/**
+ * ProjectController — Tiptap-aware project endpoints.
+ *
+ * All endpoints are now plain {@code application/json}. The frontend uploads
+ * the cover image and any inline media first via
+ * {@code POST /api/v1/media/upload}, then sends URLs in the JSON body.
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/projects")
@@ -28,16 +29,13 @@ public class ProjectController {
     private final ProjectService projectService;
 
     // ============================================================
-    // CREATE (JSON)
+    // CREATE
     // ============================================================
     @PostMapping(value = "/create", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ProjectResponse>> create(
             @Valid @RequestBody ProjectCreateRequest request
     ) {
-        log.info("POST /api/v1/projects/create | langs={} | mediaDtoCount={}",
-                request.getContentLanguages(),
-                request.getMedia() != null ? request.getMedia().size() : 0
-        );
+        log.info("POST /api/v1/projects/create | langs={}", request.getContentLanguages());
 
         ProjectResponse project = projectService.createResponse(request);
 
@@ -46,99 +44,21 @@ public class ProjectController {
                 .body(ApiResponse.success(project, "Project created successfully"));
     }
 
-    /**
-     * Multipart:
-     * - data: JSON ProjectCreateRequest
-     * - cover: optional file BUT if cover is missing then coverUrl in JSON must exist
-     * - media: optional files (can repeat)
-     */
-    @PostMapping(
-            value = "/with-files",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<ApiResponse<ProjectResponse>> createWithFiles(
-            @RequestPart(value = "data") @Valid ProjectCreateRequest request,
-            @RequestPart(value = "cover", required = false) MultipartFile cover,
-            @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
-    ) throws IOException {
-
-        // ✅ EASIEST GUARANTEE:
-        // coverUrl must come either from uploaded cover file OR from request.coverUrl
-        if ((cover == null || cover.isEmpty()) && isBlank(request.getCoverUrl())) {
-            throw Errors.projectValidation("project.cover_required", Map.of());
-        }
-
-        int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
-        int coverCount = (cover != null && !cover.isEmpty()) ? 1 : 0;
-
-        log.info("POST /api/v1/projects/with-files | langs={} | cover={} | mediaFiles={} | mediaDtoCount={}",
-                request.getContentLanguages(),
-                coverCount,
-                mediaFilesCount,
-                request.getMedia() != null ? request.getMedia().size() : 0
-        );
-
-        ProjectResponse project = projectService.createResponse(request, cover, mediaFiles);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.success(project, "Project created successfully"));
-    }
-
     // ============================================================
-    // UPDATE (JSON)
+    // UPDATE
     // ============================================================
     @PutMapping(value = "/update/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ProjectResponse>> update(
             @PathVariable("id") Long id,
             @Valid @RequestBody ProjectCreateRequest request
     ) {
-        log.info("PUT /api/v1/projects/update/{} | langs={} | mediaDtoCount={}",
-                id,
-                request.getContentLanguages(),
-                request.getMedia() != null ? request.getMedia().size() : 0
-        );
+        log.info("PUT /api/v1/projects/update/{} | langs={}", id, request.getContentLanguages());
 
         ProjectResponse project = projectService.updateResponse(id, request);
 
         return ResponseEntity.ok(
                 ApiResponse.success(project, "Project updated successfully")
         );
-    }
-
-    @PutMapping(
-            value = "/update/{id}/with-files",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<ApiResponse<ProjectResponse>> updateWithFiles(
-            @PathVariable("id") Long id,
-            @RequestPart(value = "data") @Valid ProjectCreateRequest request,
-            @RequestPart(value = "cover", required = false) MultipartFile cover,
-            @RequestPart(value = "media", required = false) List<MultipartFile> mediaFiles
-    ) throws IOException {
-
-        // ✅ EASIEST GUARANTEE:
-        // If client doesn't upload new cover, they must send existing coverUrl in JSON.
-        if ((cover == null || cover.isEmpty()) && isBlank(request.getCoverUrl())) {
-            throw Errors.projectValidation("project.cover_required", Map.of());
-        }
-
-        int mediaFilesCount = mediaFiles != null ? mediaFiles.size() : 0;
-        int coverCount = (cover != null && !cover.isEmpty()) ? 1 : 0;
-
-        log.info("PUT /api/v1/projects/update/{}/with-files | langs={} | cover={} | mediaFiles={} | mediaDtoCount={}",
-                id,
-                request.getContentLanguages(),
-                coverCount,
-                mediaFilesCount,
-                request.getMedia() != null ? request.getMedia().size() : 0
-        );
-
-        ProjectResponse updated = projectService.updateWithFilesResponse(id, request, cover, mediaFiles);
-
-        return ResponseEntity.ok(ApiResponse.success(updated, "Project updated successfully"));
     }
 
     // ============================================================
@@ -173,7 +93,7 @@ public class ProjectController {
     }
 
     // ============================================================
-    // SEARCH BY TAG
+    // SEARCH
     // ============================================================
     @GetMapping(value = "/search/tag", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByTag(
@@ -181,7 +101,7 @@ public class ProjectController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/projects/search/tag | tag={} | page={} size={}", tag, page, size);
+        log.info("GET /api/v1/projects/search/tag | tag={}", tag);
 
         Page<ProjectResponse> result = projectService.searchByTagResponse(tag, page, size);
 
@@ -190,28 +110,18 @@ public class ProjectController {
         );
     }
 
-    // ============================================================
-    // SEARCH BY KEYWORD
-    // ============================================================
     @GetMapping(value = "/search/keyword", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<ProjectResponse>>> searchByKeyword(
             @RequestParam("keyword") String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/projects/search/keyword | keyword={} | page={} size={}", keyword, page, size);
+        log.info("GET /api/v1/projects/search/keyword | keyword={}", keyword);
 
         Page<ProjectResponse> result = projectService.searchByKeywordResponse(keyword, page, size);
 
         return ResponseEntity.ok(
                 ApiResponse.success(result, "Search by keyword completed")
         );
-    }
-
-    // ============================================================
-    // UTIL
-    // ============================================================
-    private boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
     }
 }

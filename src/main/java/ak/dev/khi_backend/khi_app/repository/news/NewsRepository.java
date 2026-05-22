@@ -185,7 +185,7 @@ public interface NewsRepository extends JpaRepository<News, Long> {
             "contentLanguages",
             "tagsCkb", "tagsKmr",
             "keywordsCkb", "keywordsKmr",
-            "media", "category", "subCategory"
+            "category", "subCategory"
     })
     @Query("SELECT n FROM News n WHERE n.id = :id")
     Optional<News> findByIdWithGraph(@Param("id") Long id);

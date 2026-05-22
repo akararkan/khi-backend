@@ -129,18 +129,9 @@ public class News {
     @JoinColumn(name = "sub_category_id", nullable = false)
     private NewsSubCategory subCategory;
 
-    // ─────────────────────────────────────────────
-    // Media
-    //
-    // @BatchSize: for 20 news items, Hibernate loads all
-    // their media in 1 IN-query instead of 20 queries.
-    // ─────────────────────────────────────────────
-
-    @Builder.Default
-    @BatchSize(size = 50)
-    @OneToMany(mappedBy = "news", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @OrderBy("sortOrder ASC, id ASC")
-    private List<NewsMedia> media = new ArrayList<>();
+    // Media table dropped — inline images / audio / video / documents now
+    // live inside the Tiptap HTML stored in ckbContent.description and
+    // kmrContent.description. Uploads go through POST /api/v1/media/upload.
 
     @PrePersist
     public void prePersist() {

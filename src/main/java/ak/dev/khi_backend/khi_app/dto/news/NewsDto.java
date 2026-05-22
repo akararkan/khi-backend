@@ -1,20 +1,28 @@
 package ak.dev.khi_backend.khi_app.dto.news;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
-import ak.dev.khi_backend.khi_app.enums.news.NewsMediaType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
+/**
+ * NewsDto — request / response DTO for the News module (Tiptap migration).
+ *
+ * Inline media (images, audio, video, embedded HTML) lives inside the Tiptap
+ * HTML stored in {@link LanguageContentDto#getDescription()}. The old
+ * {@code media[]} array and the {@code news_media} table are gone.
+ *
+ * Cover image flow: client uploads via {@code POST /api/v1/media/upload}
+ * first, then sends the resulting {@code coverUrl} in this DTO's JSON body.
+ */
 @Data
 @NoArgsConstructor @AllArgsConstructor
 @Builder
-@JsonIgnoreProperties(ignoreUnknown = true)   // ← زیادی بکە
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class NewsDto {
 
     private Long id;
@@ -23,28 +31,19 @@ public class NewsDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    // ✅ Which languages are active (LIKE Project)
     @Builder.Default
     private Set<Language> contentLanguages = new LinkedHashSet<>();
 
-    // ✅ Bilingual Category
     private CategoryDto category;
 
-    // ✅ Bilingual SubCategory
     private SubCategoryDto subCategory;
 
-    // ✅ Bilingual Content
     private LanguageContentDto ckbContent;
     private LanguageContentDto kmrContent;
 
-    // ✅ Bilingual Tags
     private BilingualSet tags;
 
-    // ✅ Bilingual Keywords
     private BilingualSet keywords;
-
-    // Media
-    private List<MediaDto> media;
 
     // ============================================================
     // NESTED DTOs
@@ -71,6 +70,7 @@ public class NewsDto {
     @Builder
     public static class LanguageContentDto {
         private String title;
+        /** Tiptap HTML produced by the editor. */
         private String description;
     }
 
@@ -82,25 +82,5 @@ public class NewsDto {
         private Set<String> ckb = new LinkedHashSet<>();
         @Builder.Default
         private Set<String> kmr = new LinkedHashSet<>();
-    }
-
-    @Getter @Setter
-    @NoArgsConstructor @AllArgsConstructor
-    @Builder
-    public static class MediaDto {
-        private Long id;
-        private NewsMediaType type;
-
-        /** Direct file url (S3/server). Optional for AUDIO/VIDEO if externalUrl/embedUrl is provided. */
-        private String url;
-
-        /** Normal link to third-party page (e.g., youtube watch link). Optional. */
-        private String externalUrl;
-
-        /** Embeddable link for iframe (e.g., youtube embed link). Optional. */
-        private String embedUrl;
-
-        private Integer sortOrder;
-        private LocalDateTime createdAt;
     }
 }

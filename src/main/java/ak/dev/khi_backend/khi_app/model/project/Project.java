@@ -11,6 +11,15 @@ import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+/**
+ * Project — Tiptap migration.
+ *
+ * The {@code description} field on {@link ProjectContentBlock} now holds the
+ * full Tiptap HTML output. The old {@code project_media} table and the
+ * {@code contentsCkb} / {@code contentsKmr} free-text content tags have been
+ * removed — inline media lives inside the HTML, and any named "section" can
+ * be expressed as a heading inside the editor.
+ */
 @Entity
 @Table(
         name = "projects",
@@ -32,16 +41,8 @@ public class Project extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ─────────────────────────────────────────────
-    // Cover Image
-    // ─────────────────────────────────────────────
-
     @Column(name = "cover_url", length = 1024)
     private String coverUrl;
-
-    // ─────────────────────────────────────────────
-    // Embedded bilingual content blocks
-    // ─────────────────────────────────────────────
 
     @Embedded
     @AttributeOverrides({
@@ -59,36 +60,16 @@ public class Project extends AuditableEntity {
     })
     private ProjectContentBlock kmrContent;
 
-    // ─────────────────────────────────────────────
-    // Project type (bilingual label)
-    // ─────────────────────────────────────────────
-
     @Column(name = "project_type_ckb", length = 128)
     private String projectTypeCkb;
 
     @Column(name = "project_type_kmr", length = 128)
     private String projectTypeKmr;
 
-    // ─────────────────────────────────────────────
-    // Status
-    // ─────────────────────────────────────────────
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
     @Builder.Default
     private ProjectStatus status = ProjectStatus.ONGOING;
-
-    // ─────────────────────────────────────────────
-    // Content Languages
-    //
-    // @BatchSize: Hibernate loads ALL languages for the
-    // current page of projects in ONE IN-query instead of
-    // one query per project (eliminates N+1).
-    //
-    // FetchType changed to LAZY — no longer needed as EAGER
-    // because @BatchSize + the service's @Transactional
-    // guarantees loading within the open session.
-    // ─────────────────────────────────────────────
 
     @Builder.Default
     @BatchSize(size = 50)
@@ -100,40 +81,6 @@ public class Project extends AuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "language", nullable = false, length = 10)
     private Set<Language> contentLanguages = new LinkedHashSet<>();
-
-    // ─────────────────────────────────────────────
-    // Contents (per language)
-    //
-    // @BatchSize on every collection:
-    //   Without it → Hibernate fires 1 SELECT per project per collection
-    //                = N×8 queries for N projects (N+1 problem)
-    //   With it    → Hibernate fires 1 IN-query per collection type
-    //                = exactly 8 queries for any page size
-    // ─────────────────────────────────────────────
-
-    @BatchSize(size = 50)
-    @ManyToMany
-    @JoinTable(
-            name = "project_content_map_ckb",
-            joinColumns = @JoinColumn(name = "project_id"),
-            inverseJoinColumns = @JoinColumn(name = "content_id")
-    )
-    @Builder.Default
-    private Set<ProjectContent> contentsCkb = new LinkedHashSet<>();
-
-    @BatchSize(size = 50)
-    @ManyToMany
-    @JoinTable(
-            name = "project_content_map_kmr",
-            joinColumns = @JoinColumn(name = "project_id"),
-            inverseJoinColumns = @JoinColumn(name = "content_id")
-    )
-    @Builder.Default
-    private Set<ProjectContent> contentsKmr = new LinkedHashSet<>();
-
-    // ─────────────────────────────────────────────
-    // Tags (per language)
-    // ─────────────────────────────────────────────
 
     @BatchSize(size = 50)
     @ManyToMany
@@ -155,10 +102,6 @@ public class Project extends AuditableEntity {
     @Builder.Default
     private Set<ProjectTag> tagsKmr = new LinkedHashSet<>();
 
-    // ─────────────────────────────────────────────
-    // Keywords (per language)
-    // ─────────────────────────────────────────────
-
     @BatchSize(size = 50)
     @ManyToMany
     @JoinTable(
@@ -179,38 +122,10 @@ public class Project extends AuditableEntity {
     @Builder.Default
     private Set<ProjectKeyword> keywordsKmr = new LinkedHashSet<>();
 
-    // ─────────────────────────────────────────────
-    // Project Date
-    // ─────────────────────────────────────────────
-
     @Column(name = "project_date")
     private LocalDate projectDate;
 
-    // ─────────────────────────────────────────────
-    // Media
-    //
-    // @BatchSize here means: for 20 projects on a page,
-    // Hibernate loads all their media in 1 IN-query,
-    // not 20 separate queries.
-    // ─────────────────────────────────────────────
-
-    @BatchSize(size = 50)
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("sortOrder ASC, id ASC")
-    @Builder.Default
-    private Set<ProjectMedia> media = new LinkedHashSet<>();
-
-    // ─────────────────────────────────────────────
-    // Helper methods
-    // ─────────────────────────────────────────────
-
-    public void addMedia(ProjectMedia m) {
-        media.add(m);
-        m.setProject(this);
-    }
-
-    public void removeMedia(ProjectMedia m) {
-        media.remove(m);
-        m.setProject(null);
-    }
+    // project_media table dropped — inline images / audio / video now live
+    // inside the Tiptap HTML stored in ckbContent.description and
+    // kmrContent.description. Uploads go through POST /api/v1/media/upload.
 }

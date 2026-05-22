@@ -10,7 +10,9 @@ import lombok.*;
  * Holds all language-specific text fields for a single language version
  * (CKB = Sorani or KMR = Kurmanji) of an about page.
  *
- * Follows the same pattern as {@link ak.dev.khi_backend.khi_app.model.publishment.video.VideoContent}.
+ * The {@code body} field stores Tiptap-rendered HTML — the editor produces
+ * a full HTML string (with inline images / video / audio embed URLs already
+ * pointing at S3) and the backend stores it verbatim.
  */
 @Embeddable
 @Getter @Setter
@@ -26,4 +28,11 @@ public class AboutContent {
 
     @Column(name = "meta_description", columnDefinition = "TEXT")
     private String metaDescription;
+
+    /**
+     * Tiptap HTML body — full editor output for this language.
+     * Replaces the old AboutBlock collection.
+     */
+    @Column(name = "body", columnDefinition = "TEXT")
+    private String body;
 }

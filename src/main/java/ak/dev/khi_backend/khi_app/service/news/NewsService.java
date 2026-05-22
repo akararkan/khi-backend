@@ -2,16 +2,13 @@ package ak.dev.khi_backend.khi_app.service.news;
 
 import ak.dev.khi_backend.khi_app.dto.news.NewsDto;
 import ak.dev.khi_backend.khi_app.enums.Language;
-import ak.dev.khi_backend.khi_app.enums.news.NewsMediaType;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
-import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
 import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.news.*;
 import ak.dev.khi_backend.khi_app.repository.news.NewsAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsCategoryRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsSubCategoryRepository;
-import ak.dev.khi_backend.khi_app.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -21,122 +18,70 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
+/**
+ * NewsService — Tiptap-aware News business logic.
+ *
+ * Inline media is no longer handled here. The frontend uploads inline
+ * images / audio / video through the shared {@code POST /api/v1/media/upload}
+ * endpoint and bakes the returned URLs into the Tiptap HTML before sending
+ * the JSON body to {@link ak.dev.khi_backend.khi_app.api.news.NewsController}.
+ *
+ * Cover image: same flow — frontend uploads first, then passes the
+ * {@code coverUrl} in the JSON.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class NewsService {
 
-    private final NewsRepository             newsRepository;
-    private final NewsCategoryRepository     newsCategoryRepository;
-    private final NewsSubCategoryRepository  newsSubCategoryRepository;
-    private final NewsAuditLogRepository     newsAuditLogRepository;
-    private final S3Service                  s3Service;
-    private final TransactionTemplate        transactionTemplate;
+    private final NewsRepository            newsRepository;
+    private final NewsCategoryRepository    newsCategoryRepository;
+    private final NewsSubCategoryRepository newsSubCategoryRepository;
+    private final NewsAuditLogRepository    newsAuditLogRepository;
+    private final TransactionTemplate       transactionTemplate;
 
     // ============================================================
-    // دروستکردن (لەگەڵ فایل)
+    // CREATE
     // ============================================================
 
     @CacheEvict(value = "news", allEntries = true)
-    public NewsDto addNews(NewsDto dto,
-                           MultipartFile coverImage,
-                           List<MultipartFile> mediaFiles) {
-        String traceId   = traceId();
-        boolean hasCover = hasFile(coverImage);
-        boolean hasMedia = hasFiles(mediaFiles);
-        log.info("دروستکردنی هەواڵ | traceId={}", traceId);
+    public NewsDto addNews(NewsDto dto) {
+        String traceId = traceId();
+        log.info("Create news | traceId={}", traceId);
 
-        validate(dto, true, hasCover);
+        validate(dto, true);
 
-        int mediaCount = mediaFiles != null ? mediaFiles.size() : 0;
-        ExecutorService pool = Executors.newFixedThreadPool(Math.min(8, Math.max(2, 1 + mediaCount)));
+        News saved = transactionTemplate.execute(status -> {
+            NewsCategory    cat    = getOrCreateCategory(dto.getCategory());
+            NewsSubCategory subCat = getOrCreateSubCategory(dto.getSubCategory(), cat);
 
-        try {
-            // ── S3 uploads (parallel, outside transaction) ──────────
-            CompletableFuture<String> coverFuture =
-                    CompletableFuture.completedFuture(trimOrNull(dto.getCoverUrl()));
+            News news = buildNewsEntity(dto, dto.getCoverUrl().trim(), cat, subCat);
+            applyContentByLanguages(news, dto);
 
-            if (hasCover) {
-                coverFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        return s3Service.upload(
-                                coverBytes(coverImage),
-                                coverImage.getOriginalFilename(),
-                                coverImage.getContentType());
-                    } catch (IOException e) {
-                        throw new CompletionException(Errors.newsStorageFailed("news.cover_upload_failed", Map.of("traceId", traceId), e));
-                    }
-                }, pool);
-            }
+            News persisted = newsRepository.save(news);
+            createAuditLog(persisted, "CREATE", "News created");
+            return persisted;
+        });
 
-            List<CompletableFuture<UploadedMedia>> mediaFutures =
-                    buildMediaFutures(mediaFiles, pool);
-
-            String coverUrl = trimOrNull(coverFuture.join());
-            if (isBlank(coverUrl)) {
-                throw Errors.newsValidation("news.cover.required",
-                        Map.of("field", "coverImage_or_coverUrl", "traceId", traceId));
-            }
-
-            List<UploadedMedia> uploaded = joinMediaFutures(mediaFutures);
-
-            // ── DB transaction ───────────────────────────────────────
-            News saved = transactionTemplate.execute(status -> {
-                NewsCategory    cat    = getOrCreateCategory(dto.getCategory());
-                NewsSubCategory subCat = getOrCreateSubCategory(dto.getSubCategory(), cat);
-
-                News news = buildNewsEntity(dto, coverUrl, cat, subCat);
-                applyContentByLanguages(news, dto);
-
-                if (!uploaded.isEmpty()) {
-                    appendUploadedMedia(news, uploaded);
-                } else {
-                    attachMediaFromDto(news, dto.getMedia());
-                }
-
-                News p = newsRepository.save(news);
-                createAuditLog(p, "CREATE", "هەواڵ دروستکرا");
-                return p;
-            });
-
-            // force collection init inside session boundary
-            return toDto(saved);
-
-            } catch (CompletionException ex) {
-            Throwable root = rootCause(ex);
-            if (root instanceof IOException) {
-                throw Errors.newsStorageFailed("news.media_upload_failed", Map.of("traceId", traceId), (IOException) root);
-            }
-            throw ex;
-        } finally {
-            pool.shutdown();
-        }
+        return toDto(saved);
     }
 
     // ============================================================
-    // دروستکردنی بە کۆمەڵ (JSON)
+    // CREATE BULK
     // ============================================================
 
     @CacheEvict(value = "news", allEntries = true)
     public List<NewsDto> addNewsBulk(List<NewsDto> list) {
         if (list == null || list.isEmpty()) {
             throw Errors.newsValidation("error.validation",
-                    Map.of("field", "list", "message", "لیستی هەواڵەکان بەتاڵە"));
+                    Map.of("field", "list", "message", "News list is empty"));
         }
         for (NewsDto dto : list) {
-            validate(dto, false, false);
-            if (isBlank(dto.getCoverUrl())) {
-                throw Errors.newsValidation("news.coverUrl.required",
-                        Map.of("field", "coverUrl"));
-            }
+            validate(dto, true);
         }
 
         List<News> saved = transactionTemplate.execute(status -> {
@@ -146,13 +91,12 @@ public class NewsService {
                 NewsSubCategory subCat = getOrCreateSubCategory(dto.getSubCategory(), cat);
                 News news = buildNewsEntity(dto, dto.getCoverUrl().trim(), cat, subCat);
                 applyContentByLanguages(news, dto);
-                attachMediaFromDto(news, dto.getMedia());
                 entities.add(news);
             }
             List<News> out = newsRepository.saveAll(entities);
             newsAuditLogRepository.saveAll(
                     out.stream()
-                            .map(n -> buildAuditLog(n, "CREATE", "هەواڵ بە کۆمەڵ دروستکرا"))
+                            .map(n -> buildAuditLog(n, "CREATE", "News bulk created"))
                             .toList()
             );
             return out;
@@ -162,13 +106,7 @@ public class NewsService {
     }
 
     // ============================================================
-    // GET ALL — Paginated + Cached
-    //
-    // Execution plan for page of 20:
-    //   Q1: SELECT id FROM news ORDER BY date DESC  (Phase 1 — index scan)
-    //   Q2: SELECT n  FROM news WHERE id IN (...)   (Phase 2 — bare rows)
-    //   Q3-Q9: @BatchSize fires 1 IN-query per collection type
-    //   Total: ~9 fast queries. Cache hit: <5ms.
+    // READ
     // ============================================================
 
     @Cacheable(value = "news", key = "'all:p' + #page + ':s' + #size")
@@ -190,19 +128,13 @@ public class NewsService {
         );
     }
 
-    // ============================================================
-    // SEARCH BY TAG — Paginated + Cached
-    //
-    // language: "ckb" | "kmr" | null/empty = both
-    // ============================================================
-
     @Cacheable(value = "news",
             key = "'tag:' + #tag.toLowerCase() + ':lang:' + #language + ':p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
     public Page<NewsDto> searchByTag(String tag, String language, int page, int size) {
         if (isBlank(tag)) {
             throw new BadRequestException("tag.required",
-                    Map.of("message", "تاگی گەڕان پێویستە"));
+                    Map.of("message", "Search tag is required"));
         }
 
         Pageable pageable = PageRequest.of(page, size);
@@ -217,23 +149,8 @@ public class NewsService {
             idPage = newsRepository.findIdsByTag(t, pageable);
         }
 
-        if (idPage.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(),
-                    idPage.getPageable(), idPage.getTotalElements());
-        }
-
-        List<News> hydrated = hydrateAndSort(idPage.getContent());
-
-        return new PageImpl<>(
-                hydrated.stream().map(this::toDto).collect(Collectors.toList()),
-                idPage.getPageable(),
-                idPage.getTotalElements()
-        );
+        return mapPage(idPage);
     }
-
-    // ============================================================
-    // SEARCH BY KEYWORD — Paginated + Cached
-    // ============================================================
 
     @Cacheable(value = "news",
             key = "'kw:' + #keyword.toLowerCase() + ':lang:' + #language + ':p' + #page + ':s' + #size")
@@ -241,7 +158,7 @@ public class NewsService {
     public Page<NewsDto> searchByKeyword(String keyword, String language, int page, int size) {
         if (isBlank(keyword)) {
             throw new BadRequestException("keyword.required",
-                    Map.of("message", "کلیلەووشەی گەڕان بەتاڵە"));
+                    Map.of("message", "Search keyword is required"));
         }
 
         Pageable pageable = PageRequest.of(page, size);
@@ -256,24 +173,8 @@ public class NewsService {
             idPage = newsRepository.findIdsByKeyword(kw, pageable);
         }
 
-        if (idPage.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(),
-                    idPage.getPageable(), idPage.getTotalElements());
-        }
-
-        List<News> hydrated = hydrateAndSort(idPage.getContent());
-
-        return new PageImpl<>(
-                hydrated.stream().map(this::toDto).collect(Collectors.toList()),
-                idPage.getPageable(),
-                idPage.getTotalElements()
-        );
+        return mapPage(idPage);
     }
-
-    // ============================================================
-    // GLOBAL SEARCH — Modern "one search box"
-    // Searches title + description + tags + keywords, both languages
-    // ============================================================
 
     @Cacheable(value = "news",
             key = "'search:' + #q.toLowerCase() + ':p' + #page + ':s' + #size")
@@ -281,29 +182,14 @@ public class NewsService {
     public Page<NewsDto> globalSearch(String q, int page, int size) {
         if (isBlank(q)) {
             throw new BadRequestException("keyword.required",
-                    Map.of("message", "کلیلەووشەی گەڕان پێویستە"));
+                    Map.of("message", "Search keyword is required"));
         }
 
         Page<Long> idPage = newsRepository.findIdsByGlobalSearch(
                 q.trim(), PageRequest.of(page, size));
 
-        if (idPage.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(),
-                    idPage.getPageable(), idPage.getTotalElements());
-        }
-
-        List<News> hydrated = hydrateAndSort(idPage.getContent());
-
-        return new PageImpl<>(
-                hydrated.stream().map(this::toDto).collect(Collectors.toList()),
-                idPage.getPageable(),
-                idPage.getTotalElements()
-        );
+        return mapPage(idPage);
     }
-
-    // ============================================================
-    // SEARCH BY CATEGORY / SUBCATEGORY — Paginated + Cached
-    // ============================================================
 
     @Cacheable(value = "news",
             key = "'cat:' + #name.toLowerCase() + ':p' + #page + ':s' + #size")
@@ -317,18 +203,7 @@ public class NewsService {
         Page<Long> idPage = newsRepository.findIdsByCategory(
                 name.trim(), PageRequest.of(page, size));
 
-        if (idPage.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(),
-                    idPage.getPageable(), idPage.getTotalElements());
-        }
-
-        List<News> hydrated = hydrateAndSort(idPage.getContent());
-
-        return new PageImpl<>(
-                hydrated.stream().map(this::toDto).collect(Collectors.toList()),
-                idPage.getPageable(),
-                idPage.getTotalElements()
-        );
+        return mapPage(idPage);
     }
 
     @Cacheable(value = "news",
@@ -343,23 +218,21 @@ public class NewsService {
         Page<Long> idPage = newsRepository.findIdsBySubCategory(
                 name.trim(), PageRequest.of(page, size));
 
+        return mapPage(idPage);
+    }
+
+    private Page<NewsDto> mapPage(Page<Long> idPage) {
         if (idPage.isEmpty()) {
             return new PageImpl<>(Collections.emptyList(),
                     idPage.getPageable(), idPage.getTotalElements());
         }
-
         List<News> hydrated = hydrateAndSort(idPage.getContent());
-
         return new PageImpl<>(
                 hydrated.stream().map(this::toDto).collect(Collectors.toList()),
                 idPage.getPageable(),
                 idPage.getTotalElements()
         );
     }
-
-    // ============================================================
-    // GET BY ID
-    // ============================================================
 
     @Transactional(readOnly = true)
     public NewsDto getNewsById(Long id) {
@@ -369,127 +242,71 @@ public class NewsService {
     }
 
     // ============================================================
-    // نوێکردنەوە (لەگەڵ فایل)
+    // UPDATE
     // ============================================================
 
     @CacheEvict(value = "news", allEntries = true)
-    public NewsDto updateNews(Long newsId,
-                              NewsDto dto,
-                              MultipartFile newCoverImage,
-                              List<MultipartFile> newMediaFiles) {
-        String traceId       = traceId();
-        boolean hasNewCover  = hasFile(newCoverImage);
-        boolean hasNewMedia  = hasFiles(newMediaFiles);
-        log.info("نوێکردنەوەی هەواڵ | id={} | traceId={}", newsId, traceId);
+    public NewsDto updateNews(Long newsId, NewsDto dto) {
+        String traceId = traceId();
+        log.info("Update news | id={} | traceId={}", newsId, traceId);
 
         if (newsId == null) {
             throw new BadRequestException("error.validation",
-                    Map.of("field", "id", "message", "ئایدیی هەواڵ پێویستە"));
+                    Map.of("field", "id", "message", "News id is required"));
         }
 
-        validate(dto, false, false);
+        validate(dto, false);
 
-        int mediaCount = newMediaFiles != null ? newMediaFiles.size() : 0;
-        ExecutorService pool = Executors.newFixedThreadPool(
-                Math.min(8, Math.max(2, 1 + mediaCount)));
+        News updated = transactionTemplate.execute(status -> {
+            News news = newsRepository.findByIdWithGraph(newsId)
+                    .orElseThrow(() -> Errors.newsNotFound(newsId));
 
-        try {
-            CompletableFuture<String> coverFuture =
-                    CompletableFuture.completedFuture(null);
-
-            if (hasNewCover) {
-                coverFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        return s3Service.upload(
-                                coverBytes(newCoverImage),
-                                newCoverImage.getOriginalFilename(),
-                                newCoverImage.getContentType());
-                    } catch (IOException e) {
-                        throw new CompletionException("کێشە لە ناردنی وێنەی بەرگی نوێ", e);
-                    }
-                }, pool);
+            if (!isBlank(dto.getCoverUrl())) {
+                news.setCoverUrl(dto.getCoverUrl().trim());
+            } else if (isBlank(news.getCoverUrl())) {
+                throw Errors.newsValidation("news.cover.required",
+                        Map.of("field", "coverUrl"));
             }
 
-            List<CompletableFuture<UploadedMedia>> mediaFutures =
-                    buildMediaFutures(newMediaFiles, pool);
-
-            String uploadedCoverUrl = trimOrNull(coverFuture.join());
-            List<UploadedMedia> uploaded = joinMediaFutures(mediaFutures);
-
-            News updated = transactionTemplate.execute(status -> {
-                News news = newsRepository.findByIdWithGraph(newsId)
-                        .orElseThrow(() -> Errors.newsNotFound(newsId));
-
-                // Cover logic — never allow null result
-                if (!isBlank(uploadedCoverUrl)) {
-                    news.setCoverUrl(uploadedCoverUrl);
-                } else if (!isBlank(dto.getCoverUrl())) {
-                    news.setCoverUrl(dto.getCoverUrl().trim());
-                } else if (isBlank(news.getCoverUrl())) {
-                    throw Errors.newsValidation("news.cover.required",
-                            Map.of("field", "coverImage_or_coverUrl"));
-                }
-
-                if (dto.getDatePublished() != null) {
-                    news.setDatePublished(dto.getDatePublished());
-                }
-
-                if (dto.getCategory() != null) {
-                    news.setCategory(getOrCreateCategory(dto.getCategory()));
-                }
-                if (dto.getSubCategory() != null) {
-                    news.setSubCategory(
-                            getOrCreateSubCategory(dto.getSubCategory(), news.getCategory()));
-                }
-
-                news.setContentLanguages(new LinkedHashSet<>(safeLangs(dto.getContentLanguages())));
-                applyContentByLanguages(news, dto);
-                replaceBilingualSets(news, dto);
-
-                // Media logic
-                if (!uploaded.isEmpty()) {
-                    news.getMedia().clear();
-                    appendUploadedMedia(news, uploaded);
-                } else if (dto.getMedia() != null) {
-                    news.getMedia().clear();
-                    attachMediaFromDto(news, dto.getMedia());
-                }
-                // else: leave media unchanged
-
-                News saved = newsRepository.save(news);
-                createAuditLog(saved, "UPDATE", "هەواڵ نوێکرایەوە");
-                return saved;
-            });
-
-            return toDto(updated);
-
-        } catch (CompletionException ex) {
-            Throwable root = rootCause(ex);
-            if (root instanceof IOException) {
-                throw new BadRequestException("media.upload.failed",
-                        Map.of("traceId", traceId));
+            if (dto.getDatePublished() != null) {
+                news.setDatePublished(dto.getDatePublished());
             }
-            throw ex;
-        } finally {
-            pool.shutdown();
-        }
+
+            if (dto.getCategory() != null) {
+                news.setCategory(getOrCreateCategory(dto.getCategory()));
+            }
+            if (dto.getSubCategory() != null) {
+                news.setSubCategory(
+                        getOrCreateSubCategory(dto.getSubCategory(), news.getCategory()));
+            }
+
+            news.setContentLanguages(new LinkedHashSet<>(safeLangs(dto.getContentLanguages())));
+            applyContentByLanguages(news, dto);
+            replaceBilingualSets(news, dto);
+
+            News persisted = newsRepository.save(news);
+            createAuditLog(persisted, "UPDATE", "News updated");
+            return persisted;
+        });
+
+        return toDto(updated);
     }
 
     // ============================================================
-    // سڕینەوە
+    // DELETE
     // ============================================================
 
     @CacheEvict(value = "news", allEntries = true)
     public void deleteNews(Long newsId) {
         if (newsId == null) {
             throw Errors.newsValidation("error.validation",
-                    Map.of("field", "id", "message", "ئایدیی هەواڵ بۆ سڕینەوە پێویستە"));
+                    Map.of("field", "id", "message", "News id is required for delete"));
         }
         transactionTemplate.executeWithoutResult(status -> {
             News news = newsRepository.findByIdWithGraph(newsId)
                     .orElseThrow(() -> new BadRequestException(
                             "news.not_found", Map.of("id", newsId)));
-            createAuditLog(news, "DELETE", "هەواڵ سڕایەوە");
+            createAuditLog(news, "DELETE", "News deleted");
             newsRepository.delete(news);
         });
     }
@@ -498,7 +315,7 @@ public class NewsService {
     public void deleteNewsBulk(List<Long> newsIds) {
         if (newsIds == null || newsIds.isEmpty()) {
             throw new BadRequestException("error.validation",
-                    Map.of("field", "newsIds", "message", "لیستی ئایدیەکان بەتاڵە"));
+                    Map.of("field", "newsIds", "message", "News id list is empty"));
         }
         transactionTemplate.executeWithoutResult(status -> {
             List<News> list = newsRepository.findAllById(newsIds);
@@ -508,7 +325,7 @@ public class NewsService {
             }
             newsAuditLogRepository.saveAll(
                     list.stream()
-                            .map(n -> buildAuditLog(n, "DELETE", "هەواڵ بە کۆمەڵ سڕایەوە"))
+                            .map(n -> buildAuditLog(n, "DELETE", "News bulk deleted"))
                             .toList()
             );
             newsRepository.deleteAll(list);
@@ -516,11 +333,7 @@ public class NewsService {
     }
 
     // ============================================================
-    // CORE HYDRATION HELPER
-    //
-    // Step 1: fetch bare News rows              → 1 query
-    // Step 2: @BatchSize fires automatically    → 1 IN-query per collection
-    // Step 3: re-order to match Phase-1 pagination order
+    // PRIVATE — hydration / mapping
     // ============================================================
 
     private List<News> hydrateAndSort(List<Long> ids) {
@@ -536,10 +349,6 @@ public class NewsService {
         }
         return ordered;
     }
-
-    // ============================================================
-    // ENTITY BUILDER
-    // ============================================================
 
     private News buildNewsEntity(NewsDto dto, String coverUrl,
                                  NewsCategory cat, NewsSubCategory subCat) {
@@ -560,14 +369,10 @@ public class NewsService {
                 .build();
     }
 
-    // ============================================================
-    // پشتڕاستکردنەوە
-    // ============================================================
-
-    private void validate(NewsDto dto, boolean createRequiresCover, boolean hasCoverFile) {
+    private void validate(NewsDto dto, boolean createRequiresCover) {
         if (dto == null) {
             throw Errors.newsValidation("error.validation",
-                    Map.of("field", "body", "message", "داواکاری پێویستە"));
+                    Map.of("field", "body", "message", "Request body is required"));
         }
 
         Set<Language> langs = safeLangs(dto.getContentLanguages());
@@ -576,9 +381,9 @@ public class NewsService {
                     Map.of("field", "contentLanguages"));
         }
 
-        if (createRequiresCover && !hasCoverFile && isBlank(dto.getCoverUrl())) {
+        if (createRequiresCover && isBlank(dto.getCoverUrl())) {
             throw Errors.newsValidation("news.cover.required",
-                    Map.of("field", "coverImage_or_coverUrl"));
+                    Map.of("field", "coverUrl"));
         }
 
         if (dto.getCategory() == null
@@ -607,10 +412,6 @@ public class NewsService {
             }
         }
     }
-
-    // ============================================================
-    // هاوپۆل و هاوپۆلی فرعی
-    // ============================================================
 
     private NewsCategory getOrCreateCategory(NewsDto.CategoryDto categoryDto) {
         String ckb = trimOrNull(categoryDto != null ? categoryDto.getCkbName() : null);
@@ -660,10 +461,6 @@ public class NewsService {
                         .build());
     }
 
-    // ============================================================
-    // ناوەڕۆک
-    // ============================================================
-
     private void applyContentByLanguages(News news, NewsDto dto) {
         Set<Language> langs = safeLangs(news.getContentLanguages());
 
@@ -689,7 +486,7 @@ public class NewsService {
         if (isBlank(dto.getTitle()) && isBlank(dto.getDescription())) return null;
         return NewsContent.builder()
                 .title(trimOrNull(dto.getTitle()))
-                .description(trimOrNull(dto.getDescription()))
+                .description(dto.getDescription())   // keep Tiptap HTML verbatim
                 .build();
     }
 
@@ -716,138 +513,6 @@ public class NewsService {
         }
     }
 
-    // ============================================================
-    // میدیا
-    // ============================================================
-
-    private void attachMediaFromDto(News news, List<NewsDto.MediaDto> mediaDtos) {
-        if (mediaDtos == null || mediaDtos.isEmpty()) return;
-
-        Set<String> existing = new HashSet<>();
-        for (NewsMedia m : news.getMedia()) {
-            String key = mediaKey(m.getType(), m.getUrl(), m.getEmbedUrl(), m.getExternalUrl());
-            if (key != null) existing.add(key);
-        }
-
-        for (NewsDto.MediaDto m : mediaDtos) {
-            if (m == null || m.getType() == null) continue;
-
-            String url         = trimOrNull(m.getUrl());
-            String externalUrl = trimOrNull(m.getExternalUrl());
-            String embedUrl    = trimOrNull(m.getEmbedUrl());
-
-            boolean hasUrl      = !isBlank(url);
-            boolean hasExternal = !isBlank(externalUrl);
-            boolean hasEmbed    = !isBlank(embedUrl);
-
-            if (m.getType() == NewsMediaType.AUDIO || m.getType() == NewsMediaType.VIDEO) {
-                if (!hasUrl && !hasExternal && !hasEmbed) {
-                    throw new BadRequestException(
-                            "news.media.audio_video_requires_url_or_link",
-                            Map.of("type", m.getType().name()));
-                }
-            } else {
-                if (!hasUrl) {
-                    throw new BadRequestException("news.media.url_required",
-                            Map.of("type", m.getType().name()));
-                }
-            }
-
-            String key = mediaKey(m.getType(), url, embedUrl, externalUrl);
-            if (key == null || existing.contains(key)) continue;
-
-            news.getMedia().add(NewsMedia.builder()
-                    .news(news)
-                    .type(m.getType())
-                    .url(url)
-                    .externalUrl(externalUrl)
-                    .embedUrl(embedUrl)
-                    .sortOrder(m.getSortOrder() != null ? m.getSortOrder() : 0)
-                    .build());
-
-            existing.add(key);
-        }
-    }
-
-    private void appendUploadedMedia(News news, List<UploadedMedia> uploaded) {
-        for (UploadedMedia um : uploaded) {
-            news.getMedia().add(NewsMedia.builder()
-                    .news(news)
-                    .type(um.type())
-                    .url(um.url())
-                    .sortOrder(um.sortOrder())
-                    .build());
-        }
-    }
-
-    private String mediaKey(NewsMediaType type, String url, String embedUrl, String ext) {
-        if (type == null) return null;
-        String best = trimOrNull(url);
-        if (best == null) best = trimOrNull(embedUrl);
-        if (best == null) best = trimOrNull(ext);
-        if (best == null) return null;
-        return type.name() + "|" + best;
-    }
-
-    private NewsMediaType detectMediaType(String contentType) {
-        if (contentType == null) return NewsMediaType.DOCUMENT;
-        String t = contentType.toLowerCase();
-        if (t.startsWith("image/")) return NewsMediaType.IMAGE;
-        if (t.startsWith("video/")) return NewsMediaType.VIDEO;
-        if (t.startsWith("audio/")) return NewsMediaType.AUDIO;
-        return NewsMediaType.DOCUMENT;
-    }
-
-    // ============================================================
-    // S3 helpers
-    // ============================================================
-
-    private List<CompletableFuture<UploadedMedia>> buildMediaFutures(
-            List<MultipartFile> files, ExecutorService pool) {
-        List<CompletableFuture<UploadedMedia>> futures = new ArrayList<>();
-        if (files == null || files.isEmpty()) return futures;
-        int sort = 0;
-        for (MultipartFile f : files) {
-            if (!hasFile(f)) continue;
-            final int so = sort++;
-            futures.add(CompletableFuture.supplyAsync(() -> {
-                try {
-                    String url = s3Service.upload(
-                            f.getBytes(), f.getOriginalFilename(), f.getContentType());
-                    return new UploadedMedia(detectMediaType(f.getContentType()), url, so);
-                } catch (IOException e) {
-                    throw new CompletionException(
-                            "کێشە لە ناردنی فایلی میدیا: " + f.getOriginalFilename(), e);
-                }
-            }, pool));
-        }
-        return futures;
-    }
-
-    private List<UploadedMedia> joinMediaFutures(
-            List<CompletableFuture<UploadedMedia>> futures) {
-        List<UploadedMedia> result = new ArrayList<>();
-        try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            for (CompletableFuture<UploadedMedia> f : futures) result.add(f.join());
-        } catch (CompletionException ex) {
-            Throwable root = rootCause(ex);
-            if (root instanceof RuntimeException re) throw re;
-            throw new CompletionException(root);
-        }
-        return result;
-    }
-
-    // ============================================================
-    // گۆڕین بۆ DTO
-    //
-    // CRITICAL: every collection access here happens inside
-    // an open @Transactional session → @BatchSize fires and loads.
-    // All collections copied into plain Java types (new LinkedHashSet,
-    // new ArrayList) before the session closes → Jackson can
-    // serialize them safely after the transaction ends.
-    // ============================================================
-
     private NewsDto toDto(News news) {
         NewsDto dto = NewsDto.builder()
                 .id(news.getId())
@@ -855,7 +520,6 @@ public class NewsService {
                 .datePublished(news.getDatePublished())
                 .createdAt(news.getCreatedAt())
                 .updatedAt(news.getUpdatedAt())
-                // ← copy into plain Set — prevents LazyInitializationException
                 .contentLanguages(news.getContentLanguages() != null
                         ? new LinkedHashSet<>(news.getContentLanguages())
                         : new LinkedHashSet<>())
@@ -889,7 +553,6 @@ public class NewsService {
                     .build());
         }
 
-        // ← copy into plain Set — prevents LazyInitializationException
         dto.setTags(NewsDto.BilingualSet.builder()
                 .ckb(new LinkedHashSet<>(safeSet(news.getTagsCkb())))
                 .kmr(new LinkedHashSet<>(safeSet(news.getTagsKmr())))
@@ -900,32 +563,8 @@ public class NewsService {
                 .kmr(new LinkedHashSet<>(safeSet(news.getKeywordsKmr())))
                 .build());
 
-        if (news.getMedia() != null && !news.getMedia().isEmpty()) {
-            dto.setMedia(
-                    new ArrayList<>(news.getMedia()).stream()
-                            .sorted(Comparator.comparingInt(
-                                    m -> m.getSortOrder() != null ? m.getSortOrder() : 0))
-                            .map(m -> NewsDto.MediaDto.builder()
-                                    .id(m.getId())
-                                    .type(m.getType())
-                                    .url(m.getUrl())
-                                    .externalUrl(m.getExternalUrl())
-                                    .embedUrl(m.getEmbedUrl())
-                                    .sortOrder(m.getSortOrder())
-                                    .createdAt(m.getCreatedAt())
-                                    .build())
-                            .collect(Collectors.toList())
-            );
-        } else {
-            dto.setMedia(List.of());
-        }
-
         return dto;
     }
-
-    // ============================================================
-    // تۆمارکردنی چالاکی
-    // ============================================================
 
     private void createAuditLog(News news, String action, String note) {
         newsAuditLogRepository.save(buildAuditLog(news, action, note));
@@ -941,27 +580,13 @@ public class NewsService {
     }
 
     // ============================================================
-    // یاریدەدەرەکان
+    // utilities
     // ============================================================
 
-    private boolean hasFile(MultipartFile f)         { return f != null && !f.isEmpty(); }
     private boolean isBlank(String s)                { return s == null || s.isBlank(); }
     private String  trimOrNull(String s)             { if (s == null) return null; String t = s.trim(); return t.isEmpty() ? null : t; }
     private Set<Language>  safeLangs(Set<Language> l){ return l == null ? Set.of() : l; }
     private <T> Set<T>     safeSet(Set<T> s)         { return s == null ? Set.of() : s; }
-
-    private boolean hasFiles(List<MultipartFile> files) {
-        if (files == null || files.isEmpty()) return false;
-        for (MultipartFile f : files) { if (hasFile(f)) return true; }
-        return false;
-    }
-
-    private byte[] coverBytes(MultipartFile f) throws IOException {
-        if (f == null || f.isEmpty()) {
-            throw new BadRequestException("news.cover.required", Map.of("field", "cover"));
-        }
-        return f.getBytes();
-    }
 
     private Set<String> cleanStrings(Set<String> input) {
         if (input == null || input.isEmpty()) return Set.of();
@@ -974,18 +599,4 @@ public class NewsService {
         String t = MDC.get("traceId");
         return (t != null && !t.isBlank()) ? t : UUID.randomUUID().toString();
     }
-
-    /**
-     * Unwrap nested CompletionException / ExecutionException layers to find the real root cause.
-     */
-    private Throwable rootCause(Throwable t) {
-        if (t == null) return null;
-        Throwable r = t;
-        while (r.getCause() != null && (r instanceof CompletionException || r instanceof java.util.concurrent.ExecutionException)) {
-            r = r.getCause();
-        }
-        return r;
-    }
-
-    private record UploadedMedia(NewsMediaType type, String url, int sortOrder) {}
 }

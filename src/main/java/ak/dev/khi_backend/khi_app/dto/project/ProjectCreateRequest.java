@@ -3,7 +3,6 @@ package ak.dev.khi_backend.khi_app.dto.project;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
 import ak.dev.khi_backend.khi_app.model.project.ProjectContentBlock;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -12,6 +11,16 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * ProjectCreateRequest — Tiptap migration.
+ *
+ * The {@code media[]} array, the {@code contentsCkb / contentsKmr} string
+ * lists, and the multipart cover upload have been dropped. Cover image and
+ * any inline media are uploaded separately via
+ * {@code POST /api/v1/media/upload}, and the returned URLs are sent here
+ * inside {@code coverUrl} (top-level) and inside the Tiptap HTML in
+ * {@code ckbContent.description} / {@code kmrContent.description}.
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,14 +30,12 @@ public class ProjectCreateRequest {
     @Size(max = 1024, message = "Cover URL must not exceed 1024 characters")
     private String coverUrl;
 
-    // ✅ Bilingual project type (one label per language)
     @Size(max = 128, message = "CKB project type must not exceed 128 characters")
     private String projectTypeCkb;
 
     @Size(max = 128, message = "KMR project type must not exceed 128 characters")
     private String projectTypeKmr;
 
-    // ✅ Project status: ONGOING | COMPLETED  (defaults to ONGOING in service if null)
     private ProjectStatus status;
 
     @NotEmpty(message = "At least one content language is required")
@@ -36,21 +43,19 @@ public class ProjectCreateRequest {
 
     private LocalDate projectDate;
 
-    // Embedded content blocks
+    /**
+     * Sorani (CKB) content. The {@code description} field accepts Tiptap HTML.
+     */
     private ProjectContentBlock ckbContent;
-    private ProjectContentBlock kmrContent;
 
-    // Per-language tag / keyword / content lists
-    private List<String> contentsCkb;
-    private List<String> contentsKmr;
+    /**
+     * Kurmanji (KMR) content. The {@code description} field accepts Tiptap HTML.
+     */
+    private ProjectContentBlock kmrContent;
 
     private List<String> tagsCkb;
     private List<String> tagsKmr;
 
     private List<String> keywordsCkb;
     private List<String> keywordsKmr;
-
-    // Media items sent as JSON (URL-based)
-    @Valid
-    private List<ProjectMediaCreateRequest> media;
 }
