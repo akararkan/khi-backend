@@ -12,6 +12,7 @@ import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackLogRepo
 import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -36,6 +37,7 @@ public class SoundTrackService {
     private final SoundTrackLogRepository    soundTrackLogRepository;
     private final PublishmentTopicRepository topicRepository;
     private final S3Service                  s3Service;
+    private final TiptapHtmlProcessor        tiptapHtmlProcessor;
 
     // =========================================================================
     // دروستکردن (CREATE)
@@ -601,7 +603,7 @@ public class SoundTrackService {
                ) return null;
         return SoundTrackContent.builder()
                 .title(trimOrNull(dto.getTitle()))
-                .description(trimOrNull(dto.getDescription()))
+                .description(tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())))
                 .build();
     }
 

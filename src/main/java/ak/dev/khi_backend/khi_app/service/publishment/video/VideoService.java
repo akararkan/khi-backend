@@ -13,6 +13,7 @@ import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicR
 import ak.dev.khi_backend.khi_app.repository.publishment.video.VideoLogRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.video.VideoRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -57,6 +58,7 @@ public class VideoService {
     private final VideoLogRepository         videoLogRepository;
     private final PublishmentTopicRepository topicRepository;
     private final S3Service                  s3Service;
+    private final TiptapHtmlProcessor        tiptapHtmlProcessor;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // بابەت - دروستکردن، خوێندنەوە، سڕینەوە
@@ -179,6 +181,8 @@ public class VideoService {
             buildAndAttachClipItems(video, dto);
         }
 
+        processTiptapHtml(video);
+
         Video saved = videoRepository.save(video);
 
         logAction(
@@ -282,6 +286,8 @@ public class VideoService {
                 buildAndAttachClipItems(video, dto);
             }
         }
+
+        processTiptapHtml(video);
 
         Video updated = videoRepository.save(video);
         logAction(updated.getId(), getTitle(updated), "UPDATED", "ڤیدیۆ نوێکرایەوە");
@@ -585,5 +591,28 @@ public class VideoService {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /**
+     * Scan the bilingual Tiptap descriptions on the Video and all its clip items
+     * and upload any inline base64 data URIs to S3, rewriting the HTML in place.
+     */
+    private void processTiptapHtml(Video video) {
+        if (video == null) return;
+        if (video.getCkbContent() != null) {
+            video.getCkbContent().setDescription(
+                    tiptapHtmlProcessor.process(video.getCkbContent().getDescription()));
+        }
+        if (video.getKmrContent() != null) {
+            video.getKmrContent().setDescription(
+                    tiptapHtmlProcessor.process(video.getKmrContent().getDescription()));
+        }
+        if (video.getVideoClipItems() != null) {
+            for (VideoClipItem item : video.getVideoClipItems()) {
+                if (item == null) continue;
+                item.setDescriptionCkb(tiptapHtmlProcessor.process(item.getDescriptionCkb()));
+                item.setDescriptionKmr(tiptapHtmlProcessor.process(item.getDescriptionKmr()));
+            }
+        }
     }
 }

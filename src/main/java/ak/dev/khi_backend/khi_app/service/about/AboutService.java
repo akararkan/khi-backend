@@ -6,6 +6,7 @@ import ak.dev.khi_backend.khi_app.model.about.AboutContent;
 import ak.dev.khi_backend.khi_app.model.about.StatItem;
 import ak.dev.khi_backend.khi_app.repository.about.AboutRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ public class AboutService {
 
     private final AboutRepository aboutRepository;
     private final S3Service s3Service;
+    private final TiptapHtmlProcessor tiptapHtmlProcessor;
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -169,7 +171,7 @@ public class AboutService {
                 .title(req.getTitle())
                 .subtitle(req.getSubtitle())
                 .metaDescription(req.getMetaDescription())
-                .body(req.getBody())
+                .body(tiptapHtmlProcessor.process(req.getBody()))
                 .build();
     }
 

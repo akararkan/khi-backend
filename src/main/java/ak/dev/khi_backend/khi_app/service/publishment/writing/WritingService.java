@@ -14,6 +14,7 @@ import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicR
 import ak.dev.khi_backend.khi_app.repository.publishment.writing.WritingLogRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.writing.WritingRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,7 @@ public class WritingService {
     private final PublishmentTopicRepository topicRepository;
     private final S3Service                  s3Service;
     private final ObjectMapper               objectMapper;
+    private final TiptapHtmlProcessor        tiptapHtmlProcessor;
 
     // =========================================================================
     // دروستکردن
@@ -402,7 +404,7 @@ public class WritingService {
         if (dto == null) return null;
         return WritingContent.builder()
                 .title(trimOrNull(dto.getTitle()))
-                .description(trimOrNull(dto.getDescription()))
+                .description(tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())))
                 .writer(trimOrNull(dto.getWriter()))
                 .fileUrl(fileUrl != null ? fileUrl : trimOrNull(dto.getFileUrl()))
                 .fileFormat(dto.getFileFormat())
@@ -415,7 +417,7 @@ public class WritingService {
     private WritingContent mergeContent(WritingContent existing, LanguageContentDto dto, String fileUrl) {
         if (existing == null) return buildContent(dto, fileUrl);
         if (dto.getTitle()         != null) existing.setTitle(trimOrNull(dto.getTitle()));
-        if (dto.getDescription()   != null) existing.setDescription(trimOrNull(dto.getDescription()));
+        if (dto.getDescription()   != null) existing.setDescription(tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())));
         if (dto.getWriter()        != null) existing.setWriter(trimOrNull(dto.getWriter()));
         if (fileUrl                != null) existing.setFileUrl(fileUrl);
         else if (dto.getFileUrl()  != null) existing.setFileUrl(trimOrNull(dto.getFileUrl()));

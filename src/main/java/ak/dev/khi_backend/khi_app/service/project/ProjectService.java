@@ -8,6 +8,7 @@ import ak.dev.khi_backend.khi_app.exceptions.*;
 import ak.dev.khi_backend.khi_app.exceptions.project.*;
 import ak.dev.khi_backend.khi_app.model.project.*;
 import ak.dev.khi_backend.khi_app.repository.project.*;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -46,6 +47,7 @@ public class ProjectService {
     private final ProjectKeywordRepository   projectKeywordRepository;
     private final ProjectLogRepository       projectLogRepository;
     private final PlatformTransactionManager transactionManager;
+    private final TiptapHtmlProcessor        tiptapHtmlProcessor;
 
     @PersistenceContext
     private EntityManager em;
@@ -277,7 +279,7 @@ public class ProjectService {
             project.setCkbContent(dto.getCkbContent() != null
                     ? ProjectContentBlock.builder()
                     .title(dto.getCkbContent().getTitle())
-                    .description(dto.getCkbContent().getDescription())
+                    .description(tiptapHtmlProcessor.process(dto.getCkbContent().getDescription()))
                     .location(dto.getCkbContent().getLocation())
                     .build() : null);
         } else {
@@ -288,7 +290,7 @@ public class ProjectService {
             project.setKmrContent(dto.getKmrContent() != null
                     ? ProjectContentBlock.builder()
                     .title(dto.getKmrContent().getTitle())
-                    .description(dto.getKmrContent().getDescription())
+                    .description(tiptapHtmlProcessor.process(dto.getKmrContent().getDescription()))
                     .location(dto.getKmrContent().getLocation())
                     .build() : null);
         } else {
@@ -312,7 +314,7 @@ public class ProjectService {
                 && dto.getCkbContent() != null) {
             project.setCkbContent(ProjectContentBlock.builder()
                     .title(dto.getCkbContent().getTitle())
-                    .description(dto.getCkbContent().getDescription())
+                    .description(tiptapHtmlProcessor.process(dto.getCkbContent().getDescription()))
                     .location(dto.getCkbContent().getLocation())
                     .build());
         }
@@ -321,7 +323,7 @@ public class ProjectService {
                 && dto.getKmrContent() != null) {
             project.setKmrContent(ProjectContentBlock.builder()
                     .title(dto.getKmrContent().getTitle())
-                    .description(dto.getKmrContent().getDescription())
+                    .description(tiptapHtmlProcessor.process(dto.getKmrContent().getDescription()))
                     .location(dto.getKmrContent().getLocation())
                     .build());
         }

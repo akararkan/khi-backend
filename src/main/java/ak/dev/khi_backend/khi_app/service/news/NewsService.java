@@ -9,6 +9,7 @@ import ak.dev.khi_backend.khi_app.repository.news.NewsAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsCategoryRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsSubCategoryRepository;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -43,6 +44,7 @@ public class NewsService {
     private final NewsSubCategoryRepository newsSubCategoryRepository;
     private final NewsAuditLogRepository    newsAuditLogRepository;
     private final TransactionTemplate       transactionTemplate;
+    private final TiptapHtmlProcessor       tiptapHtmlProcessor;
 
     // ============================================================
     // CREATE
@@ -486,7 +488,7 @@ public class NewsService {
         if (isBlank(dto.getTitle()) && isBlank(dto.getDescription())) return null;
         return NewsContent.builder()
                 .title(trimOrNull(dto.getTitle()))
-                .description(dto.getDescription())   // keep Tiptap HTML verbatim
+                .description(tiptapHtmlProcessor.process(dto.getDescription()))
                 .build();
     }
 

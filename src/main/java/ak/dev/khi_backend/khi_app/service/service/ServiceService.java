@@ -9,6 +9,7 @@ import ak.dev.khi_backend.khi_app.repository.service.*;
 import ak.dev.khi_backend.khi_app.service.MediaMetadataExtractor;
 import ak.dev.khi_backend.khi_app.service.MediaMetadataExtractor.MediaFileMeta;
 import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -56,6 +57,7 @@ public class ServiceService {
     private final ServiceAuditLogRepository        auditLogRepository;
     private final S3Service                        s3Service;
     private final MediaMetadataExtractor           metadataExtractor;
+    private final TiptapHtmlProcessor              tiptapHtmlProcessor;
 
     // =========================================================================
     // READ — Paginated + Cached (Two-Phase Hydration)
@@ -1112,7 +1114,7 @@ public class ServiceService {
         return ServiceContent.builder()
                 .languageCode(req.getLanguageCode().toUpperCase().trim())
                 .title(req.getTitle().trim())
-                .description(req.getDescription())
+                .description(tiptapHtmlProcessor.process(req.getDescription()))
                 .build();
     }
 
@@ -1164,7 +1166,7 @@ public class ServiceService {
         return ServiceMediaFileContent.builder()
                 .caption(req.getCaption())
                 .title(req.getTitle())
-                .description(req.getDescription())
+                .description(tiptapHtmlProcessor.process(req.getDescription()))
                 .build();
     }
 

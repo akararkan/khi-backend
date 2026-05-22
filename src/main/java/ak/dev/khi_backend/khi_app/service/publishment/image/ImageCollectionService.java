@@ -11,6 +11,7 @@ import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionLo
 import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -41,6 +42,7 @@ public class ImageCollectionService {
     private final ImageCollectionLogRepository imageCollectionLogRepository;
     private final PublishmentTopicRepository   topicRepository;
     private final S3Service                    s3Service;
+    private final TiptapHtmlProcessor          tiptapHtmlProcessor;
 
     // =========================================================================
     // دروستکردن (CREATE)
@@ -543,8 +545,8 @@ public class ImageCollectionService {
             if (dto != null) {
                 item.setCaptionCkb(trimOrNull(dto.getCaptionCkb()));
                 item.setCaptionKmr(trimOrNull(dto.getCaptionKmr()));
-                item.setDescriptionCkb(trimOrNull(dto.getDescriptionCkb()));
-                item.setDescriptionKmr(trimOrNull(dto.getDescriptionKmr()));
+                item.setDescriptionCkb(tiptapHtmlProcessor.process(trimOrNull(dto.getDescriptionCkb())));
+                item.setDescriptionKmr(tiptapHtmlProcessor.process(trimOrNull(dto.getDescriptionKmr())));
             }
 
             applyImageSource(item, file, dto);
@@ -642,7 +644,7 @@ public class ImageCollectionService {
                 && isBlank(dto.getLocation()) && isBlank(dto.getCollectedBy())) return null;
         return ImageContent.builder()
                 .title(trimOrNull(dto.getTitle()))
-                .description(trimOrNull(dto.getDescription()))
+                .description(tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())))
                 .location(trimOrNull(dto.getLocation()))
                 .collectedBy(trimOrNull(dto.getCollectedBy()))
                 .build();
