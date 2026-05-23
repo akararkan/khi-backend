@@ -1492,6 +1492,66 @@ JSON `data` part:
 
 ---
 
+## Mock Data Seeder — `MockDataSeeder`
+
+A bundled bilingual (Sorani + Kurmanji) seeder lives at
+`khi_app/seed/MockDataSeeder.java`. It populates every public-facing
+module with realistic content and points at well-known public CDNs for
+media so the full stack can be exercised without manual data entry.
+
+### What it inserts
+
+| Module           | Rows | Notes                                                                                                |
+| ---------------- | ---- | ---------------------------------------------------------------------------------------------------- |
+| About            | 3    | Includes bilingual `body` (Tiptap HTML with inline `<img>` / `<video>` / `<audio>` / `<a>`) + stats. |
+| Contact          | 3    | Erbil / Sulaymaniyah / Duhok offices, bilingual `description` with media.                            |
+| Service          | 4    | Training / Event / Program / Workshop — each with CKB+KMR `ServiceContent`.                          |
+| News             | 5    | Across 3 categories (Culture / History / Literature) and 4 sub-categories.                           |
+| Project          | 4    | Mixed `ProjectStatus` (ONGOING / COMPLETED), tags + keywords.                                        |
+| PublishmentTopic | 12   | Topics for SOUND / VIDEO / IMAGE / WRITING.                                                          |
+| SoundTrack       | 3    | SINGLE folk anthem + MULTI album-of-memories with 3 files & a brochure + a religious SINGLE.        |
+| Video            | 3    | One FILM + one VIDEO_CLIP (3 clips) + one interview FILM.                                            |
+| ImageCollection  | 3    | GALLERY (4 items) + SINGLE + PHOTO_STORY (5 items).                                                  |
+| Writing          | 4    | Two series-linked books + a linguistics textbook + a novel.                                          |
+
+### Media URLs used
+
+- Images — `images.unsplash.com` direct photo URLs.
+- Videos — `commondatastorage.googleapis.com/gtv-videos-bucket/sample/*.mp4` (Big Buck Bunny, Sintel, Tears of Steel …).
+- Audio  — `soundhelix.com/examples/mp3/SoundHelix-Song-*.mp3` (royalty-free).
+- PDF    — `w3.org/.../dummy.pdf` and a public sample PDF.
+
+### How to enable
+
+The seeder is gated on `app.seed.enabled=true` and is **off by default**.
+
+```bash
+# Via command-line flag
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--app.seed.enabled=true
+
+# Or via environment variable
+export APP_SEED_ENABLED=true
+./mvnw spring-boot:run
+```
+
+### Idempotency
+
+Each per-entity seed method calls `repository.count()` first; if the
+table already has rows the section is skipped. So restarting the app
+with the flag still enabled is safe — no duplicates will be inserted.
+
+To re-seed, truncate the relevant tables (or drop the DB and let
+`hibernate.ddl-auto=update` re-create them on the next boot) and run
+again.
+
+### Error isolation
+
+Every per-entity block is wrapped in its own `try/catch` so that a
+failure in one module (e.g. a unique-constraint clash on a slug) doesn't
+block the rest from inserting.
+
+---
+
 ## Cross-cutting Tiptap-Hook Summary
 
 | Service                          | Method(s)                                        | Field(s) processed |
