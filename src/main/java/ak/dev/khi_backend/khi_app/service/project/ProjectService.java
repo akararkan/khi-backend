@@ -3,9 +3,11 @@ package ak.dev.khi_backend.khi_app.service.project;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
 import ak.dev.khi_backend.khi_app.exceptions.*;
 import ak.dev.khi_backend.khi_app.exceptions.project.*;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import ak.dev.khi_backend.khi_app.model.project.*;
 import ak.dev.khi_backend.khi_app.repository.project.*;
 import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
@@ -265,6 +267,10 @@ public class ProjectService {
 
     private void applyUpdate(Project project, ProjectCreateRequest dto, String resolvedCoverUrl) {
         project.setCoverUrl(resolvedCoverUrl);
+        project.setCoverMediaType(dto.getCoverMediaType() != null
+                ? dto.getCoverMediaType() : MediaKind.IMAGE);
+        project.setCoverThumbnailUrl(blankToNull(dto.getCoverThumbnailUrl()));
+        project.setMediaGallery(buildGallery(dto.getMediaGallery()));
         project.setProjectDate(dto.getProjectDate());
         project.setProjectTypeCkb(dto.getProjectTypeCkb());
         project.setProjectTypeKmr(dto.getProjectTypeKmr());
@@ -333,6 +339,10 @@ public class ProjectService {
 
     private void applyBaseFields(Project project, ProjectCreateRequest dto) {
         project.setCoverUrl(dto.getCoverUrl());
+        project.setCoverMediaType(dto.getCoverMediaType() != null
+                ? dto.getCoverMediaType() : MediaKind.IMAGE);
+        project.setCoverThumbnailUrl(blankToNull(dto.getCoverThumbnailUrl()));
+        project.setMediaGallery(buildGallery(dto.getMediaGallery()));
         project.setProjectTypeCkb(dto.getProjectTypeCkb());
         project.setProjectTypeKmr(dto.getProjectTypeKmr());
         project.setStatus(dto.getStatus() != null ? dto.getStatus() : ProjectStatus.ONGOING);
@@ -459,6 +469,12 @@ public class ProjectService {
         return ProjectResponse.builder()
                 .id(project.getId())
                 .coverUrl(project.getCoverUrl())
+                .coverMediaType(project.getCoverMediaType() != null
+                        ? project.getCoverMediaType() : MediaKind.IMAGE)
+                .coverThumbnailUrl(project.getCoverThumbnailUrl())
+                .mediaGallery(project.getMediaGallery() != null
+                        ? new ArrayList<>(project.getMediaGallery())
+                        : new ArrayList<>())
                 .projectTypeCkb(project.getProjectTypeCkb())
                 .projectTypeKmr(project.getProjectTypeKmr())
                 .status(project.getStatus())
@@ -521,6 +537,32 @@ public class ProjectService {
     private boolean isBlank(String s)  { return s == null || s.trim().isEmpty(); }
     private String safe(Object o)      { return o == null ? "" : String.valueOf(o); }
     private String normKey(String raw) { return safe(raw).trim().toLowerCase(); }
+    private String blankToNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private List<MediaItem> buildGallery(List<MediaItem> gallery) {
+        if (gallery == null || gallery.isEmpty()) return new ArrayList<>();
+        ArrayList<MediaItem> result = new ArrayList<>();
+        int idx = 0;
+        for (MediaItem item : gallery) {
+            if (item == null || isBlank(item.getUrl())) continue;
+            result.add(MediaItem.builder()
+                    .url(item.getUrl().trim())
+                    .kind(item.getKind() != null ? item.getKind() : MediaKind.IMAGE)
+                    .thumbnailUrl(blankToNull(item.getThumbnailUrl()))
+                    .captionCkb(blankToNull(item.getCaptionCkb()))
+                    .captionKmr(blankToNull(item.getCaptionKmr()))
+                    .sortOrder(item.getSortOrder() != null ? item.getSortOrder() : idx)
+                    .build());
+            idx++;
+        }
+        result.sort(Comparator.comparingInt(
+                m -> m.getSortOrder() != null ? m.getSortOrder() : Integer.MAX_VALUE));
+        return result;
+    }
 
     private String safeTitle(Project p) {
         if (p == null) return "";

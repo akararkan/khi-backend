@@ -1,12 +1,16 @@
 package ak.dev.khi_backend.khi_app.dto.news;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -27,6 +31,13 @@ public class NewsDto {
 
     private Long id;
     private String coverUrl;
+    /** Type of {@link #coverUrl} — IMAGE | VIDEO | AUDIO. Defaults to IMAGE. */
+    private MediaKind coverMediaType;
+    /** Optional poster (VIDEO) or cover art (AUDIO) URL for the cover. */
+    private String coverThumbnailUrl;
+    /** Mixed-type gallery rendered beside the cover — images, videos, audios. */
+    @Builder.Default
+    private List<MediaItem> mediaGallery = new ArrayList<>();
     private LocalDate datePublished;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

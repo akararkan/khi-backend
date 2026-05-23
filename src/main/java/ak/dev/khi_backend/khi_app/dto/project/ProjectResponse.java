@@ -1,7 +1,9 @@
 package ak.dev.khi_backend.khi_app.dto.project;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import lombok.*;
 
 import java.time.Instant;
@@ -25,6 +27,9 @@ public class ProjectResponse {
 
     private Long id;
     private String coverUrl;
+    private MediaKind coverMediaType;
+    private String coverThumbnailUrl;
+    private List<MediaItem> mediaGallery;
 
     private String projectTypeCkb;
     private String projectTypeKmr;

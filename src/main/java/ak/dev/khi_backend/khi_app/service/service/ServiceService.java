@@ -212,6 +212,10 @@ public class ServiceService {
                         .serviceType(trimRequired(request.getServiceType(), "serviceType"))
                         .location(trimOrNull(request.getLocation()))
                         .coverMediaUrl(trimOrNull(request.getCoverMediaUrl()))
+                        .coverMediaType(request.getCoverMediaType() != null
+                                ? request.getCoverMediaType()
+                                : ak.dev.khi_backend.khi_app.enums.MediaKind.IMAGE)
+                        .coverThumbnailUrl(trimOrNull(request.getCoverThumbnailUrl()))
                         .active(true)
                         .publishedAt(parseDateTime(request.getPublishedAt()))
                         .build();
@@ -275,6 +279,10 @@ public class ServiceService {
                         .serviceType(trimRequired(request.getServiceType(), "serviceType"))
                         .location(trimOrNull(request.getLocation()))
                         .coverMediaUrl(coverUrl)
+                        .coverMediaType(request.getCoverMediaType() != null
+                                ? request.getCoverMediaType()
+                                : ak.dev.khi_backend.khi_app.enums.MediaKind.IMAGE)
+                        .coverThumbnailUrl(trimOrNull(request.getCoverThumbnailUrl()))
                         .active(true)
                         .publishedAt(parseDateTime(request.getPublishedAt()))
                         .build();
@@ -341,6 +349,10 @@ public class ServiceService {
         service.setLocation(trimOrNull(request.getLocation()));
         service.setPublishedAt(parseDateTime(request.getPublishedAt()));
         service.setCoverMediaUrl(newCover);
+        service.setCoverMediaType(request.getCoverMediaType() != null
+                ? request.getCoverMediaType()
+                : ak.dev.khi_backend.khi_app.enums.MediaKind.IMAGE);
+        service.setCoverThumbnailUrl(trimOrNull(request.getCoverThumbnailUrl()));
 
         // ── Replace content + collections ────────────────────────────────────
         service.getContents().clear();
@@ -417,6 +429,10 @@ public class ServiceService {
 
         String newCover = trimOrNull(request.getCoverMediaUrl());
         service.setCoverMediaUrl(newCover);
+        service.setCoverMediaType(request.getCoverMediaType() != null
+                ? request.getCoverMediaType()
+                : ak.dev.khi_backend.khi_app.enums.MediaKind.IMAGE);
+        service.setCoverThumbnailUrl(trimOrNull(request.getCoverThumbnailUrl()));
 
         // ── Replace bilingual content rows + media collections ────────────
         // Clear first, then flush to force DELETEs before INSERTs
@@ -517,6 +533,9 @@ public class ServiceService {
         List<String> s3Urls = new ArrayList<>();
         if (service.getCoverMediaUrl() != null) {
             s3Urls.add(service.getCoverMediaUrl());
+        }
+        if (service.getCoverThumbnailUrl() != null) {
+            s3Urls.add(service.getCoverThumbnailUrl());
         }
         service.getMediaCollections().forEach(col ->
                 col.getFiles().forEach(f -> {
@@ -1332,6 +1351,10 @@ public class ServiceService {
                 .serviceType(service.getServiceType())
                 .location(service.getLocation())
                 .coverMediaUrl(service.getCoverMediaUrl())
+                .coverMediaType(service.getCoverMediaType() != null
+                        ? service.getCoverMediaType()
+                        : ak.dev.khi_backend.khi_app.enums.MediaKind.IMAGE)
+                .coverThumbnailUrl(service.getCoverThumbnailUrl())
                 .active(service.isActive())
                 .publishedAt(service.getPublishedAt() != null
                         ? service.getPublishedAt().format(FORMATTER) : null)

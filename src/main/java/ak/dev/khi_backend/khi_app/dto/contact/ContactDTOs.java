@@ -1,6 +1,10 @@
 package ak.dev.khi_backend.khi_app.dto.contact;
 
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import lombok.*;
+
+import java.util.List;
 
 /**
  * ContactDTOs — All request / response DTOs for the Contact module.
@@ -32,8 +36,17 @@ public class ContactDTOs {
         /** Kurmanji (KMR) URL slug — optional, unique. */
         private String slugKmr;
 
-        /** Full-bleed hero / banner image URL. */
+        /** Full-bleed hero / banner asset URL (image, video, or audio). */
         private String heroImageUrl;
+
+        /** Type of {@link #heroImageUrl} — IMAGE | VIDEO | AUDIO. Defaults to IMAGE. */
+        private MediaKind heroMediaType;
+
+        /** Optional poster (VIDEO) or cover art (AUDIO) URL for the hero. */
+        private String heroThumbnailUrl;
+
+        /** Mixed-type gallery rendered beside the hero — images, videos, audios. */
+        private List<MediaItem> mediaGallery;
 
         /** Sorani (CKB) page-level text content. */
         private ContactContentRequest ckbContent;
@@ -90,6 +103,9 @@ public class ContactDTOs {
         private String slugCkb;
         private String slugKmr;
         private String heroImageUrl;
+        private MediaKind heroMediaType;
+        private String heroThumbnailUrl;
+        private List<MediaItem> mediaGallery;
 
         private ContactContentResponse ckbContent;
         private ContactContentResponse kmrContent;

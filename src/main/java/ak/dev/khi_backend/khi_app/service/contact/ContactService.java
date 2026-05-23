@@ -1,8 +1,10 @@
 package ak.dev.khi_backend.khi_app.service.contact;
 
 import ak.dev.khi_backend.khi_app.dto.contact.ContactDTOs.*;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.model.contact.Contact;
 import ak.dev.khi_backend.khi_app.model.contact.ContactContent;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import ak.dev.khi_backend.khi_app.repository.contact.ContactRepository;
 import ak.dev.khi_backend.khi_app.service.S3Service;
 import jakarta.persistence.EntityNotFoundException;
@@ -14,6 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -75,6 +79,10 @@ public class ContactService {
                 .slugCkb(request.getSlugCkb().trim())
                 .slugKmr(blankToNull(request.getSlugKmr()))
                 .heroImageUrl(blankToNull(request.getHeroImageUrl()))
+                .heroMediaType(request.getHeroMediaType() != null
+                        ? request.getHeroMediaType() : MediaKind.IMAGE)
+                .heroThumbnailUrl(blankToNull(request.getHeroThumbnailUrl()))
+                .mediaGallery(buildGallery(request.getMediaGallery()))
                 .ckbContent(buildContent(request.getCkbContent()))
                 .kmrContent(buildContent(request.getKmrContent()))
                 .phone(blankToNull(request.getPhone()))
@@ -106,12 +114,21 @@ public class ContactService {
         String newHero = blankToNull(request.getHeroImageUrl());
         if (oldHero != null && !oldHero.equals(newHero)) {
             s3Service.deleteFile(oldHero);
-            log.info("Deleted old hero image from S3: {}", oldHero);
+            log.info("Deleted old hero asset from S3: {}", oldHero);
+        }
+        String oldThumb = contact.getHeroThumbnailUrl();
+        String newThumb = blankToNull(request.getHeroThumbnailUrl());
+        if (oldThumb != null && !oldThumb.equals(newThumb)) {
+            s3Service.deleteFile(oldThumb);
         }
 
         contact.setSlugCkb(request.getSlugCkb().trim());
         contact.setSlugKmr(blankToNull(request.getSlugKmr()));
         contact.setHeroImageUrl(newHero);
+        contact.setHeroMediaType(request.getHeroMediaType() != null
+                ? request.getHeroMediaType() : MediaKind.IMAGE);
+        contact.setHeroThumbnailUrl(newThumb);
+        contact.setMediaGallery(buildGallery(request.getMediaGallery()));
         contact.setCkbContent(buildContent(request.getCkbContent()));
         contact.setKmrContent(buildContent(request.getKmrContent()));
         contact.setPhone(blankToNull(request.getPhone()));
@@ -136,6 +153,20 @@ public class ContactService {
 
         if (contact.getHeroImageUrl() != null) {
             s3Service.deleteFile(contact.getHeroImageUrl());
+        }
+        if (contact.getHeroThumbnailUrl() != null) {
+            s3Service.deleteFile(contact.getHeroThumbnailUrl());
+        }
+        if (contact.getMediaGallery() != null) {
+            for (MediaItem item : contact.getMediaGallery()) {
+                if (item == null) continue;
+                if (item.getUrl() != null && !item.getUrl().isBlank()) {
+                    s3Service.deleteFile(item.getUrl());
+                }
+                if (item.getThumbnailUrl() != null && !item.getThumbnailUrl().isBlank()) {
+                    s3Service.deleteFile(item.getThumbnailUrl());
+                }
+            }
         }
 
         contactRepository.delete(contact);
@@ -214,6 +245,28 @@ public class ContactService {
         }
     }
 
+    private List<MediaItem> buildGallery(List<MediaItem> gallery) {
+        if (gallery == null || gallery.isEmpty()) return new ArrayList<>();
+        ArrayList<MediaItem> result = new ArrayList<>();
+        int idx = 0;
+        for (MediaItem item : gallery) {
+            if (item == null || item.getUrl() == null || item.getUrl().isBlank()) continue;
+            MediaItem normalised = MediaItem.builder()
+                    .url(item.getUrl().trim())
+                    .kind(item.getKind() != null ? item.getKind() : MediaKind.IMAGE)
+                    .thumbnailUrl(blankToNull(item.getThumbnailUrl()))
+                    .captionCkb(blankToNull(item.getCaptionCkb()))
+                    .captionKmr(blankToNull(item.getCaptionKmr()))
+                    .sortOrder(item.getSortOrder() != null ? item.getSortOrder() : idx)
+                    .build();
+            result.add(normalised);
+            idx++;
+        }
+        result.sort(Comparator.comparingInt(
+                m -> m.getSortOrder() != null ? m.getSortOrder() : Integer.MAX_VALUE));
+        return result;
+    }
+
     private ContactContent buildContent(ContactContentRequest req) {
         if (req == null) return new ContactContent();
         return ContactContent.builder()
@@ -232,6 +285,11 @@ public class ContactService {
                 .slugCkb(c.getSlugCkb())
                 .slugKmr(c.getSlugKmr())
                 .heroImageUrl(c.getHeroImageUrl())
+                .heroMediaType(c.getHeroMediaType() != null
+                        ? c.getHeroMediaType() : MediaKind.IMAGE)
+                .heroThumbnailUrl(c.getHeroThumbnailUrl())
+                .mediaGallery(c.getMediaGallery() != null
+                        ? new ArrayList<>(c.getMediaGallery()) : List.of())
                 .ckbContent(toContentResponse(c.getCkbContent()))
                 .kmrContent(toContentResponse(c.getKmrContent()))
                 .phone(c.getPhone())

@@ -1,12 +1,18 @@
 package ak.dev.khi_backend.khi_app.model.contact;
 
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Contact — Contact-page entity.
@@ -61,8 +67,39 @@ public class Contact {
 
     // ─── Hero Image ───────────────────────────────────────────────────────────
 
+    /**
+     * Hero / banner asset URL (image, video, or audio).  Originally named
+     * {@code heroImageUrl} when only images were supported — kept under the
+     * same column for backwards compatibility.  Pair with
+     * {@link #heroMediaType} to know how to render it.
+     */
     @Column(name = "hero_image_url", length = 1000)
     private String heroImageUrl;
+
+    /**
+     * Discriminator for {@link #heroImageUrl}.  Defaults to {@link MediaKind#IMAGE}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "hero_media_type", length = 16)
+    @Builder.Default
+    private MediaKind heroMediaType = MediaKind.IMAGE;
+
+    /**
+     * Optional poster (VIDEO) or cover art (AUDIO) URL for the hero.
+     * Ignored when {@link #heroMediaType} is {@link MediaKind#IMAGE}.
+     */
+    @Column(name = "hero_thumbnail_url", length = 1000)
+    private String heroThumbnailUrl;
+
+    /**
+     * Mixed-type gallery (images / videos / audios) rendered beside the
+     * hero asset.  Stored as JSONB so admins can reorder and re-type
+     * entries without a schema change.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "media_gallery", columnDefinition = "jsonb")
+    @Builder.Default
+    private List<MediaItem> mediaGallery = new ArrayList<>();
 
     // ─── CKB (Sorani) Content ─────────────────────────────────────────────────
 

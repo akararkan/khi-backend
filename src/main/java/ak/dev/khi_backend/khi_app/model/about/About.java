@@ -1,5 +1,7 @@
 package ak.dev.khi_backend.khi_app.model.about;
 
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -72,8 +74,40 @@ public class About {
     @Builder.Default
     private Integer displayOrder = 0;
 
+    /**
+     * Hero / banner asset URL (image, video, or audio).  Originally named
+     * {@code heroImageUrl} when only images were supported — kept under the
+     * same column name for backwards compatibility.  Pair with
+     * {@link #heroMediaType} to know how to render it.
+     */
     @Column(name = "hero_image_url", length = 1000)
     private String heroImageUrl;
+
+    /**
+     * Discriminator for {@link #heroImageUrl}.  Defaults to {@link MediaKind#IMAGE}
+     * so existing rows continue to render as images.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "hero_media_type", length = 16)
+    @Builder.Default
+    private MediaKind heroMediaType = MediaKind.IMAGE;
+
+    /**
+     * Optional poster image for a video hero, or cover art for an audio hero.
+     * Ignored when {@link #heroMediaType} is {@link MediaKind#IMAGE}.
+     */
+    @Column(name = "hero_thumbnail_url", length = 1000)
+    private String heroThumbnailUrl;
+
+    /**
+     * Mixed-type gallery (images / videos / audios) rendered beside the
+     * hero asset.  Stored as JSONB so admins can reorder and re-type
+     * entries without a schema change.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "media_gallery", columnDefinition = "jsonb")
+    @Builder.Default
+    private List<MediaItem> mediaGallery = new ArrayList<>();
 
     @Embedded
     @AttributeOverrides({

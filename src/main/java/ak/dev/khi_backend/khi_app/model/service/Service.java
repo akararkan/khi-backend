@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.khi_app.model.service;
 
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -73,12 +74,28 @@ public class Service {
     private String location;
 
     /**
-     * Main preview image or video URL (S3 / CDN).
+     * Main preview asset URL (image, video, or audio) on S3 / CDN.
      * Shown on the public service listing card.
      * Optional — card falls back to the first media file when absent.
+     * Pair with {@link #coverMediaType} to know how to render it.
      */
     @Column(name = "cover_media_url", columnDefinition = "TEXT")
     private String coverMediaUrl;
+
+    /**
+     * Discriminator for {@link #coverMediaUrl}.
+     * Defaults to {@link MediaKind#IMAGE} so existing rows render as images.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cover_media_type", length = 16)
+    @Builder.Default
+    private MediaKind coverMediaType = MediaKind.IMAGE;
+
+    /**
+     * Optional poster (VIDEO) or cover art (AUDIO) URL for the cover.
+     */
+    @Column(name = "cover_thumbnail_url", columnDefinition = "TEXT")
+    private String coverThumbnailUrl;
 
     /** Soft-delete / visibility toggle.  Defaults to true (visible). */
     @Builder.Default

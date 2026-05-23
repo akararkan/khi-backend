@@ -1,14 +1,20 @@
 package ak.dev.khi_backend.khi_app.model.project;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
 import ak.dev.khi_backend.khi_app.model.audit.AuditableEntity;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -41,8 +47,36 @@ public class Project extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * Card cover asset URL (image, video, or audio).  Originally only an image;
+     * kept under the same column for backwards compatibility.  Pair with
+     * {@link #coverMediaType} to know how to render it.
+     */
     @Column(name = "cover_url", length = 1024)
     private String coverUrl;
+
+    /**
+     * Discriminator for {@link #coverUrl}.  Defaults to {@link MediaKind#IMAGE}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cover_media_type", length = 16)
+    @Builder.Default
+    private MediaKind coverMediaType = MediaKind.IMAGE;
+
+    /**
+     * Optional poster (VIDEO) or cover art (AUDIO) URL for the card cover.
+     */
+    @Column(name = "cover_thumbnail_url", length = 1024)
+    private String coverThumbnailUrl;
+
+    /**
+     * Mixed-type gallery (images / videos / audios) rendered beside the cover.
+     * Stored as JSONB; admins reorder and re-type without schema changes.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "media_gallery", columnDefinition = "jsonb")
+    @Builder.Default
+    private List<MediaItem> mediaGallery = new ArrayList<>();
 
     @Embedded
     @AttributeOverrides({

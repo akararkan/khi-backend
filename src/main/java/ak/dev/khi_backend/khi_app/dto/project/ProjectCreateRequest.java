@@ -1,7 +1,9 @@
 package ak.dev.khi_backend.khi_app.dto.project;
 
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.enums.project.ProjectStatus;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import ak.dev.khi_backend.khi_app.model.project.ProjectContentBlock;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -29,6 +31,16 @@ public class ProjectCreateRequest {
 
     @Size(max = 1024, message = "Cover URL must not exceed 1024 characters")
     private String coverUrl;
+
+    /** Type of {@link #coverUrl} — IMAGE | VIDEO | AUDIO. Defaults to IMAGE. */
+    private MediaKind coverMediaType;
+
+    /** Optional poster (VIDEO) or cover art (AUDIO) URL for the card cover. */
+    @Size(max = 1024, message = "Cover thumbnail URL must not exceed 1024 characters")
+    private String coverThumbnailUrl;
+
+    /** Mixed-type gallery rendered beside the cover — images, videos, audios. */
+    private List<MediaItem> mediaGallery;
 
     @Size(max = 128, message = "CKB project type must not exceed 128 characters")
     private String projectTypeCkb;

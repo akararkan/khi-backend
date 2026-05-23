@@ -1,5 +1,6 @@
 package ak.dev.khi_backend.khi_app.dto.service;
 
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import lombok.*;
 
 import java.util.List;
@@ -51,6 +52,10 @@ public class ServiceDTOs {
          * Optional — shown on the listing card.
          */
         private String coverMediaUrl;
+        /** Type of {@link #coverMediaUrl} — IMAGE | VIDEO | AUDIO. Defaults to IMAGE. */
+        private MediaKind coverMediaType;
+        /** Optional poster (VIDEO) or cover art (AUDIO) URL for the cover. */
+        private String coverThumbnailUrl;
         /**
          * Explicit publish timestamp.
          * Format: "yyyy-MM-dd HH:mm:ss"   Null = draft / unpublished.
@@ -138,6 +143,8 @@ public class ServiceDTOs {
         private String serviceType;
         private String location;
         private String coverMediaUrl;
+        private MediaKind coverMediaType;
+        private String coverThumbnailUrl;
         private boolean active;
         private String publishedAt;
         private List<ServiceContentResponse> contents;

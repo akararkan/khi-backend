@@ -2,8 +2,10 @@ package ak.dev.khi_backend.khi_app.service.news;
 
 import ak.dev.khi_backend.khi_app.dto.news.NewsDto;
 import ak.dev.khi_backend.khi_app.enums.Language;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.Errors;
+import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import ak.dev.khi_backend.khi_app.model.news.*;
 import ak.dev.khi_backend.khi_app.repository.news.NewsAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.news.NewsCategoryRepository;
@@ -269,6 +271,15 @@ public class NewsService {
                 throw Errors.newsValidation("news.cover.required",
                         Map.of("field", "coverUrl"));
             }
+            if (dto.getCoverMediaType() != null) {
+                news.setCoverMediaType(dto.getCoverMediaType());
+            }
+            if (dto.getCoverThumbnailUrl() != null) {
+                news.setCoverThumbnailUrl(trimOrNull(dto.getCoverThumbnailUrl()));
+            }
+            if (dto.getMediaGallery() != null) {
+                news.setMediaGallery(buildGallery(dto.getMediaGallery()));
+            }
 
             if (dto.getDatePublished() != null) {
                 news.setDatePublished(dto.getDatePublished());
@@ -356,6 +367,10 @@ public class NewsService {
                                  NewsCategory cat, NewsSubCategory subCat) {
         return News.builder()
                 .coverUrl(coverUrl)
+                .coverMediaType(dto.getCoverMediaType() != null
+                        ? dto.getCoverMediaType() : MediaKind.IMAGE)
+                .coverThumbnailUrl(trimOrNull(dto.getCoverThumbnailUrl()))
+                .mediaGallery(buildGallery(dto.getMediaGallery()))
                 .datePublished(dto.getDatePublished())
                 .category(cat)
                 .subCategory(subCat)
@@ -519,6 +534,12 @@ public class NewsService {
         NewsDto dto = NewsDto.builder()
                 .id(news.getId())
                 .coverUrl(news.getCoverUrl())
+                .coverMediaType(news.getCoverMediaType() != null
+                        ? news.getCoverMediaType() : MediaKind.IMAGE)
+                .coverThumbnailUrl(news.getCoverThumbnailUrl())
+                .mediaGallery(news.getMediaGallery() != null
+                        ? new ArrayList<>(news.getMediaGallery())
+                        : new ArrayList<>())
                 .datePublished(news.getDatePublished())
                 .createdAt(news.getCreatedAt())
                 .updatedAt(news.getUpdatedAt())
@@ -589,6 +610,27 @@ public class NewsService {
     private String  trimOrNull(String s)             { if (s == null) return null; String t = s.trim(); return t.isEmpty() ? null : t; }
     private Set<Language>  safeLangs(Set<Language> l){ return l == null ? Set.of() : l; }
     private <T> Set<T>     safeSet(Set<T> s)         { return s == null ? Set.of() : s; }
+
+    private List<MediaItem> buildGallery(List<MediaItem> gallery) {
+        if (gallery == null || gallery.isEmpty()) return new ArrayList<>();
+        ArrayList<MediaItem> result = new ArrayList<>();
+        int idx = 0;
+        for (MediaItem item : gallery) {
+            if (item == null || isBlank(item.getUrl())) continue;
+            result.add(MediaItem.builder()
+                    .url(item.getUrl().trim())
+                    .kind(item.getKind() != null ? item.getKind() : MediaKind.IMAGE)
+                    .thumbnailUrl(trimOrNull(item.getThumbnailUrl()))
+                    .captionCkb(trimOrNull(item.getCaptionCkb()))
+                    .captionKmr(trimOrNull(item.getCaptionKmr()))
+                    .sortOrder(item.getSortOrder() != null ? item.getSortOrder() : idx)
+                    .build());
+            idx++;
+        }
+        result.sort(Comparator.comparingInt(
+                m -> m.getSortOrder() != null ? m.getSortOrder() : Integer.MAX_VALUE));
+        return result;
+    }
 
     private Set<String> cleanStrings(Set<String> input) {
         if (input == null || input.isEmpty()) return Set.of();
