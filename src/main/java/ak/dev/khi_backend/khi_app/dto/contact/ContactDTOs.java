@@ -1,22 +1,14 @@
 package ak.dev.khi_backend.khi_app.dto.contact;
 
-import ak.dev.khi_backend.khi_app.enums.MediaKind;
-import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import lombok.*;
 
-import java.util.List;
-
 /**
- * ContactDTOs — All request / response DTOs for the Contact module.
+ * ContactDTOs — Request / response DTOs for the Contact module.
  *
- * Bilingual content mirrors the About module pattern:
- *   slugCkb    → Sorani   (CKB) URL slug  — required, unique
- *   slugKmr    → Kurmanji (KMR) URL slug  — optional, unique
- *   ckbContent → Sorani   (CKB) language fields (title, subtitle, address, workingHours)
- *   kmrContent → Kurmanji (KMR) language fields (title, subtitle, address, workingHours)
- *
- * Contact-specific fields (language-agnostic):
- *   phone, secondaryPhone, email, mapEmbedUrl, latitude, longitude
+ * Contact no longer carries any standalone hero or gallery field.  All
+ * visual media (image, video, voice, document, or any other file) lives
+ * inside the bilingual Tiptap {@code description} HTML on each language's
+ * content embeddable.
  */
 public class ContactDTOs {
 
@@ -36,44 +28,19 @@ public class ContactDTOs {
         /** Kurmanji (KMR) URL slug — optional, unique. */
         private String slugKmr;
 
-        /** Full-bleed hero / banner asset URL (image, video, or audio). */
-        private String heroImageUrl;
-
-        /** Type of {@link #heroImageUrl} — IMAGE | VIDEO | AUDIO. Defaults to IMAGE. */
-        private MediaKind heroMediaType;
-
-        /** Optional poster (VIDEO) or cover art (AUDIO) URL for the hero. */
-        private String heroThumbnailUrl;
-
-        /** Mixed-type gallery rendered beside the hero — images, videos, audios. */
-        private List<MediaItem> mediaGallery;
-
-        /** Sorani (CKB) page-level text content. */
+        /** Sorani (CKB) page-level content (title / subtitle / address / hours / Tiptap description). */
         private ContactContentRequest ckbContent;
 
-        /** Kurmanji (KMR) page-level text content. */
+        /** Kurmanji (KMR) page-level content (title / subtitle / address / hours / Tiptap description). */
         private ContactContentRequest kmrContent;
 
         // ─── Contact Details ─────────────────────────────────────────────────
 
-        /** Primary phone number — e.g. "+964 770 123 4567" */
         private String phone;
-
-        /** Secondary / additional phone number */
         private String secondaryPhone;
-
-        /** Primary contact email */
         private String email;
-
-        /**
-         * Google Maps embed URL or any iframe-compatible map URL.
-         */
         private String mapEmbedUrl;
-
-        /** Latitude for map marker */
         private Double latitude;
-
-        /** Longitude for map marker */
         private Double longitude;
     }
 
@@ -88,6 +55,11 @@ public class ContactDTOs {
         private String subtitle;
         private String address;
         private String workingHours;
+        /**
+         * Tiptap HTML description — all media (image / video / voice / file)
+         * is embedded inline here and rewritten to S3 URLs on save.
+         */
+        private String description;
     }
 
     // =========================================================================
@@ -102,10 +74,6 @@ public class ContactDTOs {
         private Long   id;
         private String slugCkb;
         private String slugKmr;
-        private String heroImageUrl;
-        private MediaKind heroMediaType;
-        private String heroThumbnailUrl;
-        private List<MediaItem> mediaGallery;
 
         private ContactContentResponse ckbContent;
         private ContactContentResponse kmrContent;
@@ -133,20 +101,7 @@ public class ContactDTOs {
         private String subtitle;
         private String address;
         private String workingHours;
-    }
-
-    // =========================================================================
-    // MEDIA UPLOAD — RESPONSE  (reused from About pattern)
-    // =========================================================================
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class UploadResponse {
-        private String fileUrl;
-        private String fileName;
-        private Long   fileSize;
-        private String contentType;
+        /** Tiptap HTML description. */
+        private String description;
     }
 }

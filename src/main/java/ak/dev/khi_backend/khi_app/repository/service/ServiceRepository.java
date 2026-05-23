@@ -87,10 +87,8 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
     // PHASE-2: BATCH HYDRATION
     //
     // No @EntityGraph — @BatchSize on entity collections fires automatically:
-    //   Q1: SELECT s   FROM services                   WHERE id IN (...)
-    //   Q2: SELECT ... FROM service_contents            WHERE service_id IN (...)
-    //   Q3: SELECT ... FROM service_media_collections   WHERE service_id IN (...)
-    //   Q4: SELECT ... FROM service_media_files         WHERE collection_id IN (...)
+    //   Q1: SELECT s   FROM services         WHERE id IN (...)
+    //   Q2: SELECT ... FROM service_contents WHERE service_id IN (...)
     // =========================================================================
 
     @Query("SELECT s FROM Service s WHERE s.id IN :ids ORDER BY s.publishedAt DESC, s.createdAt DESC")
@@ -101,14 +99,12 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
     // =========================================================================
 
     /**
-     * Fetch a service together with its contents and collections
-     * in one query to avoid N+1 when building the full response.
+     * Fetch a service together with its bilingual contents in one query to
+     * avoid N+1 when building the full response.
      */
     @Query("""
             SELECT DISTINCT s FROM Service s
             LEFT JOIN FETCH s.contents
-            LEFT JOIN FETCH s.mediaCollections mc
-            LEFT JOIN FETCH mc.files
             WHERE s.id = :id
             """)
     Optional<Service> findByIdWithAll(@Param("id") Long id);

@@ -10,21 +10,22 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
  * ServiceController — REST endpoints for the Service module.
  *
+ * <p>Service carries no standalone media field — all media (image / video /
+ * voice / document / other) is embedded inside the bilingual Tiptap
+ * {@code description} on each content row. The frontend uploads each file
+ * once via the shared {@code POST /api/v1/media/upload} and bakes the
+ * returned URL into the editor before submitting the JSON body here.</p>
+ *
  * ─── Base Path ────────────────────────────────────────────────────────────────
  *  /api/v1/services
  *
- * ─── Endpoint Groups ──────────────────────────────────────────────────────────
- *
- *  ① Service CRUD (Paginated + Cached)
- *  ─────────────────────────────────────────────────────────────────────────────
+ * ─── Endpoints ────────────────────────────────────────────────────────────────
  *  GET    /api/v1/services                                → active services (paginated)
  *  GET    /api/v1/services?type={serviceType}             → filter active by type (paginated)
  *  GET    /api/v1/services/all                            → admin: all incl. inactive (paginated)
@@ -33,29 +34,10 @@ import java.util.List;
  *  GET    /api/v1/services/search?q={query}               → global search (active, paginated)
  *  GET    /api/v1/services/search/admin?q={query}         → admin search (all, paginated)
  *  POST   /api/v1/services                                → create service (JSON)
- *  POST   /api/v1/services/with-files                     → create + upload media (multipart)
  *  PUT    /api/v1/services/{id}                           → full update (JSON)
- *  PUT    /api/v1/services/{id}/with-files                → update + upload media (multipart)
  *  PATCH  /api/v1/services/{id}/active?value=false        → soft toggle
- *  DELETE /api/v1/services/{id}                           → delete + S3 cleanup
+ *  DELETE /api/v1/services/{id}                           → delete
  *  DELETE /api/v1/services/bulk                           → bulk delete
- *
- *  ② Collection Management
- *  ─────────────────────────────────────────────────────────────────────────────
- *  POST   /api/v1/services/{serviceId}/collections               → add collection
- *  PUT    /api/v1/services/{serviceId}/collections/{colId}       → update collection
- *  DELETE /api/v1/services/{serviceId}/collections/{colId}       → delete + S3 files
- *
- *  ③ File Management
- *  ─────────────────────────────────────────────────────────────────────────────
- *  POST   /api/v1/services/collections/{colId}/files             → add pre-uploaded file
- *  DELETE /api/v1/services/files/{fileId}                        → delete file + S3
- *
- *  ④ Media Upload (Multipart)
- *  ─────────────────────────────────────────────────────────────────────────────
- *  POST   /api/v1/services/upload                         → single file → S3 URL
- *  POST   /api/v1/services/upload/multiple                → multi-file → S3 URL list
- *  DELETE /api/v1/services/upload?fileUrl={url}           → delete from S3
  */
 @Slf4j
 @RestController
@@ -66,7 +48,7 @@ public class ServiceController {
     private final ServiceService serviceService;
 
     // =========================================================================
-    // ① SERVICE CRUD — Paginated + Cached
+    // SERVICE CRUD
     // =========================================================================
 
     /**
@@ -87,9 +69,6 @@ public class ServiceController {
                 ApiResponse.success(result, "Services fetched successfully"));
     }
 
-    /**
-     * Admin — list ALL services including inactive — paginated.
-     */
     @GetMapping("/all")
     public ResponseEntity<ApiResponse<Page<ServiceResponse>>> getAllAdmin(
             @RequestParam(defaultValue = "0") int page,
@@ -100,28 +79,18 @@ public class ServiceController {
                 ApiResponse.success(result, "All services fetched successfully"));
     }
 
-    /**
-     * Fetch a single service with full bilingual content + all media collections.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ServiceResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(
                 ApiResponse.success(serviceService.getById(id), "Service fetched successfully"));
     }
 
-    /**
-     * List distinct service type names (for filter dropdowns).
-     */
     @GetMapping("/types")
     public ResponseEntity<ApiResponse<List<String>>> getServiceTypes() {
         return ResponseEntity.ok(
                 ApiResponse.success(serviceService.getServiceTypes(), "Service types fetched"));
     }
 
-    /**
-     * Global search — searches type, location, bilingual title/description.
-     * Active services only. Paginated + cached.
-     */
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<ServiceResponse>>> search(
             @RequestParam String q,
@@ -133,9 +102,6 @@ public class ServiceController {
                         "Search results fetched"));
     }
 
-    /**
-     * Admin search — includes inactive services. Paginated + cached.
-     */
     @GetMapping("/search/admin")
     public ResponseEntity<ApiResponse<Page<ServiceResponse>>> adminSearch(
             @RequestParam String q,
@@ -147,10 +113,7 @@ public class ServiceController {
                         "Admin search results fetched"));
     }
 
-    /**
-     * Create a new service (JSON only — files must be pre-uploaded).
-     */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ServiceResponse>> create(
             @RequestBody ServiceRequest request) {
 
@@ -159,46 +122,7 @@ public class ServiceController {
                 .body(ApiResponse.success(response, "Service created successfully"));
     }
 
-    /**
-     * Create a new service with inline media file uploads (multipart).
-     *
-     * Parts:
-     *  - data   : JSON {@link ServiceRequest}  (required)
-     *  - cover  : optional cover image file
-     *  - images : optional collection of image files
-     *  - videos : optional collection of video files
-     *  - audios : optional collection of audio files
-     *
-     * Auto-generated collections ("Images", "Videos", "Audios") are appended
-     * after any collections already declared in the JSON data part.
-     */
-    @PostMapping(value = "/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<ServiceResponse>> createWithFiles(
-            @RequestPart("data") ServiceRequest request,
-            @RequestPart(value = "cover",  required = false) MultipartFile cover,
-            @RequestPart(value = "images", required = false) List<MultipartFile> images,
-            @RequestPart(value = "videos", required = false) List<MultipartFile> videos,
-            @RequestPart(value = "audios", required = false) List<MultipartFile> audios
-    ) throws IOException {
-
-        int imgCount   = images != null ? images.size() : 0;
-        int vidCount   = videos != null ? videos.size() : 0;
-        int audCount   = audios != null ? audios.size() : 0;
-        boolean hasCover = cover != null && !cover.isEmpty();
-
-        log.info("POST /with-files | type={} | cover={} | images={} | videos={} | audios={}",
-                request.getServiceType(), hasCover, imgCount, vidCount, audCount);
-
-        ServiceResponse response = serviceService.createWithFiles(request, cover, images, videos, audios);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Service created successfully"));
-    }
-
-    /**
-     * Full update (JSON only) — replaces all content rows and media collections.
-     * S3 files that are no longer referenced are automatically deleted.
-     */
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ServiceResponse>> update(
             @PathVariable Long id,
             @RequestBody ServiceRequest request) {
@@ -208,37 +132,6 @@ public class ServiceController {
                         "Service updated successfully"));
     }
 
-    /**
-     * Full update with inline media file uploads (multipart).
-     *
-     * Same parts as {@link #createWithFiles}. S3 orphans are cleaned up.
-     */
-    @PutMapping(value = "/{id}/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<ServiceResponse>> updateWithFiles(
-            @PathVariable Long id,
-            @RequestPart("data") ServiceRequest request,
-            @RequestPart(value = "cover",  required = false) MultipartFile cover,
-            @RequestPart(value = "images", required = false) List<MultipartFile> images,
-            @RequestPart(value = "videos", required = false) List<MultipartFile> videos,
-            @RequestPart(value = "audios", required = false) List<MultipartFile> audios
-    ) throws IOException {
-
-        int imgCount   = images != null ? images.size() : 0;
-        int vidCount   = videos != null ? videos.size() : 0;
-        int audCount   = audios != null ? audios.size() : 0;
-        boolean hasCover = cover != null && !cover.isEmpty();
-
-        log.info("PUT /{}/with-files | cover={} | images={} | videos={} | audios={}",
-                id, hasCover, imgCount, vidCount, audCount);
-
-        ServiceResponse response = serviceService.updateWithFiles(id, request, cover, images, videos, audios);
-        return ResponseEntity.ok(
-                ApiResponse.success(response, "Service updated successfully"));
-    }
-
-    /**
-     * Soft-toggle the active flag without touching content or media.
-     */
     @PatchMapping("/{id}/active")
     public ResponseEntity<ApiResponse<ServiceResponse>> setActive(
             @PathVariable Long id,
@@ -249,9 +142,6 @@ public class ServiceController {
                         value ? "Service activated" : "Service deactivated"));
     }
 
-    /**
-     * Permanently delete the service and all its S3 objects.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         serviceService.delete(id);
@@ -259,107 +149,10 @@ public class ServiceController {
                 ApiResponse.success(null, "Service deleted successfully"));
     }
 
-    /**
-     * Bulk delete — permanently delete multiple services at once.
-     */
     @DeleteMapping("/bulk")
     public ResponseEntity<ApiResponse<Void>> deleteBulk(@RequestBody List<Long> ids) {
         serviceService.deleteBulk(ids);
         return ResponseEntity.ok(
                 ApiResponse.success(null, "Services deleted successfully"));
-    }
-
-    // =========================================================================
-    // ② COLLECTION MANAGEMENT
-    // =========================================================================
-
-    @PostMapping("/{serviceId}/collections")
-    public ResponseEntity<ApiResponse<ServiceMediaCollectionResponse>> addCollection(
-            @PathVariable Long serviceId,
-            @RequestBody CollectionUpsertRequest request) {
-
-        ServiceMediaCollectionResponse response =
-                serviceService.addCollection(serviceId, request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Collection added successfully"));
-    }
-
-    @PutMapping("/{serviceId}/collections/{collectionId}")
-    public ResponseEntity<ApiResponse<ServiceMediaCollectionResponse>> updateCollection(
-            @PathVariable Long serviceId,
-            @PathVariable Long collectionId,
-            @RequestBody CollectionUpsertRequest request) {
-
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        serviceService.updateCollection(serviceId, collectionId, request),
-                        "Collection updated successfully"));
-    }
-
-    @DeleteMapping("/{serviceId}/collections/{collectionId}")
-    public ResponseEntity<ApiResponse<Void>> deleteCollection(
-            @PathVariable Long serviceId,
-            @PathVariable Long collectionId) {
-
-        serviceService.deleteCollection(serviceId, collectionId);
-        return ResponseEntity.ok(
-                ApiResponse.success(null, "Collection deleted successfully"));
-    }
-
-    // =========================================================================
-    // ③ FILE MANAGEMENT
-    // =========================================================================
-
-    @PostMapping("/collections/{collectionId}/files")
-    public ResponseEntity<ApiResponse<ServiceMediaFileResponse>> addFile(
-            @PathVariable Long collectionId,
-            @RequestBody FileAddRequest request) {
-
-        ServiceMediaFileResponse response =
-                serviceService.addFileToCollection(collectionId, request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "File added successfully"));
-    }
-
-    @DeleteMapping("/files/{fileId}")
-    public ResponseEntity<ApiResponse<Void>> deleteFile(@PathVariable Long fileId) {
-        serviceService.deleteFile(fileId);
-        return ResponseEntity.ok(
-                ApiResponse.success(null, "File deleted successfully"));
-    }
-
-    // =========================================================================
-    // ④ MEDIA UPLOAD — MULTIPART
-    // =========================================================================
-
-    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<UploadResponse>> uploadSingle(
-            @RequestPart("file") MultipartFile file,
-            @RequestParam(value = "type", required = false) String type) throws IOException {
-
-        log.info("Single upload: name={}, type={}", file.getOriginalFilename(), type);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(serviceService.uploadMedia(file, type),
-                        "File uploaded successfully"));
-    }
-
-    @PostMapping(value = "/upload/multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<List<UploadResponse>>> uploadMultiple(
-            @RequestPart("files") List<MultipartFile> files,
-            @RequestParam(value = "type", required = false) String type) {
-
-        log.info("Bulk upload: count={}, type={}", files.size(), type);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(serviceService.uploadMultipleMedia(files, type),
-                        "Files uploaded successfully"));
-    }
-
-    @DeleteMapping("/upload")
-    public ResponseEntity<ApiResponse<Void>> deleteUploadedFile(
-            @RequestParam("fileUrl") String fileUrl) {
-
-        serviceService.deleteMedia(fileUrl);
-        return ResponseEntity.ok(
-                ApiResponse.success(null, "Uploaded file deleted successfully"));
     }
 }

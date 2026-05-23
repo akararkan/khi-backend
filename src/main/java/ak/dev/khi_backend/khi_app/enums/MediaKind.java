@@ -2,15 +2,18 @@ package ak.dev.khi_backend.khi_app.enums;
 
 /**
  * MediaKind — discriminator for an uploaded asset that backs a hero / cover
- * field or a gallery item across About, Contact, News, and Project entities.
+ * field or a gallery item on the modules that still maintain a standalone
+ * media URL (News and Project).
  *
  *   IMAGE → rendered with <img>
  *   VIDEO → rendered with <video> (thumbnailUrl used as poster)
  *   AUDIO → rendered with <audio> (thumbnailUrl used as cover art)
  *
- * Mirrors {@link ak.dev.khi_backend.khi_app.model.service.ServiceMediaCollection.MediaType}
- * but lives at a neutral package so it can be shared by the JSONB-backed
- * lightweight galleries on the About / Contact / News / Project entities.
+ * About, Contact, and Service no longer use this enum — they store all
+ * media (image / video / voice / document / other) inside the bilingual
+ * Tiptap description HTML, where the
+ * {@link ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor}
+ * is the single point of media handling.
  */
 public enum MediaKind {
     IMAGE,

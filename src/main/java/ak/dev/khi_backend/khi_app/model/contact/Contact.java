@@ -1,31 +1,35 @@
 package ak.dev.khi_backend.khi_app.model.contact;
 
-import ak.dev.khi_backend.khi_app.enums.MediaKind;
-import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Contact — Contact-page entity.
  *
  * ─── Bilingual Slugs ──────────────────────────────────────────────────────────
- *  slugCkb  → Sorani   route identifier, e.g. "پەیوەندی"  or "contact-ckb"
- *  slugKmr  → Kurmanji route identifier, e.g. "peywendî"  or "contact-kmr"
- *
- * ─── Hero Image ───────────────────────────────────────────────────────────────
- *  Full-bleed banner image shown at the top of the public Contact page.
+ *  slugCkb  → Sorani   route identifier
+ *  slugKmr  → Kurmanji route identifier
  *
  * ─── Bilingual Content ────────────────────────────────────────────────────────
- *  ckbContent / kmrContent → title, subtitle, address, workingHours (per language)
+ *  ckbContent / kmrContent — title, subtitle, address, workingHours, and a
+ *  Tiptap HTML {@code description} per language.
+ *
+ *  All visual media (image, video, voice, document, or any other file)
+ *  lives INSIDE the bilingual {@code description} HTML as inline
+ *  {@code <img>}, {@code <video>}, {@code <audio>}, or {@code <a href>}
+ *  tags whose URLs already point at S3.  The
+ *  {@link ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor}
+ *  intercepts every save and hoists any inline base64 payload up to S3
+ *  before persisting.
+ *
+ *  Contact no longer carries a hero image, hero media type, hero thumbnail,
+ *  or media gallery field — all such concerns now live as inline elements
+ *  of the Tiptap description.
  *
  * ─── Contact Details (language-agnostic) ─────────────────────────────────────
  *  phone, secondaryPhone, email, mapEmbedUrl, latitude, longitude
@@ -65,42 +69,6 @@ public class Contact {
     @Builder.Default
     private Integer displayOrder = 0;
 
-    // ─── Hero Image ───────────────────────────────────────────────────────────
-
-    /**
-     * Hero / banner asset URL (image, video, or audio).  Originally named
-     * {@code heroImageUrl} when only images were supported — kept under the
-     * same column for backwards compatibility.  Pair with
-     * {@link #heroMediaType} to know how to render it.
-     */
-    @Column(name = "hero_image_url", length = 1000)
-    private String heroImageUrl;
-
-    /**
-     * Discriminator for {@link #heroImageUrl}.  Defaults to {@link MediaKind#IMAGE}.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "hero_media_type", length = 16)
-    @Builder.Default
-    private MediaKind heroMediaType = MediaKind.IMAGE;
-
-    /**
-     * Optional poster (VIDEO) or cover art (AUDIO) URL for the hero.
-     * Ignored when {@link #heroMediaType} is {@link MediaKind#IMAGE}.
-     */
-    @Column(name = "hero_thumbnail_url", length = 1000)
-    private String heroThumbnailUrl;
-
-    /**
-     * Mixed-type gallery (images / videos / audios) rendered beside the
-     * hero asset.  Stored as JSONB so admins can reorder and re-type
-     * entries without a schema change.
-     */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "media_gallery", columnDefinition = "jsonb")
-    @Builder.Default
-    private List<MediaItem> mediaGallery = new ArrayList<>();
-
     // ─── CKB (Sorani) Content ─────────────────────────────────────────────────
 
     @Embedded
@@ -108,7 +76,8 @@ public class Contact {
             @AttributeOverride(name = "title",        column = @Column(name = "title_ckb",         length = 300)),
             @AttributeOverride(name = "subtitle",     column = @Column(name = "subtitle_ckb",      length = 500)),
             @AttributeOverride(name = "address",      column = @Column(name = "address_ckb",       length = 500)),
-            @AttributeOverride(name = "workingHours", column = @Column(name = "working_hours_ckb", length = 300))
+            @AttributeOverride(name = "workingHours", column = @Column(name = "working_hours_ckb", length = 300)),
+            @AttributeOverride(name = "description",  column = @Column(name = "description_ckb",   columnDefinition = "TEXT"))
     })
     private ContactContent ckbContent;
 
@@ -119,7 +88,8 @@ public class Contact {
             @AttributeOverride(name = "title",        column = @Column(name = "title_kmr",         length = 300)),
             @AttributeOverride(name = "subtitle",     column = @Column(name = "subtitle_kmr",      length = 500)),
             @AttributeOverride(name = "address",      column = @Column(name = "address_kmr",       length = 500)),
-            @AttributeOverride(name = "workingHours", column = @Column(name = "working_hours_kmr", length = 300))
+            @AttributeOverride(name = "workingHours", column = @Column(name = "working_hours_kmr", length = 300)),
+            @AttributeOverride(name = "description",  column = @Column(name = "description_kmr",   columnDefinition = "TEXT"))
     })
     private ContactContent kmrContent;
 

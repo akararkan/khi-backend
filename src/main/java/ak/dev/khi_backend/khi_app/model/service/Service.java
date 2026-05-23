@@ -1,6 +1,5 @@
 package ak.dev.khi_backend.khi_app.model.service;
 
-import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -16,20 +15,23 @@ import java.util.Set;
  * Service — A single institute service (Training, Event, Program, etc.).
  *
  * ─── Bilingual Content ────────────────────────────────────────────────────────
- *  Unlike the About entity (which uses @Embeddable / @AttributeOverrides),
- *  bilingual text lives in a *separate* {@link ServiceContent} table joined by
+ *  Bilingual text lives in a separate {@link ServiceContent} table joined by
  *  (service_id, language_code).  This makes adding more languages later trivial.
  *
  *    service_contents WHERE language_code = 'CKB'  → Sorani   version
  *    service_contents WHERE language_code = 'KMR'  → Kurmanji version
  *
- * ─── Media ────────────────────────────────────────────────────────────────────
- *  {@link #coverMediaUrl}  — a single hero / preview asset (image or video)
- *                            shown on the public listing card.
+ *  Each {@link ServiceContent} row carries a Tiptap HTML {@code description}
+ *  which is the ONLY place media (image, video, voice, document, or any
+ *  other file) is stored.  Inline {@code <img>}, {@code <video>},
+ *  {@code <audio>}, and {@code <a href>} tags reference S3 URLs;
+ *  {@link ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor}
+ *  hoists any inline base64 payloads to S3 at save time.
  *
- *  Rich media galleries live in {@link ServiceMediaCollection} →
- *  {@link ServiceMediaFile}.  Each collection groups files by type
- *  (Images, Videos, Audios) with its own sort order.
+ *  Service no longer carries any cover, hero, thumbnail, or
+ *  per-file-metadata media model.  The {@code service_media_collections}
+ *  and {@code service_media_files} tables — and their POJO classes — have
+ *  been removed.
  *
  * ─── Publish Lifecycle ────────────────────────────────────────────────────────
  *  {@link #publishedAt}  — explicit publish timestamp set by the admin.
@@ -59,7 +61,6 @@ public class Service {
     /**
      * Dynamic service type label — free text so admins can define new types
      * without a code change.
-     * Examples: "Training", "Event", "Program", "Workshop", "Conference"
      */
     @NotBlank
     @Column(name = "service_type", nullable = false, length = 100)
@@ -67,35 +68,10 @@ public class Service {
 
     /**
      * Physical or virtual location of the service.
-     * Examples: "Sulaymaniyah Hall", "Online", "Erbil Campus"
      * Null when location is not applicable.
      */
     @Column(name = "location", length = 200)
     private String location;
-
-    /**
-     * Main preview asset URL (image, video, or audio) on S3 / CDN.
-     * Shown on the public service listing card.
-     * Optional — card falls back to the first media file when absent.
-     * Pair with {@link #coverMediaType} to know how to render it.
-     */
-    @Column(name = "cover_media_url", columnDefinition = "TEXT")
-    private String coverMediaUrl;
-
-    /**
-     * Discriminator for {@link #coverMediaUrl}.
-     * Defaults to {@link MediaKind#IMAGE} so existing rows render as images.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "cover_media_type", length = 16)
-    @Builder.Default
-    private MediaKind coverMediaType = MediaKind.IMAGE;
-
-    /**
-     * Optional poster (VIDEO) or cover art (AUDIO) URL for the cover.
-     */
-    @Column(name = "cover_thumbnail_url", columnDefinition = "TEXT")
-    private String coverThumbnailUrl;
 
     /** Soft-delete / visibility toggle.  Defaults to true (visible). */
     @Builder.Default
@@ -120,14 +96,6 @@ public class Service {
     @Builder.Default
     private Set<ServiceContent> contents = new HashSet<>();
 
-    // ─── Media Collections ────────────────────────────────────────────────────
-
-    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @OrderBy("sortOrder ASC")
-    @BatchSize(size = 50)
-    @Builder.Default
-    private Set<ServiceMediaCollection> mediaCollections = new HashSet<>();
-
     // ─── Timestamps ───────────────────────────────────────────────────────────
 
     @CreationTimestamp
@@ -148,15 +116,5 @@ public class Service {
     public void removeContent(ServiceContent content) {
         contents.remove(content);
         content.setService(null);
-    }
-
-    public void addMediaCollection(ServiceMediaCollection collection) {
-        mediaCollections.add(collection);
-        collection.setService(this);
-    }
-
-    public void removeMediaCollection(ServiceMediaCollection collection) {
-        mediaCollections.remove(collection);
-        collection.setService(null);
     }
 }

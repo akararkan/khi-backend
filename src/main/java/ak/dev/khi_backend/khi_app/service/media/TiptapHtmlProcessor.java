@@ -11,14 +11,37 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * TiptapHtmlProcessor — scans Tiptap HTML for inline base64 data URIs in
- * {@code <img>}, {@code <video>}, {@code <audio>}, and {@code <source>}
- * tags, uploads each one to S3, and rewrites the {@code src} attribute to
- * point at the resulting public URL.
+ * TiptapHtmlProcessor — the single entry-point for ALL media (image, video,
+ * audio/voice, document, or any other file) embedded inside Tiptap HTML.
  *
- * Idempotent: HTML that already contains S3 URLs is returned unchanged.
- * Safe on null / blank input. Failures on a single asset are logged and
- * the original src is left in place so the save still succeeds.
+ * <p>The processor scans the inbound HTML for inline base64 data URIs:</p>
+ * <ul>
+ *   <li>{@code src="data:..."} on {@code <img>}, {@code <video>},
+ *       {@code <audio>}, and {@code <source>} tags (images, videos, voice
+ *       recordings).</li>
+ *   <li>{@code href="data:..."} on {@code <a>} tags (PDFs, documents, any
+ *       other downloadable file).</li>
+ * </ul>
+ *
+ * <p>For each match it base64-decodes the payload, uploads the bytes to S3
+ * using the MIME-derived folder ({@code images/}, {@code video/},
+ * {@code audio/}, or {@code files/}), and rewrites the attribute to point
+ * at the resulting public URL. The rewritten HTML is what gets persisted —
+ * the database never stores raw binary payloads.</p>
+ *
+ * <p>Used by About, Contact, Service, News, Project, Sound, Video, Image and
+ * Writing — i.e. every module whose description / body is a Tiptap HTML blob.
+ * About / Contact / Service have no other media path; everything lives here.</p>
+ *
+ * <p>Behaviour guarantees:</p>
+ * <ul>
+ *   <li>Idempotent — HTML that already contains only S3 URLs is returned
+ *       unchanged (fast early-out on {@code !html.contains("data:")}).</li>
+ *   <li>Null-safe / blank-safe — null and empty strings pass through.</li>
+ *   <li>Resilient — a malformed base64 payload or a single failed S3 upload
+ *       is logged and the original attribute is left in place; the save
+ *       still succeeds for the rest of the document.</li>
+ * </ul>
  */
 @Slf4j
 @Service
@@ -28,9 +51,9 @@ public class TiptapHtmlProcessor {
     private final S3Service s3Service;
 
     /**
-     * Matches: src="data:<mime>;base64,<payload>" or src='...'.
-     * Group 1: quote char.  Group 2: mime type (e.g. image/jpeg).
-     * Group 3: base64 payload (may contain whitespace which we strip).
+     * Matches {@code src="data:<mime>;base64,<payload>"} (single or double
+     * quotes) on {@code <img>}, {@code <video>}, {@code <audio>}, or
+     * {@code <source>} — covers IMAGE / VIDEO / AUDIO (voice) inline assets.
      */
     private static final Pattern DATA_URI_SRC = Pattern.compile(
             "src=([\"'])data:([a-zA-Z0-9.+/-]+);base64,([A-Za-z0-9+/=\\s]+?)\\1",
@@ -38,14 +61,30 @@ public class TiptapHtmlProcessor {
     );
 
     /**
+     * Matches {@code href="data:<mime>;base64,<payload>"} — covers PDFs and
+     * any "other file" embedded as a download link by the Tiptap editor.
+     */
+    private static final Pattern DATA_URI_HREF = Pattern.compile(
+            "href=([\"'])data:([a-zA-Z0-9.+/-]+);base64,([A-Za-z0-9+/=\\s]+?)\\1",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
      * Process a Tiptap HTML blob. Returns the same string with every inline
-     * base64 data URI replaced by an S3 public URL.
+     * base64 data URI on a {@code src} or {@code href} attribute replaced
+     * by the S3 public URL of the uploaded asset.
      */
     public String process(String html) {
         if (html == null || html.isBlank()) return html;
         if (!html.contains("data:")) return html;
 
-        Matcher m = DATA_URI_SRC.matcher(html);
+        String afterSrc  = rewrite(html,     DATA_URI_SRC,  "src");
+        String afterHref = rewrite(afterSrc, DATA_URI_HREF, "href");
+        return afterHref;
+    }
+
+    private String rewrite(String html, Pattern pattern, String attr) {
+        Matcher m = pattern.matcher(html);
         StringBuilder out = new StringBuilder(html.length());
         int last = 0;
         int uploaded = 0;
@@ -64,14 +103,14 @@ public class TiptapHtmlProcessor {
                 String filename  = "tiptap-" + System.nanoTime() + "." + extensionFor(mime);
                 ProjectMediaType type = mediaTypeFor(mime);
                 String url = s3Service.upload(bytes, filename, mime, type);
-                replacement = "src=" + quote + url + quote;
+                replacement = attr + "=" + quote + url + quote;
                 uploaded++;
             } catch (IllegalArgumentException e) {
-                log.warn("Tiptap: skipping malformed base64 payload (mime={})", mime);
+                log.warn("Tiptap: skipping malformed base64 payload (attr={}, mime={})", attr, mime);
                 replacement = m.group(0);
                 failed++;
             } catch (Exception e) {
-                log.error("Tiptap: failed to upload inline asset (mime={})", mime, e);
+                log.error("Tiptap: failed to upload inline asset (attr={}, mime={})", attr, mime, e);
                 replacement = m.group(0);
                 failed++;
             }
@@ -84,13 +123,14 @@ public class TiptapHtmlProcessor {
         out.append(html, last, html.length());
 
         if (uploaded > 0 || failed > 0) {
-            log.info("Tiptap HTML processed: uploaded={}, failed={}", uploaded, failed);
+            log.info("Tiptap HTML processed: attr={}, uploaded={}, failed={}",
+                    attr, uploaded, failed);
         }
         return out.toString();
     }
 
     private static ProjectMediaType mediaTypeFor(String mime) {
-        if (mime == null) return ProjectMediaType.IMAGE;
+        if (mime == null) return ProjectMediaType.DOCUMENT;
         if (mime.startsWith("image/")) return ProjectMediaType.IMAGE;
         if (mime.startsWith("video/")) return ProjectMediaType.VIDEO;
         if (mime.startsWith("audio/")) return ProjectMediaType.AUDIO;
@@ -116,6 +156,22 @@ public class TiptapHtmlProcessor {
             case "audio/x-wav"             -> "wav";
             case "audio/ogg"               -> "ogg";
             case "audio/webm"              -> "weba";
+            case "audio/aac", "audio/x-aac"-> "aac";
+            case "audio/flac", "audio/x-flac" -> "flac";
+            case "audio/mp4", "audio/x-m4a"   -> "m4a";
+            case "application/pdf"         -> "pdf";
+            case "application/msword"      -> "doc";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx";
+            case "application/vnd.ms-excel" -> "xls";
+            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx";
+            case "application/vnd.ms-powerpoint" -> "ppt";
+            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> "pptx";
+            case "application/zip"         -> "zip";
+            case "application/x-rar-compressed", "application/vnd.rar" -> "rar";
+            case "application/x-7z-compressed" -> "7z";
+            case "text/plain"              -> "txt";
+            case "text/csv"                -> "csv";
+            case "application/json"        -> "json";
             default -> {
                 int slash = mime.indexOf('/');
                 yield slash >= 0 && slash + 1 < mime.length()

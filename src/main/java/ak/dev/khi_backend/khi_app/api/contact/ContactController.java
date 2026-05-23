@@ -9,14 +9,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
  * REST Controller for Contact page management.
- * Follows the same pattern as {@link ak.dev.khi_backend.khi_app.api.about.AboutController}.
+ *
+ * Contact has no standalone media field — all visual media (image, video,
+ * voice, document, or any other file) lives inside the bilingual Tiptap
+ * {@code description}. The frontend uploads each file once via the shared
+ * {@code POST /api/v1/media/upload}, bakes the returned URL into the editor,
+ * then submits the JSON body here.
  */
 @RestController
 @RequestMapping("/api/v1/contact")
@@ -101,33 +104,5 @@ public class ContactController {
         log.info("DELETE /api/v1/contact/{}", id);
         contactService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Contact page deleted successfully"));
-    }
-
-    // ============================================================
-    // MEDIA UPLOAD — S3
-    // ============================================================
-
-    /**
-     * Upload hero image or any contact-related media to S3.
-     * Returns the public URL for use in the request body.
-     */
-    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<UploadResponse>> uploadMedia(
-            @RequestPart("file") MultipartFile file) throws IOException {
-
-        log.info("POST /api/v1/contact/upload | name={}, size={}",
-                file.getOriginalFilename(), file.getSize());
-        return ResponseEntity.ok(ApiResponse.success(
-                contactService.uploadMedia(file), "Media uploaded successfully"));
-    }
-
-    /**
-     * Delete a media file from S3 by URL.
-     */
-    @DeleteMapping("/media")
-    public ResponseEntity<ApiResponse<Void>> deleteMedia(@RequestParam String fileUrl) {
-        log.info("DELETE /api/v1/contact/media | url={}", fileUrl);
-        contactService.deleteMedia(fileUrl);
-        return ResponseEntity.ok(ApiResponse.success(null, "Media deleted successfully"));
     }
 }

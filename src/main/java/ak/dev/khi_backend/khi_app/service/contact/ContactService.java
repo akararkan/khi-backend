@@ -1,23 +1,17 @@
 package ak.dev.khi_backend.khi_app.service.contact;
 
 import ak.dev.khi_backend.khi_app.dto.contact.ContactDTOs.*;
-import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.model.contact.Contact;
 import ak.dev.khi_backend.khi_app.model.contact.ContactContent;
-import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import ak.dev.khi_backend.khi_app.repository.contact.ContactRepository;
-import ak.dev.khi_backend.khi_app.service.S3Service;
+import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,7 +21,7 @@ import java.util.stream.Collectors;
 public class ContactService {
 
     private final ContactRepository contactRepository;
-    private final S3Service         s3Service;
+    private final TiptapHtmlProcessor tiptapHtmlProcessor;
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -50,9 +44,6 @@ public class ContactService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Lookup by either the CKB slug or the KMR slug.
-     */
     @Transactional(readOnly = true)
     public ContactResponse getBySlug(String slug) {
         Contact contact = contactRepository.findBySlugCkbOrSlugKmr(slug, slug)
@@ -78,11 +69,6 @@ public class ContactService {
         Contact contact = Contact.builder()
                 .slugCkb(request.getSlugCkb().trim())
                 .slugKmr(blankToNull(request.getSlugKmr()))
-                .heroImageUrl(blankToNull(request.getHeroImageUrl()))
-                .heroMediaType(request.getHeroMediaType() != null
-                        ? request.getHeroMediaType() : MediaKind.IMAGE)
-                .heroThumbnailUrl(blankToNull(request.getHeroThumbnailUrl()))
-                .mediaGallery(buildGallery(request.getMediaGallery()))
                 .ckbContent(buildContent(request.getCkbContent()))
                 .kmrContent(buildContent(request.getKmrContent()))
                 .phone(blankToNull(request.getPhone()))
@@ -109,26 +95,8 @@ public class ContactService {
         Contact contact = findOrThrow(id);
         validateSlugs(request, id);
 
-        // Delete old hero from S3 if it changed
-        String oldHero = contact.getHeroImageUrl();
-        String newHero = blankToNull(request.getHeroImageUrl());
-        if (oldHero != null && !oldHero.equals(newHero)) {
-            s3Service.deleteFile(oldHero);
-            log.info("Deleted old hero asset from S3: {}", oldHero);
-        }
-        String oldThumb = contact.getHeroThumbnailUrl();
-        String newThumb = blankToNull(request.getHeroThumbnailUrl());
-        if (oldThumb != null && !oldThumb.equals(newThumb)) {
-            s3Service.deleteFile(oldThumb);
-        }
-
         contact.setSlugCkb(request.getSlugCkb().trim());
         contact.setSlugKmr(blankToNull(request.getSlugKmr()));
-        contact.setHeroImageUrl(newHero);
-        contact.setHeroMediaType(request.getHeroMediaType() != null
-                ? request.getHeroMediaType() : MediaKind.IMAGE);
-        contact.setHeroThumbnailUrl(newThumb);
-        contact.setMediaGallery(buildGallery(request.getMediaGallery()));
         contact.setCkbContent(buildContent(request.getCkbContent()));
         contact.setKmrContent(buildContent(request.getKmrContent()));
         contact.setPhone(blankToNull(request.getPhone()));
@@ -150,58 +118,8 @@ public class ContactService {
     @Transactional
     public void delete(Long id) {
         Contact contact = findOrThrow(id);
-
-        if (contact.getHeroImageUrl() != null) {
-            s3Service.deleteFile(contact.getHeroImageUrl());
-        }
-        if (contact.getHeroThumbnailUrl() != null) {
-            s3Service.deleteFile(contact.getHeroThumbnailUrl());
-        }
-        if (contact.getMediaGallery() != null) {
-            for (MediaItem item : contact.getMediaGallery()) {
-                if (item == null) continue;
-                if (item.getUrl() != null && !item.getUrl().isBlank()) {
-                    s3Service.deleteFile(item.getUrl());
-                }
-                if (item.getThumbnailUrl() != null && !item.getThumbnailUrl().isBlank()) {
-                    s3Service.deleteFile(item.getThumbnailUrl());
-                }
-            }
-        }
-
         contactRepository.delete(contact);
         log.info("Deleted contact page id={}", id);
-    }
-
-    // ============================================================
-    // MEDIA UPLOAD — S3
-    // ============================================================
-
-    public UploadResponse uploadMedia(MultipartFile file) throws IOException {
-        log.info("Uploading contact media: name={}, size={}", file.getOriginalFilename(), file.getSize());
-
-        String fileUrl = s3Service.upload(
-                file.getBytes(),
-                file.getOriginalFilename(),
-                file.getContentType()
-        );
-
-        log.info("Upload successful: {}", fileUrl);
-
-        return UploadResponse.builder()
-                .fileUrl(fileUrl)
-                .fileName(file.getOriginalFilename())
-                .fileSize(file.getSize())
-                .contentType(file.getContentType())
-                .build();
-    }
-
-    @Transactional
-    public void deleteMedia(String fileUrl) {
-        if (fileUrl != null && !fileUrl.isBlank()) {
-            s3Service.deleteFile(fileUrl);
-            log.info("Deleted contact media from S3: {}", fileUrl);
-        }
     }
 
     // ============================================================
@@ -213,10 +131,6 @@ public class ContactService {
                 .orElseThrow(() -> new EntityNotFoundException("Contact not found: " + id));
     }
 
-    /**
-     * Validate slug uniqueness for both CKB and KMR.
-     * On update, excludes the current record's own ID from the check.
-     */
     private void validateSlugs(ContactRequest request, Long excludeId) {
 
         if (request.getSlugCkb() == null || request.getSlugCkb().isBlank()) {
@@ -245,28 +159,6 @@ public class ContactService {
         }
     }
 
-    private List<MediaItem> buildGallery(List<MediaItem> gallery) {
-        if (gallery == null || gallery.isEmpty()) return new ArrayList<>();
-        ArrayList<MediaItem> result = new ArrayList<>();
-        int idx = 0;
-        for (MediaItem item : gallery) {
-            if (item == null || item.getUrl() == null || item.getUrl().isBlank()) continue;
-            MediaItem normalised = MediaItem.builder()
-                    .url(item.getUrl().trim())
-                    .kind(item.getKind() != null ? item.getKind() : MediaKind.IMAGE)
-                    .thumbnailUrl(blankToNull(item.getThumbnailUrl()))
-                    .captionCkb(blankToNull(item.getCaptionCkb()))
-                    .captionKmr(blankToNull(item.getCaptionKmr()))
-                    .sortOrder(item.getSortOrder() != null ? item.getSortOrder() : idx)
-                    .build();
-            result.add(normalised);
-            idx++;
-        }
-        result.sort(Comparator.comparingInt(
-                m -> m.getSortOrder() != null ? m.getSortOrder() : Integer.MAX_VALUE));
-        return result;
-    }
-
     private ContactContent buildContent(ContactContentRequest req) {
         if (req == null) return new ContactContent();
         return ContactContent.builder()
@@ -274,6 +166,7 @@ public class ContactService {
                 .subtitle(req.getSubtitle())
                 .address(req.getAddress())
                 .workingHours(req.getWorkingHours())
+                .description(tiptapHtmlProcessor.process(req.getDescription()))
                 .build();
     }
 
@@ -284,12 +177,6 @@ public class ContactService {
                 .id(c.getId())
                 .slugCkb(c.getSlugCkb())
                 .slugKmr(c.getSlugKmr())
-                .heroImageUrl(c.getHeroImageUrl())
-                .heroMediaType(c.getHeroMediaType() != null
-                        ? c.getHeroMediaType() : MediaKind.IMAGE)
-                .heroThumbnailUrl(c.getHeroThumbnailUrl())
-                .mediaGallery(c.getMediaGallery() != null
-                        ? new ArrayList<>(c.getMediaGallery()) : List.of())
                 .ckbContent(toContentResponse(c.getCkbContent()))
                 .kmrContent(toContentResponse(c.getKmrContent()))
                 .phone(c.getPhone())
@@ -311,6 +198,7 @@ public class ContactService {
                 .subtitle(content.getSubtitle())
                 .address(content.getAddress())
                 .workingHours(content.getWorkingHours())
+                .description(content.getDescription())
                 .build();
     }
 

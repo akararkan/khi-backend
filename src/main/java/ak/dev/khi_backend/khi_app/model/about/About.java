@@ -1,7 +1,5 @@
 package ak.dev.khi_backend.khi_app.model.about;
 
-import ak.dev.khi_backend.khi_app.enums.MediaKind;
-import ak.dev.khi_backend.khi_app.model.media.MediaItem;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -15,31 +13,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * About — About-page entity (Tiptap migration).
+ * About — About-page entity.
  *
  * ─── Bilingual Slugs ──────────────────────────────────────────────────────────
- *  Each language has its own unique URL slug:
- *    slugCkb  → Sorani   route identifier
- *    slugKmr  → Kurmanji route identifier (nullable — page may be CKB-only)
- *
- * ─── Hero Image ───────────────────────────────────────────────────────────────
- *  {@link #heroImageUrl} — the full-bleed banner at the top of the page.
- *  Either set or absent — there is no longer a "fallback to first block image"
- *  rule, because blocks have been removed.
+ *  slugCkb  → Sorani   route identifier
+ *  slugKmr  → Kurmanji route identifier (nullable — page may be CKB-only)
  *
  * ─── Bilingual Content ────────────────────────────────────────────────────────
- *  ckbContent  → Sorani  (CKB) title / subtitle / meta / Tiptap body
- *  kmrContent  → Kurmanji (KMR) title / subtitle / meta / Tiptap body
+ *  ckbContent / kmrContent — title, subtitle, metaDescription, and a Tiptap
+ *  HTML {@code body} per language.
  *
- *  The {@code body} field on {@link AboutContent} replaces the old per-page
- *  block collection. The Tiptap editor produces full HTML for each language,
- *  including inline images / audio / video whose URLs already point at S3
- *  (uploaded via the shared /api/v1/media/upload endpoint).
+ *  All visual media — images, videos, voice / audio, and any other
+ *  downloadable file — lives INSIDE the {@code body} HTML as inline
+ *  {@code <img>}, {@code <video>}, {@code <audio>}, or {@code <a href>}
+ *  tags whose URLs already point at S3.  The
+ *  {@link ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor}
+ *  intercepts every save and hoists any inline base64 payload up to S3
+ *  before persisting, so the column never holds raw binary data.
+ *
+ *  About no longer has a hero image, hero media type, hero thumbnail, or
+ *  media gallery field.  Anything previously rendered through those fields
+ *  is now an inline element of the Tiptap body.
  *
  * ─── Stats ────────────────────────────────────────────────────────────────────
- *  The STATS section (array of {labelCkb, labelKmr, value}) survives as a
- *  dedicated JSONB column. It cannot be embedded cleanly in HTML and the
- *  frontend renders it from structured JSON.
+ *  STATS (array of {labelCkb, labelKmr, value}) survives as a dedicated
+ *  JSONB column — it cannot be embedded cleanly in HTML and the frontend
+ *  renders it from structured JSON.
  */
 @Entity
 @Table(
@@ -73,41 +72,6 @@ public class About {
     @Column(name = "display_order")
     @Builder.Default
     private Integer displayOrder = 0;
-
-    /**
-     * Hero / banner asset URL (image, video, or audio).  Originally named
-     * {@code heroImageUrl} when only images were supported — kept under the
-     * same column name for backwards compatibility.  Pair with
-     * {@link #heroMediaType} to know how to render it.
-     */
-    @Column(name = "hero_image_url", length = 1000)
-    private String heroImageUrl;
-
-    /**
-     * Discriminator for {@link #heroImageUrl}.  Defaults to {@link MediaKind#IMAGE}
-     * so existing rows continue to render as images.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "hero_media_type", length = 16)
-    @Builder.Default
-    private MediaKind heroMediaType = MediaKind.IMAGE;
-
-    /**
-     * Optional poster image for a video hero, or cover art for an audio hero.
-     * Ignored when {@link #heroMediaType} is {@link MediaKind#IMAGE}.
-     */
-    @Column(name = "hero_thumbnail_url", length = 1000)
-    private String heroThumbnailUrl;
-
-    /**
-     * Mixed-type gallery (images / videos / audios) rendered beside the
-     * hero asset.  Stored as JSONB so admins can reorder and re-type
-     * entries without a schema change.
-     */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "media_gallery", columnDefinition = "jsonb")
-    @Builder.Default
-    private List<MediaItem> mediaGallery = new ArrayList<>();
 
     @Embedded
     @AttributeOverrides({

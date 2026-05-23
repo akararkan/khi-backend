@@ -12,15 +12,13 @@ import java.util.List;
 /**
  * AboutController — Tiptap-aware About endpoints.
  *
- * The CRUD shape is unchanged; only the request / response body is different:
- *   - No more {@code blocks[]} — content lives in {@code ckbContent.body}
- *     and {@code kmrContent.body} as Tiptap HTML.
- *   - Structured stats moved to a top-level {@code stats[]} array.
- *
- * Media uploads for inline images / audio / video now go through the shared
- * {@code POST /api/v1/media/upload} endpoint. The frontend uploads first,
- * then bakes the returned {@code fileUrl} into the editor HTML, then submits
- * the JSON body to this controller.
+ * About carries no standalone media field — all visual media (image, video,
+ * voice, document, or any other file) lives inside {@code ckbContent.body}
+ * and {@code kmrContent.body} as Tiptap HTML. The frontend uploads each
+ * file once via the shared {@code POST /api/v1/media/upload}, bakes the
+ * returned URL into the editor, then submits the JSON body to this
+ * controller. {@link ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor}
+ * also acts as a safety net that rewrites any inline base64 payloads on save.
  */
 @RestController
 @RequestMapping("/api/v1/about")
