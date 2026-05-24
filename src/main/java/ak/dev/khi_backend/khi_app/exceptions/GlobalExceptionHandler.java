@@ -192,14 +192,6 @@ public class GlobalExceptionHandler {
         log.warn("IllegalArgument path={} traceId={} msg={}", req.getRequestURI(), body.getTraceId(), reason);
         return ResponseEntity.badRequest().body(body);
     }
-    /**
-     * 400 BAD_REQUEST — {@link IllegalStateException}.
-     * Examples: OAuth2 user attempting to change a local password.
-     *
-     * details:
-     *   reason → what was wrong
-     *   hint   → OAuth2 users must manage passwords from their provider
-     */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalState(
             IllegalStateException ex, HttpServletRequest req, Locale locale) {
@@ -208,11 +200,7 @@ public class GlobalExceptionHandler {
         body.setMessage  (resolve(locale,         "error.bad_request", null, reason));
         body.setMessageEn(resolve(Locale.ENGLISH, "error.bad_request", null, reason));
         body.setMessageKu(resolve(LOCALE_KU,      "error.bad_request", null, reason));
-        body.setDetails(Map.of(
-                "reason", reason,
-                "hint",   "If you signed in via Google or another OAuth2 provider, " +
-                          "please manage your password from that provider's account settings."
-        ));
+        body.setDetails(Map.of("reason", reason));
         log.warn("IllegalState path={} traceId={} msg={}", req.getRequestURI(), body.getTraceId(), reason);
         return ResponseEntity.badRequest().body(body);
     }

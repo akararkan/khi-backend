@@ -116,9 +116,8 @@ public class UserService implements UserDetailsService {
                     .password(passwordEncoder.encode(dto.getPassword()))
                     .pincode(dto.getPincode())
                     .role(Role.GUEST)
-                    .provider("local")
                     .isActivated(true)
-                    .profileImage(storedImagePath)  // Set local profile image path
+                    .profileImage(storedImagePath)
                     .createdAt(now)
                     .updatedAt(now)
                     .failedAttempts(0)
@@ -205,47 +204,6 @@ public class UserService implements UserDetailsService {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new Token(null, "An unexpected error occurred. Please try again later."));
         }
-    }
-
-    // =======================
-    // OAuth2 User Processing
-    // =======================
-    public User processOAuth2User(String email, String name, String providerId,
-                                  String provider, String imageUrl) {
-        Instant now = Instant.now();
-        Optional<User> userOptional = userRepository.findByEmail(email);
-
-        if (userOptional.isPresent()) {
-            User user = userOptional.get();
-            user.setName(name);
-            user.setProviderId(providerId);
-            user.setImageUrl(imageUrl);      // OAuth provider image URL
-            user.setUpdatedAt(now);
-            log.info("Existing user logged in via {}: {}", provider, email);
-            return userRepository.save(user);
-        }
-
-        // New user from OAuth2
-        User newUser = User.builder()
-                .name(name)
-                .username(generateUniqueUsername(email))
-                .email(email)
-                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
-                .role(Role.GUEST)
-                .provider(provider)
-                .providerId(providerId)
-                .imageUrl(imageUrl)             // OAuth provider image
-                .profileImage(null)             // No local image yet
-                .isActivated(true)
-                .createdAt(now)
-                .updatedAt(now)
-                .failedAttempts(0)
-                .isLocked(false)
-                .passwordExpiryDate(now.plus(Duration.ofDays(36500)))
-                .build();
-
-        log.info("New user created via {}: {}", provider, email);
-        return userRepository.save(newUser);
     }
 
     // =======================
@@ -399,7 +357,6 @@ public class UserService implements UserDetailsService {
                         .password(passwordEncoder.encode(dto.getPassword()))
                         .pincode(dto.getPincode())
                         .role(dto.getRole() != null ? dto.getRole() : Role.GUEST)
-                        .provider("local")
                         .profileImage(imagePath)
                         .isActivated(dto.getIsActivated() != null ? dto.getIsActivated() : true)
                         .createdAt(now)
@@ -643,9 +600,7 @@ public class UserService implements UserDetailsService {
                 .role(u.getRole())
                 .pincode(u.getPincode())
                 .isActivated(u.getIsActivated())
-                .profileImage(u.getProfileImage())      // Local uploaded image
-                .imageUrl(u.getImageUrl())              // OAuth provider image
-                .provider(u.getProvider())
+                .profileImage(u.getProfileImage())
                 .createdAt(u.getCreatedAt())
                 .updatedAt(u.getUpdatedAt())
                 .passwordExpiryDate(u.getPasswordExpiryDate())

@@ -1,8 +1,5 @@
 package ak.dev.khi_backend.user.configs;
 
-import ak.dev.khi_backend.user.oauth2.CustomOAuth2UserService;
-import ak.dev.khi_backend.user.oauth2.OAuth2AuthenticationFailureHandler;
-import ak.dev.khi_backend.user.oauth2.OAuth2AuthenticationSuccessHandler;
 import ak.dev.khi_backend.user.jwt.JWTAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -24,27 +21,18 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
-public class    SecurityConfig {
+public class SecurityConfig {
 
-    private final JWTAuthenticationFilter            jwtAuthenticationFilter;
-    private final AuthenticationProvider             authenticationProvider;
-    private final CustomOAuth2UserService            customOAuth2UserService;
-    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
-    private final AppCorsProperties                  corsProperties;
+    private final JWTAuthenticationFilter jwtAuthenticationFilter;
+    private final AuthenticationProvider  authenticationProvider;
+    private final AppCorsProperties       corsProperties;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
-
-                // OAuth2 state/code exchange needs a short-lived session;
-                // JWT takes over for all subsequent requests.
-                .sessionManagement(sm -> sm
-                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                )
-
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider)
 
                 .authorizeHttpRequests(auth -> auth
@@ -52,90 +40,63 @@ public class    SecurityConfig {
                         // ── Preflight ──────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ── Session management (authenticated users manage own sessions)
-                        // MUST come before the /api/auth/** wildcard
+                        // ── Session management ─────────────────────────────────────
                         .requestMatchers("/api/auth/sessions/**").authenticated()
 
-                        // ── Logout (must be authenticated) ─────────────────────────
+                        // ── Logout ─────────────────────────────────────────────────
                         .requestMatchers("/api/auth/logout", "/api/auth/logout-all").authenticated()
 
-                        // ── Public auth & OAuth2 endpoints ─────────────────────────
+                        // ── Public auth endpoints ──────────────────────────────────
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/register-with-image",
                                 "/api/auth/login",
                                 "/api/auth/reset-token",
                                 "/api/auth/reset-password",
-                                "/api/users/auth/**",
-                                "/oauth2/**",
-                                "/login/oauth2/**"
+                                "/api/users/auth/**"
                         ).permitAll()
 
-                        // ── Self-service profile (any authenticated user) ──────────
+                        // ── Self-service profile ───────────────────────────────────
                         .requestMatchers("/api/user/**").authenticated()
 
                         // ── Admin: user management ────────────────────────────────
                         .requestMatchers("/api/users/**").hasRole("SUPER_ADMIN")
 
-                        // ── About Page: Public reads (GET all, GET by slug) ───────
+                        // ── About Page: public reads, admin writes ────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/about/**").permitAll()
-
-                        // ── About Page: Admin only writes (POST, PUT, DELETE) ─────
-                        // This covers: create, update, upload, upload/multiple
                         .requestMatchers("/api/v1/about/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // ── Services: public reads, admin writes ─────────────────
+                        // ── Services: public reads, admin writes ──────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/services/**").permitAll()
                         .requestMatchers("/api/v1/services/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         // ── Content: public reads ─────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
-                        // ── Content: writes require EMPLOYEE+ ────────────────────"
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/v1/projects/**",
-                                "/api/v1/news/**",
-                                "/api/v1/films/**",
-                                "/api/v1/image-collections/**",
-                                "/api/v1/soundtracks/**",
-                                "/api/v1/albums/**",
-                                "/api/v1/writings/**"
 
+                        // ── Content: writes require EMPLOYEE+ ────────────────────
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/films/**",
+                                "/api/v1/image-collections/**", "/api/v1/soundtracks/**",
+                                "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("EMPLOYEE", "ADMIN", "SUPER_ADMIN")
 
                         .requestMatchers(HttpMethod.PUT,
-                                "/api/v1/projects/**",
-                                "/api/v1/news/**",
-                                "/api/v1/films/**",
-                                "/api/v1/image-collections/**",
-                                "/api/v1/soundtracks/**",
-                                "/api/v1/albums/**",
-                                "/api/v1/writings/**"
+                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/films/**",
+                                "/api/v1/image-collections/**", "/api/v1/soundtracks/**",
+                                "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("EMPLOYEE", "ADMIN", "SUPER_ADMIN")
 
                         // ── Content: deletes require ADMIN+ ──────────────────────
                         .requestMatchers(HttpMethod.DELETE,
-                                "/api/v1/projects/**",
-                                "/api/v1/news/**",
-                                "/api/v1/films/**",
-                                "/api/v1/image-collections/**",
-                                "/api/v1/soundtracks/**",
-                                "/api/v1/albums/**",
-                                "/api/v1/writings/**"
+                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/films/**",
+                                "/api/v1/image-collections/**", "/api/v1/soundtracks/**",
+                                "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // ── Everything else: must be authenticated ────────────────
                         .anyRequest().authenticated()
                 )
 
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-
-                .oauth2Login(oauth2 -> oauth2
-                        .authorizationEndpoint(ep -> ep.baseUri("/oauth2/authorize"))
-                        .redirectionEndpoint(ep -> ep.baseUri("/login/oauth2/code/*"))
-                        .userInfoEndpoint(ui -> ui.userService(customOAuth2UserService))
-                        .successHandler(oAuth2AuthenticationSuccessHandler)
-                        .failureHandler(oAuth2AuthenticationFailureHandler)
-                );
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

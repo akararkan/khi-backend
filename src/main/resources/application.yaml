@@ -83,27 +83,6 @@ spring:
       use-key-prefix: true
       key-prefix: "khi:"
 
-  # ===============================
-  # OAUTH2 (Google)
-  # ===============================
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
-            scope:
-              - email
-              - profile
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            client-name: Google
-        provider:
-          google:
-            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
-            token-uri: https://oauth2.googleapis.com/token
-            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
-            user-name-attribute: sub
 
 # ===============================
 # JWT (ENV SECRET ONLY)
@@ -122,8 +101,6 @@ jwt:
 # APP CUSTOM CONFIG
 # ===============================
 app:
-  oauth2:
-    redirect-uri: ${OAUTH2_REDIRECT_URI}
   cors:
     allowed-origins: https://khi-frontend.vercel.app,https://khi-frontend-*.vercel.app,http://localhost:5173,http://localhost:3000
     allowed-methods: GET,POST,PUT,DELETE,OPTIONS,PATCH

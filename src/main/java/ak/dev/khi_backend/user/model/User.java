@@ -91,19 +91,6 @@ public class User implements Serializable, UserDetails {
     @Column(name = "password_expiry_date")
     private Instant passwordExpiryDate;
 
-    // ===== OAuth2 =====
-    // Tracks which OAuth2 provider was used (e.g. "google", "local")
-    @Column(name = "provider", length = 30)
-    private String provider;
-
-    // The unique ID returned by the OAuth2 provider (Google's "sub" claim)
-    @Column(name = "provider_id", length = 120)
-    private String providerId;
-
-    // Profile picture URL from OAuth2 provider
-    @Column(name = "image_url", length = 500)
-    private String imageUrl;
-
     // ---------------- UserDetails ----------------
 
     @Override

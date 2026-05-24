@@ -17,15 +17,8 @@ public class UserResponseDTO {
     private Role role;
     private Long pincode;
     private Boolean isActivated;
-
-    // Profile images
-    private String profileImage;    // Path/URL to locally uploaded image
-    private String imageUrl;        // URL from OAuth2 provider (Google, etc.)
-
-    // Additional info
-    private String provider;        // "local", "google", etc.
+    private String profileImage;
     private Instant createdAt;
     private Instant updatedAt;
-    /** Needed by frontend to show password-expiry warning */
     private Instant passwordExpiryDate;
 }

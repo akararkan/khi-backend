@@ -100,10 +100,6 @@ public class UserProfileService {
     public void changePassword(String username, ChangePasswordRequestDTO dto) {
         User user = requireUser(username);
 
-        if (!"local".equals(user.getProvider())) {
-            throw new IllegalStateException(
-                    "بەکارهێنەرانی OAuth2 ناتوانن وشەی نهێنییان بگۆڕن لە ئێرەدا");
-        }
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
             throw new BadCredentialsException("وشەی نهێنیی ئێستا هەڵەیە");
         }
@@ -255,9 +251,7 @@ public class UserProfileService {
                 .role(u.getRole())
                 .pincode(u.getPincode())
                 .isActivated(u.getIsActivated())
-                .profileImage(u.getProfileImage())   // full S3 URL or null
-                .imageUrl(u.getImageUrl())            // OAuth2 avatar URL
-                .provider(u.getProvider())
+                .profileImage(u.getProfileImage())
                 .createdAt(u.getCreatedAt())
                 .updatedAt(u.getUpdatedAt())
                 .passwordExpiryDate(u.getPasswordExpiryDate())
