@@ -326,8 +326,252 @@ public class MockDataSeeder implements CommandLineRunner {
                 ))
                 .build();
 
-        aboutRepository.saveAll(List.of(a1, a2, a3));
-        log.info("[seed:About] inserted 3 rows");
+        About a4 = About.builder()
+                .slugCkb("تیمەکەمان")
+                .slugKmr("tima-me")
+                .active(true)
+                .displayOrder(3)
+                .ckbContent(AboutContent.builder()
+                        .title("تیمی توێژەران و کارمەندان")
+                        .subtitle("کەسانێک کە بە دڵ کاردەکەن بۆ کولتووری کوردی")
+                        .metaDescription("تیمی ئێمە پێکهاتووە لە توێژەر و ئەکادیمی و کارمەندانی پسپۆڕ لە بوارەکانی مێژوو، زمان، هونەر و تەکنەلۆژیا.")
+                        .body("""
+                            <h1>تیمەکەمان</h1>
+                            <p>سەرکەوتنی هەر دامەزراوەیەک بەستراوەتەوە بە کوالێتی تیمەکەی. تیمی ئێمە پێکهاتووە لە زیاتر لە ٢٠ توێژەر و ئەکادیمی و کارمەندی پسپۆڕ.</p>
+                            <img src=\"%s\" alt=\"تیم\">
+                            <h2>بەشەکانی کار</h2>
+                            <ul>
+                                <li>بەشی توێژینەوەی مێژوویی</li>
+                                <li>بەشی زمانەوانی و وەرگێڕان</li>
+                                <li>بەشی ئەرشیف و دیجیتاڵکردن</li>
+                                <li>بەشی تەکنەلۆژیا و تۆڕ</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            <p>هەموو ئەندامانی تیم خاوەنی پسپۆڕیی بەرزن لە بوارەکانیان.</p>
+                            """.formatted(IMG_TEAM, VID_SINTEL))
+                        .build())
+                .kmrContent(AboutContent.builder()
+                        .title("Tîma lêkolîner û karmendan")
+                        .subtitle("Kesên ku bi dil ji bo çanda kurdî dixebitin")
+                        .metaDescription("Tîma me ji lêkolîner, akademîsyen û karmendên pispor ên warên dîrok, ziman, huner û teknolojiyê pêk tê.")
+                        .body("""
+                            <h1>Tîma me</h1>
+                            <p>Serkeftina her saziyê bi kalîteya tîma wê ve girêdayî ye. Tîma me ji zêdetirî 20 lêkolîner, akademîsyen û karmendên pispor pêk tê.</p>
+                            <img src=\"%s\" alt=\"Tîm\">
+                            <h2>Beşên xebatê</h2>
+                            <ul>
+                                <li>Beşa lêkolîna dîrokî</li>
+                                <li>Beşa zimanzanî û wergerê</li>
+                                <li>Beşa arşîv û dîjîtalkirinê</li>
+                                <li>Beşa teknolojî û torê</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            <p>Hemû endamên tîmê xwedî pisporiya bilind in di warên xwe de.</p>
+                            """.formatted(IMG_TEAM, VID_SINTEL))
+                        .build())
+                .stats(List.of(
+                        StatItem.builder().labelCkb("ئەندامی تیم").labelKmr("Endamê tîmê").value("20+").build(),
+                        StatItem.builder().labelCkb("بەش").labelKmr("Beş").value("4").build(),
+                        StatItem.builder().labelCkb("پسپۆڕ").labelKmr("Pispor").value("12").build()
+                ))
+                .build();
+
+        About a5 = About.builder()
+                .slugCkb("بەهاکانمان")
+                .slugKmr("nirxen-me")
+                .active(true)
+                .displayOrder(4)
+                .ckbContent(AboutContent.builder()
+                        .title("بەها بنەڕەتییەکانمان")
+                        .subtitle("ئەو بنەماانەی کارمان ڕابەرایەتی دەکەن")
+                        .metaDescription("بەهاکانی ئێمە: سەربەخۆیی، ڕاستگۆیی زانستی، کراوەیی، و ڕێزگرتن لە جیاوازی کولتووری.")
+                        .body("""
+                            <h1>بەهاکانمان</h1>
+                            <p>هەموو کارێکی ئێمە لەسەر کۆمەڵێک بەهای بنەڕەتی بنیات نراوە کە سیمای دامەزراوەکەمان دیاری دەکەن.</p>
+                            <img src=\"%s\" alt=\"بەها\">
+                            <h2>بنەماکانمان</h2>
+                            <ol>
+                                <li><strong>سەربەخۆیی:</strong> هیچ لایەنگیریەکی سیاسی یان ئاینی نییە</li>
+                                <li><strong>ڕاستگۆیی زانستی:</strong> پشتبەستن بە سەرچاوەی متمانەپێکراو</li>
+                                <li><strong>کراوەیی:</strong> بەردەستکردنی زانیاری بۆ هەمووان</li>
+                                <li><strong>ڕێز:</strong> ڕێزگرتن لە هەموو زاراوە و ناوچەکانی کوردستان</li>
+                            </ol>
+                            <audio controls src=\"%s\"></audio>
+                            """.formatted(IMG_OPEN_BOOK, AUD_SONG_3))
+                        .build())
+                .kmrContent(AboutContent.builder()
+                        .title("Nirxên me yên bingehîn")
+                        .subtitle("Ew bingeh ku xebata me birêve dibin")
+                        .metaDescription("Nirxên me: serbixwebûn, rastiya zanistî, vekirîbûn, û rêzgirtina ji cudahiya çandî.")
+                        .body("""
+                            <h1>Nirxên me</h1>
+                            <p>Hemû xebata me li ser komek nirxên bingehîn hatiye avakirin ku sîmaya saziya me diyar dikin.</p>
+                            <img src=\"%s\" alt=\"Nirx\">
+                            <h2>Bingehên me</h2>
+                            <ol>
+                                <li><strong>Serbixwebûn:</strong> Tu alîgiriya siyasî an dînî tune</li>
+                                <li><strong>Rastiya zanistî:</strong> Piştgirî bi çavkaniyên pêbawer</li>
+                                <li><strong>Vekirîbûn:</strong> Berdestkirina zanyariyê ji bo herkesî</li>
+                                <li><strong>Rêz:</strong> Rêzgirtin ji hemû zarava û herêmên Kurdistanê</li>
+                            </ol>
+                            <audio controls src=\"%s\"></audio>
+                            """.formatted(IMG_OPEN_BOOK, AUD_SONG_3))
+                        .build())
+                .stats(List.of(
+                        StatItem.builder().labelCkb("بەهای بنەڕەتی").labelKmr("Nirxê bingehîn").value("4").build()
+                ))
+                .build();
+
+        About a6 = About.builder()
+                .slugCkb("هاوکاری-و-پەیوەندی")
+                .slugKmr("hevkari-girêdan")
+                .active(true)
+                .displayOrder(5)
+                .ckbContent(AboutContent.builder()
+                        .title("هاوکارەکان و پەیوەندییە نێودەوڵەتییەکان")
+                        .subtitle("کارکردن لەگەڵ دامەزراوەکانی جیهان")
+                        .metaDescription("دامەزراوەکەمان هاوکاری دەکات لەگەڵ زانکۆ و دامەزراوە کولتوورییەکانی ناوخۆ و دەرەوە.")
+                        .body("""
+                            <h1>هاوکارەکانمان</h1>
+                            <p>بۆ گەیشتن بە ئامانجەکانمان، هاوکاری دەکەین لەگەڵ کۆمەڵێک زانکۆ و دامەزراوەی کولتووری لە ناوخۆ و نێودەوڵەتی.</p>
+                            <img src=\"%s\" alt=\"هاوکاری\">
+                            <h2>جۆرەکانی هاوکاری</h2>
+                            <ul>
+                                <li>هاوبەشی توێژینەوە لەگەڵ زانکۆکان</li>
+                                <li>ئاڵوگۆڕی ئەرشیف و زانیاری</li>
+                                <li>کۆنفرانس و وۆرکشۆپی هاوبەش</li>
+                                <li>پرۆژەی دیجیتاڵکردنی هاوبەش</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            <p><a href=\"%s\">لیستی هاوکارەکان (PDF)</a></p>
+                            """.formatted(IMG_BUILDING, VID_FOR_BIGGER, PDF_DUMMY))
+                        .build())
+                .kmrContent(AboutContent.builder()
+                        .title("Hevkar û girêdanên navneteweyî")
+                        .subtitle("Xebat bi saziyên cîhanê re")
+                        .metaDescription("Saziya me bi zanîngeh û saziyên çandî yên hundir û derve re hevkariyê dike.")
+                        .body("""
+                            <h1>Hevkarên me</h1>
+                            <p>Ji bo gihîştina armancên me, em bi komek zanîngeh û saziyên çandî yên hundir û navneteweyî re hevkariyê dikin.</p>
+                            <img src=\"%s\" alt=\"Hevkarî\">
+                            <h2>Cûreyên hevkariyê</h2>
+                            <ul>
+                                <li>Hevparî di lêkolînê de bi zanîngehan re</li>
+                                <li>Guhertina arşîv û zanyariyê</li>
+                                <li>Konferans û atolyeyên hevpar</li>
+                                <li>Projeyên dîjîtalkirinê yên hevpar</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            <p><a href=\"%s\">Lîsteya hevkaran (PDF)</a></p>
+                            """.formatted(IMG_BUILDING, VID_FOR_BIGGER, PDF_DUMMY))
+                        .build())
+                .stats(List.of(
+                        StatItem.builder().labelCkb("هاوکار").labelKmr("Hevkar").value("18").build(),
+                        StatItem.builder().labelCkb("وڵات").labelKmr("Welat").value("9").build()
+                ))
+                .build();
+
+        About a7 = About.builder()
+                .slugCkb("ئەرشیف-و-کۆگا")
+                .slugKmr("arşîv-kogeh")
+                .active(true)
+                .displayOrder(6)
+                .ckbContent(AboutContent.builder()
+                        .title("ئەرشیف و کۆگای دیجیتاڵیمان")
+                        .subtitle("گەورەترین کۆگای میراتی کوردی")
+                        .metaDescription("ئەرشیفی دیجیتاڵی ئێمە زیاتر لە ١٠،٠٠٠ دۆکیومێنت و ٥،٠٠٠ کتێب و هەزاران تۆماری دەنگی لەخۆ دەگرێت.")
+                        .body("""
+                            <h1>ئەرشیفەکەمان</h1>
+                            <p>دامەزراوەکەمان خاوەنی یەکێکە لە گەورەترین ئەرشیفە دیجیتاڵییەکانی میراتی کوردی لە جیهان.</p>
+                            <img src=\"%s\" alt=\"ئەرشیف\">
+                            <h2>ناوەرۆکی ئەرشیف</h2>
+                            <ul>
+                                <li>دۆکیومێنتە مێژووییە کۆنەکان</li>
+                                <li>کتێب و دەستنووسە کلاسیکیەکان</li>
+                                <li>تۆماری دەنگی هونەرمەندان</li>
+                                <li>وێنە و فیلمە مێژووییەکان</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            <audio controls src=\"%s\"></audio>
+                            <p><a href=\"%s\">ڕێبەری ئەرشیف (PDF)</a></p>
+                            """.formatted(IMG_ARCHIVE, VID_ELEPHANTS, AUD_SONG_4, PDF_DUMMY))
+                        .build())
+                .kmrContent(AboutContent.builder()
+                        .title("Arşîv û kogeha me ya dîjîtal")
+                        .subtitle("Mezintirîn kogeha mîrateya kurdî")
+                        .metaDescription("Arşîva me ya dîjîtal zêdetirî 10,000 belgename, 5,000 pirtûk û bi hezaran tomarên dengî dihewîne.")
+                        .body("""
+                            <h1>Arşîva me</h1>
+                            <p>Saziya me xwediyê yek ji mezintirîn arşîvên dîjîtal ên mîrateya kurdî ye li cîhanê.</p>
+                            <img src=\"%s\" alt=\"Arşîv\">
+                            <h2>Naveroka arşîvê</h2>
+                            <ul>
+                                <li>Belgenameyên dîrokî yên kevn</li>
+                                <li>Pirtûk û destnivîsên klasîk</li>
+                                <li>Tomarên dengî yên hunermendan</li>
+                                <li>Wêne û fîlmên dîrokî</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            <audio controls src=\"%s\"></audio>
+                            <p><a href=\"%s\">Rêbera arşîvê (PDF)</a></p>
+                            """.formatted(IMG_ARCHIVE, VID_ELEPHANTS, AUD_SONG_4, PDF_DUMMY))
+                        .build())
+                .stats(List.of(
+                        StatItem.builder().labelCkb("دۆکیومێنت").labelKmr("Belgename").value("10,000+").build(),
+                        StatItem.builder().labelCkb("کتێب").labelKmr("Pirtûk").value("5,000+").build(),
+                        StatItem.builder().labelCkb("تۆماری دەنگی").labelKmr("Tomarê dengî").value("3,500+").build()
+                ))
+                .build();
+
+        About a8 = About.builder()
+                .slugCkb("پشتگیری-و-بەخشین")
+                .slugKmr("piştgirî-bexşîn")
+                .active(true)
+                .displayOrder(7)
+                .ckbContent(AboutContent.builder()
+                        .title("پشتگیری بکە لە ئەرکەکەمان")
+                        .subtitle("بەشداربە لە پاراستنی میراتی کوردی")
+                        .metaDescription("دەتوانیت پشتگیری دامەزراوەکەمان بکەیت بە ڕێگەی بەخشین، خۆبەخشی، یان بەخشینی دۆکیومێنت و کتێب.")
+                        .body("""
+                            <h1>پشتگیریمان بکە</h1>
+                            <p>وەک دامەزراوەیەکی سەربەخۆ، پشتگیری تۆ یارمەتیمان دەدات بۆ بەردەوامبوون لە ئەرکی پاراستنی میراتی کوردی.</p>
+                            <img src=\"%s\" alt=\"پشتگیری\">
+                            <h2>چۆن پشتگیری بکەیت؟</h2>
+                            <ol>
+                                <li><strong>بەخشینی دارایی:</strong> یارمەتیدانی پرۆژەکانمان</li>
+                                <li><strong>خۆبەخشی:</strong> بەشداری بە کات و بەهرەکانت</li>
+                                <li><strong>بەخشینی میرات:</strong> پێشکەشکردنی دۆکیومێنت و کتێب</li>
+                            </ol>
+                            <video controls src=\"%s\"></video>
+                            <p><a href=\"%s\">فۆرمی بەخشین (PDF)</a></p>
+                            """.formatted(IMG_LIBRARY, VID_FOR_BIGGER, PDF_DUMMY))
+                        .build())
+                .kmrContent(AboutContent.builder()
+                        .title("Piştgiriya erkê me bike")
+                        .subtitle("Beşdarî parastina mîrateya kurdî bibe")
+                        .metaDescription("Tu dikarî piştgiriya saziya me bikî bi rêya bexşîn, dilxwazî, an bexşîna belgename û pirtûkan.")
+                        .body("""
+                            <h1>Piştgiriya me bike</h1>
+                            <p>Wek saziyeke serbixwe, piştgiriya te alîkariya me dike ku berdewam bibin di erkê parastina mîrateya kurdî de.</p>
+                            <img src=\"%s\" alt=\"Piştgirî\">
+                            <h2>Çawa piştgirî bikî?</h2>
+                            <ol>
+                                <li><strong>Bexşîna darayî:</strong> Alîkariya projeyên me</li>
+                                <li><strong>Dilxwazî:</strong> Beşdarî bi dem û jêhatîbûna te</li>
+                                <li><strong>Bexşîna mîrateyê:</strong> Pêşkêşkirina belgename û pirtûkan</li>
+                            </ol>
+                            <video controls src=\"%s\"></video>
+                            <p><a href=\"%s\">Forma bexşînê (PDF)</a></p>
+                            """.formatted(IMG_LIBRARY, VID_FOR_BIGGER, PDF_DUMMY))
+                        .build())
+                .stats(List.of(
+                        StatItem.builder().labelCkb("بەخشەر").labelKmr("Bexşkar").value("250+").build(),
+                        StatItem.builder().labelCkb("خۆبەخش").labelKmr("Dilxwaz").value("80+").build()
+                ))
+                .build();
+
+        aboutRepository.saveAll(List.of(a1, a2, a3, a4, a5, a6, a7, a8));
+        log.info("[seed:About] inserted 8 rows");
     }
 
     // =========================================================================
@@ -455,8 +699,226 @@ public class MockDataSeeder implements CommandLineRunner {
                 .longitude(42.9886)
                 .build();
 
-        contactRepository.saveAll(List.of(c1, c2, c3));
-        log.info("[seed:Contact] inserted 3 rows");
+        Contact c4 = Contact.builder()
+                .slugCkb("پەیوەندی-گشتی")
+                .slugKmr("peywendi-giştî")
+                .active(true)
+                .displayOrder(3)
+                .ckbContent(ContactContent.builder()
+                        .title("پەیوەندی گشتی و داواکاریی زانیاری")
+                        .subtitle("هەر پرسیارێکت هەیە، ئێمە لێرەین")
+                        .address("ناوەندی سەرەکی، شەقامی ٦٠ مەتری، هەولێر")
+                        .workingHours("یەکشەممە - پێنجشەممە، ٨:٣٠ - ١٦:٣٠")
+                        .description("""
+                            <h2>پەیوەندیی گشتی</h2>
+                            <p>بۆ هەر پرسیار یان داواکاریەکی گشتی دەربارەی خزمەتگوزاری و پرۆژەکانمان، دەتوانیت پەیوەندیمان پێوەبکەیت.</p>
+                            <img src=\"%s\" alt=\"پەیوەندی\">
+                            <h3>چۆن یارمەتیت بدەین؟</h3>
+                            <ul>
+                                <li>زانیاری دەربارەی خزمەتگوزاریەکان</li>
+                                <li>داواکاریی هاوکاری و هاوبەشی</li>
+                                <li>پرسیاری دەربارەی ئەرشیف</li>
+                            </ul>
+                            <p><a href=\"%s\">فۆرمی پەیوەندی (PDF)</a></p>
+                            """.formatted(IMG_LOBBY, PDF_DUMMY))
+                        .build())
+                .kmrContent(ContactContent.builder()
+                        .title("Têkiliya giştî û daxwaza zanyariyê")
+                        .subtitle("Her pirsa we hebe, em li vir in")
+                        .address("Navenda sereke, Kolana 60 metroyî, Hewlêr")
+                        .workingHours("Yekşem - Pêncşem, 8:30 - 16:30")
+                        .description("""
+                            <h2>Têkiliya giştî</h2>
+                            <p>Ji bo her pirs an daxwazeke giştî li ser xizmet û projeyên me, hûn dikarin bi me re têkilî daynin.</p>
+                            <img src=\"%s\" alt=\"Têkilî\">
+                            <h3>Çawa alîkariya we bikin?</h3>
+                            <ul>
+                                <li>Zanyarî li ser xizmetan</li>
+                                <li>Daxwaza hevkarî û hevpariyê</li>
+                                <li>Pirs li ser arşîvê</li>
+                            </ul>
+                            <p><a href=\"%s\">Forma têkiliyê (PDF)</a></p>
+                            """.formatted(IMG_LOBBY, PDF_DUMMY))
+                        .build())
+                .phone("+964 750 111 2222")
+                .secondaryPhone("+964 770 333 4444")
+                .email("contact@khi-institute.org")
+                .build();
+
+        Contact c5 = Contact.builder()
+                .slugCkb("پەیوەندی-میدیا")
+                .slugKmr("peywendi-medya")
+                .active(true)
+                .displayOrder(4)
+                .ckbContent(ContactContent.builder()
+                        .title("پەیوەندیی میدیا و ڕۆژنامەوانی")
+                        .subtitle("بۆ ڕۆژنامەنووسان و میدیاکان")
+                        .address("بەشی پەیوەندییەکان، ناوەندی سەرەکی، هەولێر")
+                        .workingHours("یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠")
+                        .description("""
+                            <h2>بەشی میدیا</h2>
+                            <p>ئەم بەشە تایبەتە بۆ ڕۆژنامەنووسان و میدیاکان کە دەیانەوێت زانیاری یان چاوپێکەوتن لەگەڵ دامەزراوەکەمان.</p>
+                            <img src=\"%s\" alt=\"میدیا\">
+                            <video controls src=\"%s\"></video>
+                            <p>بۆ داواکردنی چاوپێکەوتن، تکایە لە ڕێگەی ئیمەیڵەوە پەیوەندیمان پێوەبکە.</p>
+                            """.formatted(IMG_PRESENTER, VID_FOR_BIGGER))
+                        .build())
+                .kmrContent(ContactContent.builder()
+                        .title("Têkiliya medya û rojnamegeriyê")
+                        .subtitle("Ji bo rojnamevan û medyayan")
+                        .address("Beşa têkiliyan, Navenda sereke, Hewlêr")
+                        .workingHours("Yekşem - Pêncşem, 9:00 - 17:00")
+                        .description("""
+                            <h2>Beşa medyayê</h2>
+                            <p>Ev beş taybet e ji bo rojnamevan û medyayan ku dixwazin zanyarî an hevpeyvînê bi saziya me re bikin.</p>
+                            <img src=\"%s\" alt=\"Medya\">
+                            <video controls src=\"%s\"></video>
+                            <p>Ji bo daxwaza hevpeyvînê, ji kerema xwe bi rêya e-nameyê bi me re têkilî daynin.</p>
+                            """.formatted(IMG_PRESENTER, VID_FOR_BIGGER))
+                        .build())
+                .phone("+964 751 555 6666")
+                .email("media@khi-institute.org")
+                .build();
+
+        Contact c6 = Contact.builder()
+                .slugCkb("پەیوەندی-هەلی-کار")
+                .slugKmr("peywendi-kar")
+                .active(true)
+                .displayOrder(5)
+                .ckbContent(ContactContent.builder()
+                        .title("هەلی کار و بەشداری")
+                        .subtitle("بەشێک بە لە تیمەکەمان")
+                        .address("بەشی سەرچاوە مرۆییەکان، هەولێر")
+                        .workingHours("یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٦:٠٠")
+                        .description("""
+                            <h2>هەلی کار</h2>
+                            <p>ئەگەر بە دڵتە کار بکەیت لە بواری پاراستنی کولتووری کوردی، ئێمە بەردەوام بەدوای کەسانی بەهرەمەنددا دەگەڕێین.</p>
+                            <img src=\"%s\" alt=\"کار\">
+                            <h3>بوارەکانی پێویستی</h3>
+                            <ul>
+                                <li>توێژەری مێژوو و زمان</li>
+                                <li>پسپۆڕی ئەرشیف و دیجیتاڵکردن</li>
+                                <li>پەرەپێدەری وێب و تەکنەلۆژیا</li>
+                                <li>بەڕێوەبەری پرۆژە</li>
+                            </ul>
+                            <p><a href=\"%s\">فۆرمی داواکاری کار (PDF)</a></p>
+                            """.formatted(IMG_TEAM, PDF_DUMMY))
+                        .build())
+                .kmrContent(ContactContent.builder()
+                        .title("Derfeta kar û beşdarî")
+                        .subtitle("Bibe beşek ji tîma me")
+                        .address("Beşa çavkaniyên mirovî, Hewlêr")
+                        .workingHours("Yekşem - Pêncşem, 9:00 - 16:00")
+                        .description("""
+                            <h2>Derfeta kar</h2>
+                            <p>Heke bi dilê te ye ku di warê parastina çanda kurdî de bixebitî, em berdewam li kesên jêhatî digerin.</p>
+                            <img src=\"%s\" alt=\"Kar\">
+                            <h3>Warên pêwîst</h3>
+                            <ul>
+                                <li>Lêkolînerê dîrok û ziman</li>
+                                <li>Pisporê arşîv û dîjîtalkirinê</li>
+                                <li>Pêşvebirê malper û teknolojiyê</li>
+                                <li>Birêvebirê projeyê</li>
+                            </ul>
+                            <p><a href=\"%s\">Forma daxwaza karî (PDF)</a></p>
+                            """.formatted(IMG_TEAM, PDF_DUMMY))
+                        .build())
+                .phone("+964 750 777 8888")
+                .email("careers@khi-institute.org")
+                .build();
+
+        Contact c7 = Contact.builder()
+                .slugCkb("پەیوەندی-توێژینەوە")
+                .slugKmr("peywendi-lêkolîn")
+                .active(true)
+                .displayOrder(6)
+                .ckbContent(ContactContent.builder()
+                        .title("بەشی توێژینەوە و هاوکاریی ئەکادیمی")
+                        .subtitle("بۆ توێژەران و زانکۆکان")
+                        .address("بەشی توێژینەوە، ناوەندی سەرەکی، هەولێر")
+                        .workingHours("یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠")
+                        .description("""
+                            <h2>بەشی توێژینەوە</h2>
+                            <p>ئەم بەشە خزمەتگوزاری دەکات بۆ توێژەران و زانکۆکانی کە دەیانەوێت دەستیان بگات بە ئەرشیف و سەرچاوەکانمان.</p>
+                            <img src=\"%s\" alt=\"توێژینەوە\">
+                            <h3>خزمەتگوزارییەکان</h3>
+                            <ul>
+                                <li>دەستگەیشتن بە ئەرشیفی دیجیتاڵی</li>
+                                <li>هاوکاری لە پرۆژەی توێژینەوە</li>
+                                <li>داواکردنی کۆپی دۆکیومێنت</li>
+                            </ul>
+                            <p><a href=\"%s\">فۆرمی داواکاری توێژینەوە (PDF)</a></p>
+                            """.formatted(IMG_OPEN_BOOK, PDF_DUMMY))
+                        .build())
+                .kmrContent(ContactContent.builder()
+                        .title("Beşa lêkolîn û hevkariya akademîk")
+                        .subtitle("Ji bo lêkolîner û zanîngehan")
+                        .address("Beşa lêkolînê, Navenda sereke, Hewlêr")
+                        .workingHours("Yekşem - Pêncşem, 9:00 - 17:00")
+                        .description("""
+                            <h2>Beşa lêkolînê</h2>
+                            <p>Ev beş xizmetê dike ji bo lêkolîner û zanîngehan ku dixwazin bigihîjin arşîv û çavkaniyên me.</p>
+                            <img src=\"%s\" alt=\"Lêkolîn\">
+                            <h3>Xizmet</h3>
+                            <ul>
+                                <li>Gihîştina arşîva dîjîtal</li>
+                                <li>Hevkarî di projeyên lêkolînê de</li>
+                                <li>Daxwaza kopiya belgename</li>
+                            </ul>
+                            <p><a href=\"%s\">Forma daxwaza lêkolînê (PDF)</a></p>
+                            """.formatted(IMG_OPEN_BOOK, PDF_DUMMY))
+                        .build())
+                .phone("+964 750 999 0000")
+                .email("research@khi-institute.org")
+                .build();
+
+        Contact c8 = Contact.builder()
+                .slugCkb("پەیوەندی-کۆمەڵایەتی")
+                .slugKmr("peywendi-civakî")
+                .active(true)
+                .displayOrder(7)
+                .ckbContent(ContactContent.builder()
+                        .title("تۆڕە کۆمەڵایەتییەکان و گەیاندن")
+                        .subtitle("شوێنمان بکەوە لە تۆڕە کۆمەڵایەتییەکان")
+                        .address("بەشی گەیاندن، ناوەندی سەرەکی، هەولێر")
+                        .workingHours("هەموو ڕۆژان، ٢٤ کاتژمێر ئۆنلاین")
+                        .description("""
+                            <h2>تۆڕە کۆمەڵایەتییەکان</h2>
+                            <p>ئێمە چالاکین لەسەر زۆربەی پلاتفۆرمە کۆمەڵایەتییەکان بۆ گەیاندنی نوێترین چالاکی و ناوەرۆکمان.</p>
+                            <img src=\"%s\" alt=\"کۆمەڵایەتی\">
+                            <h3>پەیوەندیمان پێوەبکە لە</h3>
+                            <ul>
+                                <li>فەیسبووک، ئینستاگرام، یوتیوب</li>
+                                <li>ئیکس (تویتەری پێشوو)</li>
+                                <li>تێلیگرام و واتساپ</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_PRESENTER, VID_SINTEL))
+                        .build())
+                .kmrContent(ContactContent.builder()
+                        .title("Torên civakî û ragihandin")
+                        .subtitle("Li ser torên civakî me bişopîne")
+                        .address("Beşa ragihandinê, Navenda sereke, Hewlêr")
+                        .workingHours("Hemû roj, 24 saet onlîne")
+                        .description("""
+                            <h2>Torên civakî</h2>
+                            <p>Em çalak in li ser piraniya platformên civakî ji bo ragihandina nûtirîn çalakî û naveroka me.</p>
+                            <img src=\"%s\" alt=\"Civakî\">
+                            <h3>Bi me re têkilî daynin li</h3>
+                            <ul>
+                                <li>Facebook, Instagram, YouTube</li>
+                                <li>X (Twitter berê)</li>
+                                <li>Telegram û WhatsApp</li>
+                            </ul>
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_PRESENTER, VID_SINTEL))
+                        .build())
+                .phone("+964 751 222 1111")
+                .email("social@khi-institute.org")
+                .build();
+
+        contactRepository.saveAll(List.of(c1, c2, c3, c4, c5, c6, c7, c8));
+        log.info("[seed:Contact] inserted 8 rows");
     }
 
     // =========================================================================
@@ -596,8 +1058,210 @@ public class MockDataSeeder implements CommandLineRunner {
                 .description("<p>Atolyeyeke praktîk ji bo fêrbûna hunera xetatiya kurdî ji aliyê mamosteyên jêhatî ve.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_CALLIGRAPHY, VID_SINTEL))
                 .build());
 
-        serviceRepository.saveAll(List.of(s1, s2, s3, s4));
-        log.info("[seed:Service] inserted 4 rows");
+        ak.dev.khi_backend.khi_app.model.service.Service s5 =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType("Training")
+                        .location("Erbil, KHI Hall")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(20))
+                        .build();
+        s5.addContent(ServiceContent.builder()
+                .languageCode("CKB")
+                .title("خولی فێرکاری دیجیتاڵکردنی ئەرشیف")
+                .description("""
+                    <h2>دەربارەی خولەکە</h2>
+                    <p>خولێکی پراکتیکی بۆ فێربوونی تەکنیکەکانی دیجیتاڵکردن و پاراستنی دۆکیومێنتە مێژووییەکان.</p>
+                    <img src=\"%s\" alt=\"دیجیتاڵکردن\">
+                    <h3>بابەتەکان</h3>
+                    <ul>
+                        <li>سکانکردن و کوالێتی وێنە</li>
+                        <li>میتاداتا و پۆلێنکردن</li>
+                        <li>پاراستنی فایلی دیجیتاڵی</li>
+                    </ul>
+                    <video controls src=\"%s\"></video>
+                    """.formatted(IMG_ARCHIVE, VID_FOR_BIGGER))
+                .build());
+        s5.addContent(ServiceContent.builder()
+                .languageCode("KMR")
+                .title("Kursa fêrkirina dîjîtalkirina arşîvê")
+                .description("""
+                    <h2>Derbarê kursê</h2>
+                    <p>Kurseke praktîk ji bo fêrbûna teknîkên dîjîtalkirin û parastina belgenameyên dîrokî.</p>
+                    <img src=\"%s\" alt=\"Dîjîtalkirin\">
+                    <h3>Mijar</h3>
+                    <ul>
+                        <li>Skankirin û kalîteya wêneyê</li>
+                        <li>Metadata û rêzkirin</li>
+                        <li>Parastina pelê dîjîtal</li>
+                    </ul>
+                    <video controls src=\"%s\"></video>
+                    """.formatted(IMG_ARCHIVE, VID_FOR_BIGGER))
+                .build());
+
+        ak.dev.khi_backend.khi_app.model.service.Service s6 =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType("Program")
+                        .location("Sulaymaniyah & Online")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(15))
+                        .build();
+        s6.addContent(ServiceContent.builder()
+                .languageCode("CKB")
+                .title("بەرنامەی تۆمارکردنی مێژووی زارەکی")
+                .description("""
+                    <h2>مێژووی زارەکی</h2>
+                    <p>بەرنامەیەک بۆ تۆمارکردنی یادەوەری و چیرۆکی کەسانی تەمەن بەرز پێش لەناوچوونیان.</p>
+                    <img src=\"%s\" alt=\"چاوپێکەوتن\">
+                    <audio controls src=\"%s\"></audio>
+                    <p>ئەم بەرنامەیە گرنگییەکی تایبەتی بە پاراستنی بیرەوەرییە کۆمەڵایەتییەکان دەدات.</p>
+                    """.formatted(IMG_INTERVIEW, AUD_SONG_3))
+                .build());
+        s6.addContent(ServiceContent.builder()
+                .languageCode("KMR")
+                .title("Bernameya tomarkirina dîroka devkî")
+                .description("""
+                    <h2>Dîroka devkî</h2>
+                    <p>Bernameyek ji bo tomarkirina bîranîn û çîrokên kesên temen-bilind berî windabûna wan.</p>
+                    <img src=\"%s\" alt=\"Hevpeyvîn\">
+                    <audio controls src=\"%s\"></audio>
+                    <p>Ev bername girîngiyeke taybet bi parastina bîranînên civakî dide.</p>
+                    """.formatted(IMG_INTERVIEW, AUD_SONG_3))
+                .build());
+
+        ak.dev.khi_backend.khi_app.model.service.Service s7 =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType("Event")
+                        .location("Duhok, Cultural Center")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(8))
+                        .build();
+        s7.addContent(ServiceContent.builder()
+                .languageCode("CKB")
+                .title("فێستیڤاڵی ساڵانەی کتێبی کوردی")
+                .description("""
+                    <h2>فێستیڤاڵی کتێب</h2>
+                    <p>فێستیڤاڵێکی ساڵانە کە نووسەران و وەشانخانە و خوێنەرانی کورد کۆ دەکاتەوە لە یەک شوێن.</p>
+                    <img src=\"%s\" alt=\"کتێب\">
+                    <video controls src=\"%s\"></video>
+                    <h3>چالاکییەکان</h3>
+                    <ul>
+                        <li>پیشانگای کتێب</li>
+                        <li>واژۆکردنی کتێب لەگەڵ نووسەران</li>
+                        <li>گفتوگۆی ئەدەبی</li>
+                    </ul>
+                    """.formatted(IMG_BOOKS_SHELF, VID_ELEPHANTS))
+                .build());
+        s7.addContent(ServiceContent.builder()
+                .languageCode("KMR")
+                .title("Festîvala salane ya pirtûka kurdî")
+                .description("""
+                    <h2>Festîvala pirtûkê</h2>
+                    <p>Festîvaleke salane ku nivîskar, weşanxane û xwendevanên kurd li yek cihî dicivîne.</p>
+                    <img src=\"%s\" alt=\"Pirtûk\">
+                    <video controls src=\"%s\"></video>
+                    <h3>Çalakî</h3>
+                    <ul>
+                        <li>Pêşangeha pirtûkê</li>
+                        <li>Îmzekirina pirtûkan bi nivîskaran re</li>
+                        <li>Gotûbêja edebî</li>
+                    </ul>
+                    """.formatted(IMG_BOOKS_SHELF, VID_ELEPHANTS))
+                .build());
+
+        ak.dev.khi_backend.khi_app.model.service.Service s8 =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType("Workshop")
+                        .location("Online")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(3))
+                        .build();
+        s8.addContent(ServiceContent.builder()
+                .languageCode("CKB")
+                .title("وۆرکشۆپی وەرگێڕان نێوان سۆرانی و کرمانجی")
+                .description("<p>وۆرکشۆپێکی ئۆنلاین بۆ فێربوونی ئەساسەکانی وەرگێڕان لە نێوان دوو زاراوەکەی کوردی.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_OPEN_BOOK, AUD_SONG_5))
+                .build());
+        s8.addContent(ServiceContent.builder()
+                .languageCode("KMR")
+                .title("Atolyeya wergerê di navbera soranî û kurmancî de")
+                .description("<p>Atolyeyeke onlîne ji bo fêrbûna bingehên wergerê di navbera her du zaravayên kurdî de.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_OPEN_BOOK, AUD_SONG_5))
+                .build());
+
+        ak.dev.khi_backend.khi_app.model.service.Service s9 =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType("Program")
+                        .location("Erbil & Sulaymaniyah")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(12))
+                        .build();
+        s9.addContent(ServiceContent.builder()
+                .languageCode("CKB")
+                .title("بەرنامەی بورسی توێژینەوە بۆ گەنجان")
+                .description("""
+                    <h2>بورسی توێژینەوە</h2>
+                    <p>بەرنامەیەک بۆ پشتیوانی دارایی و ئەکادیمی لە توێژەرە گەنجەکانی کورد کە کار لەسەر مێژوو و کولتووری کوردی دەکەن.</p>
+                    <img src=\"%s\" alt=\"بورس\">
+                    <h3>مەرجەکان</h3>
+                    <ul>
+                        <li>تەمەن لە نێوان ٢٢ بۆ ٣٥ ساڵ</li>
+                        <li>پرۆژەی توێژینەوەی پەسەندکراو</li>
+                        <li>پابەندبوون بە باڵوکردنەوەی ئەنجامەکان</li>
+                    </ul>
+                    <video controls src=\"%s\"></video>
+                    <p><a href=\"%s\">فۆرمی داواکاری بورس (PDF)</a></p>
+                    """.formatted(IMG_TEAM, VID_ELEPHANTS, PDF_DUMMY))
+                .build());
+        s9.addContent(ServiceContent.builder()
+                .languageCode("KMR")
+                .title("Bernameya bûrsa lêkolînê ji bo ciwanan")
+                .description("""
+                    <h2>Bûrsa lêkolînê</h2>
+                    <p>Bernameyek ji bo piştgiriya darayî û akademîk a lêkolînerên ciwan ên kurd ku li ser dîrok û çanda kurdî dixebitin.</p>
+                    <img src=\"%s\" alt=\"Bûrs\">
+                    <h3>Merc</h3>
+                    <ul>
+                        <li>Temen di navbera 22 û 35 salî de</li>
+                        <li>Projeya lêkolînê ya pejirandî</li>
+                        <li>Girêdayîbûn bi belavkirina encaman</li>
+                    </ul>
+                    <video controls src=\"%s\"></video>
+                    <p><a href=\"%s\">Forma daxwaza bûrsê (PDF)</a></p>
+                    """.formatted(IMG_TEAM, VID_ELEPHANTS, PDF_DUMMY))
+                .build());
+
+        ak.dev.khi_backend.khi_app.model.service.Service s10 =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType("Event")
+                        .location("Erbil, KHI Hall")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(1))
+                        .build();
+        s10.addContent(ServiceContent.builder()
+                .languageCode("CKB")
+                .title("شەوی شیعر و مۆسیقای کوردی")
+                .description("""
+                    <h2>شەوی هونەری</h2>
+                    <p>شەوێکی هونەری مانگانە کە تێیدا شاعیران و مۆسیقاژەنانی کورد بەرهەمەکانیان پێشکەش دەکەن.</p>
+                    <img src=\"%s\" alt=\"شەوی شیعر\">
+                    <audio controls src=\"%s\"></audio>
+                    <video controls src=\"%s\"></video>
+                    <p>چالاکییەکە بۆ گشت کراوەیە و بەخۆڕاییە.</p>
+                    """.formatted(IMG_STAGE, AUD_SONG_1, VID_TEARS))
+                .build());
+        s10.addContent(ServiceContent.builder()
+                .languageCode("KMR")
+                .title("Şeva helbest û muzîka kurdî")
+                .description("""
+                    <h2>Şeva hunerî</h2>
+                    <p>Şeveke hunerî ya mehane ku tê de helbestvan û muzîkjenên kurd berhemên xwe pêşkêş dikin.</p>
+                    <img src=\"%s\" alt=\"Şeva helbestê\">
+                    <audio controls src=\"%s\"></audio>
+                    <video controls src=\"%s\"></video>
+                    <p>Çalakî ji bo herkesî vekirî û belaş e.</p>
+                    """.formatted(IMG_STAGE, AUD_SONG_1, VID_TEARS))
+                .build());
+
+        serviceRepository.saveAll(List.of(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10));
+        log.info("[seed:Service] inserted 10 rows");
     }
 
     // =========================================================================
