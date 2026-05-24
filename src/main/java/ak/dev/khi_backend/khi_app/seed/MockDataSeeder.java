@@ -71,22 +71,10 @@ import java.util.*;
  *
  * <p><b>Idempotency.</b>  Each per-entity seed method first calls
  * <code>repository.count()</code>.  When the table already has rows, the
- * seed step is skipped — so it is safe to leave enabled across restarts
- * during development.</p>
+ * seed step is skipped — so it is safe to leave enabled across restarts.</p>
  *
  * <p><b>Resilience.</b>  Each section is wrapped in its own try/catch so
- * that a problem in one module (e.g. unique-constraint clash on a slug)
- * does not block the rest.</p>
- *
- * <p><b>Media sources.</b>  All media URLs point at well-known stable
- * public CDNs:
- * <ul>
- *   <li>Images — <code>images.unsplash.com</code> direct asset URLs.</li>
- *   <li>Videos — <code>commondatastorage.googleapis.com</code> sample MP4s.</li>
- *   <li>Audio  — <code>soundhelix.com</code> royalty-free MP3 examples.</li>
- *   <li>PDFs   — <code>w3.org</code> dummy PDFs.</li>
- * </ul>
- * </p>
+ * that a problem in one module does not block the rest.</p>
  */
 @Slf4j
 @Component
@@ -484,11 +472,11 @@ public class MockDataSeeder implements CommandLineRunner {
 
         ak.dev.khi_backend.khi_app.model.service.Service s1 =
                 ak.dev.khi_backend.khi_app.model.service.Service.builder()
-                .serviceType("Training")
-                .location("Erbil, KHI Hall")
-                .active(true)
-                .publishedAt(LocalDateTime.now().minusDays(30))
-                .build();
+                        .serviceType("Training")
+                        .location("Erbil, KHI Hall")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(30))
+                        .build();
         s1.addContent(ServiceContent.builder()
                 .languageCode("CKB")
                 .title("خولی فێرکاری نووسینی ئەکادیمی")
@@ -526,11 +514,11 @@ public class MockDataSeeder implements CommandLineRunner {
 
         ak.dev.khi_backend.khi_app.model.service.Service s2 =
                 ak.dev.khi_backend.khi_app.model.service.Service.builder()
-                .serviceType("Event")
-                .location("Sulaymaniyah, Cultural Center")
-                .active(true)
-                .publishedAt(LocalDateTime.now().minusDays(10))
-                .build();
+                        .serviceType("Event")
+                        .location("Sulaymaniyah, Cultural Center")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(10))
+                        .build();
         s2.addContent(ServiceContent.builder()
                 .languageCode("CKB")
                 .title("کۆنفرانسی نێودەوڵەتی مێژووی کورد")
@@ -556,11 +544,11 @@ public class MockDataSeeder implements CommandLineRunner {
 
         ak.dev.khi_backend.khi_app.model.service.Service s3 =
                 ak.dev.khi_backend.khi_app.model.service.Service.builder()
-                .serviceType("Program")
-                .location("Online")
-                .active(true)
-                .publishedAt(LocalDateTime.now().minusDays(5))
-                .build();
+                        .serviceType("Program")
+                        .location("Online")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(5))
+                        .build();
         s3.addContent(ServiceContent.builder()
                 .languageCode("CKB")
                 .title("بەرنامەی پاراستنی فۆلکلۆری کوردی")
@@ -592,11 +580,11 @@ public class MockDataSeeder implements CommandLineRunner {
 
         ak.dev.khi_backend.khi_app.model.service.Service s4 =
                 ak.dev.khi_backend.khi_app.model.service.Service.builder()
-                .serviceType("Workshop")
-                .location("Duhok University")
-                .active(true)
-                .publishedAt(LocalDateTime.now().minusDays(2))
-                .build();
+                        .serviceType("Workshop")
+                        .location("Duhok University")
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(2))
+                        .build();
         s4.addContent(ServiceContent.builder()
                 .languageCode("CKB")
                 .title("وۆرکشۆپی هونەری خوسنۆڤی کوردی")
@@ -613,7 +601,7 @@ public class MockDataSeeder implements CommandLineRunner {
     }
 
     // =========================================================================
-    // 4) NEWS
+    // 4) NEWS  — 10 articles across 3 categories / 4 sub-categories
     // =========================================================================
 
     @Transactional
@@ -624,38 +612,20 @@ public class MockDataSeeder implements CommandLineRunner {
         }
 
         NewsCategory catCulture = newsCategoryRepository.save(NewsCategory.builder()
-                .nameCkb("کلتوور")
-                .nameKmr("Çand")
-                .build());
+                .nameCkb("کلتوور").nameKmr("Çand").build());
         NewsCategory catHistory = newsCategoryRepository.save(NewsCategory.builder()
-                .nameCkb("مێژوو")
-                .nameKmr("Dîrok")
-                .build());
+                .nameCkb("مێژوو").nameKmr("Dîrok").build());
         NewsCategory catLiterature = newsCategoryRepository.save(NewsCategory.builder()
-                .nameCkb("ئەدەب")
-                .nameKmr("Edebiyat")
-                .build());
+                .nameCkb("ئەدەب").nameKmr("Edebiyat").build());
 
         NewsSubCategory subFolk = newsSubCategoryRepository.save(NewsSubCategory.builder()
-                .nameCkb("فۆلکلۆر")
-                .nameKmr("Folklor")
-                .category(catCulture)
-                .build());
+                .nameCkb("فۆلکلۆر").nameKmr("Folklor").category(catCulture).build());
         NewsSubCategory subAncient = newsSubCategoryRepository.save(NewsSubCategory.builder()
-                .nameCkb("مێژووی کۆن")
-                .nameKmr("Dîroka kevn")
-                .category(catHistory)
-                .build());
+                .nameCkb("مێژووی کۆن").nameKmr("Dîroka kevn").category(catHistory).build());
         NewsSubCategory subPoetry = newsSubCategoryRepository.save(NewsSubCategory.builder()
-                .nameCkb("شیعر")
-                .nameKmr("Helbest")
-                .category(catLiterature)
-                .build());
+                .nameCkb("شیعر").nameKmr("Helbest").category(catLiterature).build());
         NewsSubCategory subNovel = newsSubCategoryRepository.save(NewsSubCategory.builder()
-                .nameCkb("ڕۆمان")
-                .nameKmr("Roman")
-                .category(catLiterature)
-                .build());
+                .nameCkb("ڕۆمان").nameKmr("Roman").category(catLiterature).build());
 
         News n1 = News.builder()
                 .coverUrl(IMG_NEWSPAPER)
@@ -698,8 +668,7 @@ public class MockDataSeeder implements CommandLineRunner {
                 .tagsKmr(new LinkedHashSet<>(Set.of("Konferans", "Dîrok", "Hewlêr")))
                 .keywordsCkb(new LinkedHashSet<>(Set.of("کوردستان", "توێژینەوە", "ئەکادیمی")))
                 .keywordsKmr(new LinkedHashSet<>(Set.of("Kurdistan", "Lêkolîn", "Akademîk")))
-                .category(catHistory)
-                .subCategory(subAncient)
+                .category(catHistory).subCategory(subAncient)
                 .build();
 
         News n2 = News.builder()
@@ -732,8 +701,7 @@ public class MockDataSeeder implements CommandLineRunner {
                 .tagsKmr(new LinkedHashSet<>(Set.of("Muzîk", "Çand", "Stran")))
                 .keywordsCkb(new LinkedHashSet<>(Set.of("هونەر", "فۆلکلۆر")))
                 .keywordsKmr(new LinkedHashSet<>(Set.of("Huner", "Folklor")))
-                .category(catCulture)
-                .subCategory(subFolk)
+                .category(catCulture).subCategory(subFolk)
                 .mediaGallery(List.of(
                         MediaItem.builder().url(IMG_CONCERT).kind(MediaKind.IMAGE)
                                 .captionCkb("ئاهەنگەکە").captionKmr("Şahî").sortOrder(0).build(),
@@ -760,8 +728,7 @@ public class MockDataSeeder implements CommandLineRunner {
                 .kmrContent(NewsContent.builder().title("").description("").build())
                 .tagsCkb(new LinkedHashSet<>(Set.of("شیعر", "نووسەری گەنج")))
                 .keywordsCkb(new LinkedHashSet<>(Set.of("ئەدەب", "وەشان")))
-                .category(catLiterature)
-                .subCategory(subPoetry)
+                .category(catLiterature).subCategory(subPoetry)
                 .build();
 
         News n4 = News.builder()
@@ -793,8 +760,7 @@ public class MockDataSeeder implements CommandLineRunner {
                 .tagsKmr(new LinkedHashSet<>(Set.of("Kela", "Dîrok")))
                 .keywordsCkb(new LinkedHashSet<>(Set.of("هەولێر", "عوسمانی")))
                 .keywordsKmr(new LinkedHashSet<>(Set.of("Hewlêr", "Osmanî")))
-                .category(catHistory)
-                .subCategory(subAncient)
+                .category(catHistory).subCategory(subAncient)
                 .build();
 
         News n5 = News.builder()
@@ -824,16 +790,179 @@ public class MockDataSeeder implements CommandLineRunner {
                 .tagsKmr(new LinkedHashSet<>(Set.of("Hevpeyvîn", "Helbestvan")))
                 .keywordsCkb(new LinkedHashSet<>(Set.of("شیعر", "شێرکۆ")))
                 .keywordsKmr(new LinkedHashSet<>(Set.of("Helbest", "Şêrko")))
-                .category(catLiterature)
-                .subCategory(subNovel)
+                .category(catLiterature).subCategory(subNovel)
                 .build();
 
-        newsRepository.saveAll(List.of(n1, n2, n3, n4, n5));
-        log.info("[seed:News] inserted 5 rows (3 categories, 4 sub-categories)");
+        News n6 = News.builder()
+                .coverUrl(IMG_AUDIO_STUDIO)
+                .coverMediaType(MediaKind.IMAGE)
+                .datePublished(LocalDate.now().minusDays(25))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(NewsContent.builder()
+                        .title("ستۆدیۆیەکی نوێ بۆ تۆمارکردنی دەنگی هونەرمەندە تەمەن بەرزەکان کرایەوە")
+                        .description("""
+                            <p>دامەزراوەکەمان ستۆدیۆیەکی نوێی پیشەیی لە سلێمانی کردەوە کە تایبەتە بە تۆمارکردنی دەنگی هونەرمەندە تەمەن بەرزەکان.</p>
+                            <img src=\"%s\" alt=\"ستۆدیۆ\">
+                            <audio controls src=\"%s\"></audio>
+                            <p>ئامانج پاراستنی دەنگی ئەو هونەرمەندانەیە کە لەوانەیە لە داهاتوودا لەدەست بدرێن.</p>
+                            """.formatted(IMG_AUDIO_STUDIO, AUD_SONG_4))
+                        .build())
+                .kmrContent(NewsContent.builder()
+                        .title("Stûdyoyeke nû ji bo tomarkirina dengê hunermendên temen-bilind hat vekirin")
+                        .description("""
+                            <p>Saziya me stûdyoyeke nû ya profesyonel li Silêmaniyê vekir ku taybet e ji bo tomarkirina dengê hunermendên temen-bilind.</p>
+                            <img src=\"%s\" alt=\"Stûdyo\">
+                            <audio controls src=\"%s\"></audio>
+                            <p>Armanc parastina dengê wan hunermendan e ku dibe ku di pêşerojê de winda bibin.</p>
+                            """.formatted(IMG_AUDIO_STUDIO, AUD_SONG_4))
+                        .build())
+                .tagsCkb(new LinkedHashSet<>(Set.of("ستۆدیۆ", "تۆمارکردن")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Stûdyo", "Tomarkirin")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("دەنگ", "پاراستن")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Deng", "Parastin")))
+                .category(catCulture).subCategory(subFolk)
+                .build();
+
+        News n7 = News.builder()
+                .coverUrl(IMG_ARCHIVE)
+                .coverMediaType(MediaKind.IMAGE)
+                .datePublished(LocalDate.now().minusDays(30))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(NewsContent.builder()
+                        .title("پرۆژەی دیجیتاڵکردنی ئەرشیف گەیشتە ١٠،٠٠٠ دۆکیومێنت")
+                        .description("""
+                            <h2>سەرکەوتنێکی نوێ</h2>
+                            <p>پرۆژەی دیجیتاڵکردنی ئەرشیفی مێژوویی کوردی گەیشتە سنووری ١٠،٠٠٠ دۆکیومێنتی دیجیتاڵکراو.</p>
+                            <img src=\"%s\" alt=\"ئەرشیف\">
+                            <video controls src=\"%s\"></video>
+                            <p>ئەم دۆکیومێنتانە ئێستا بەردەستن بۆ توێژەران بەشێوەیەکی ئۆنلاین.</p>
+                            """.formatted(IMG_ARCHIVE, VID_FOR_BIGGER))
+                        .build())
+                .kmrContent(NewsContent.builder()
+                        .title("Projeya dîjîtalkirina arşîvê gihîşt 10,000 belgenameyan")
+                        .description("""
+                            <h2>Serkeftineke nû</h2>
+                            <p>Projeya dîjîtalkirina arşîva dîrokî ya kurdî gihîşt sînorê 10,000 belgenameyên dîjîtalkirî.</p>
+                            <img src=\"%s\" alt=\"Arşîv\">
+                            <video controls src=\"%s\"></video>
+                            <p>Ev belgename niha bi awayekî onlîne ji bo lêkolîneran berdest in.</p>
+                            """.formatted(IMG_ARCHIVE, VID_FOR_BIGGER))
+                        .build())
+                .tagsCkb(new LinkedHashSet<>(Set.of("ئەرشیف", "دیجیتاڵ")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Arşîv", "Dîjîtal")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("پاراستن", "میرات")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Parastin", "Mîrate")))
+                .category(catHistory).subCategory(subAncient)
+                .build();
+
+        News n8 = News.builder()
+                .coverUrl(IMG_FOLK_DANCE)
+                .coverMediaType(MediaKind.IMAGE)
+                .datePublished(LocalDate.now().minusDays(35))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(NewsContent.builder()
+                        .title("فێستیڤاڵی فۆلکلۆری کوردی لە دهۆک بەرپا کرا")
+                        .description("""
+                            <p>فێستیڤاڵێکی گەورەی فۆلکلۆری کوردی لە شاری دهۆک بەرپا کرا کە تێیدا گرووپە فۆلکلۆریەکان لە سەرتاسەری کوردستان بەشدارییان کرد.</p>
+                            <img src=\"%s\" alt=\"فۆلکلۆر\">
+                            <video controls src=\"%s\"></video>
+                            <audio controls src=\"%s\"></audio>
+                            <p>سەماکانی چۆپی و هەڵپەڕکێ بەشێکی سەرەکی فێستیڤاڵەکە بوون.</p>
+                            """.formatted(IMG_FOLK_DANCE, VID_TEARS, AUD_SONG_5))
+                        .build())
+                .kmrContent(NewsContent.builder()
+                        .title("Festîvala folklora kurdî li Duhokê hat li dar xistin")
+                        .description("""
+                            <p>Festîvaleke mezin a folklora kurdî li bajarê Duhokê hat li dar xistin ku tê de komên folklorîk ji seranserê Kurdistanê beşdar bûn.</p>
+                            <img src=\"%s\" alt=\"Folklor\">
+                            <video controls src=\"%s\"></video>
+                            <audio controls src=\"%s\"></audio>
+                            <p>Govend û dîlanên kurdî beşeke sereke ya festîvalê bûn.</p>
+                            """.formatted(IMG_FOLK_DANCE, VID_TEARS, AUD_SONG_5))
+                        .build())
+                .tagsCkb(new LinkedHashSet<>(Set.of("فێستیڤاڵ", "فۆلکلۆر", "دهۆک")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Festîval", "Folklor", "Duhok")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("سەما", "کلتوور")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Govend", "Çand")))
+                .category(catCulture).subCategory(subFolk)
+                .mediaGallery(List.of(
+                        MediaItem.builder().url(IMG_FOLK_DANCE).kind(MediaKind.IMAGE)
+                                .captionCkb("سەمای فۆلکلۆری").captionKmr("Govenda folklorîk").sortOrder(0).build(),
+                        MediaItem.builder().url(IMG_TRADITIONAL).kind(MediaKind.IMAGE)
+                                .captionCkb("جلوبەرگی نەتەوەیی").captionKmr("Kincê neteweyî").sortOrder(1).build()
+                ))
+                .build();
+
+        News n9 = News.builder()
+                .coverUrl(IMG_BOOKS_SHELF)
+                .coverMediaType(MediaKind.IMAGE)
+                .datePublished(LocalDate.now().minusDays(40))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(NewsContent.builder()
+                        .title("ڕۆمانێکی نوێی مێژوویی لەسەر کۆماری مەهاباد باڵو کرایەوە")
+                        .description("""
+                            <p>ڕۆمانێکی نوێی مێژوویی لەسەر کۆماری مەهاباد ١٩٤٦ لە لایەن نووسەرێکی ناوداری کوردەوە باڵو کرایەوە.</p>
+                            <img src=\"%s\" alt=\"کتێب\">
+                            <p>ڕۆمانەکە تێکەڵەیەکە لە ڕووداوی مێژوویی و چیرۆکی خەیاڵی کە ژیانی ئەو سەردەمە دەگێڕێتەوە.</p>
+                            <a href=\"%s\">نموونەیەک لە ڕۆمانەکە (PDF)</a>
+                            """.formatted(IMG_BOOKS_SHELF, PDF_DUMMY))
+                        .build())
+                .kmrContent(NewsContent.builder()
+                        .title("Romaneke nû ya dîrokî li ser Komara Mehabadê hat weşandin")
+                        .description("""
+                            <p>Romaneke nû ya dîrokî li ser Komara Mehabadê ya 1946an ji aliyê nivîskarekî kurd ê navdar ve hat weşandin.</p>
+                            <img src=\"%s\" alt=\"Pirtûk\">
+                            <p>Roman tevliheviyek e ji bûyerên dîrokî û çîroka xeyalî ku jiyana wê serdemê vedibêje.</p>
+                            <a href=\"%s\">Nimûneyek ji romanê (PDF)</a>
+                            """.formatted(IMG_BOOKS_SHELF, PDF_DUMMY))
+                        .build())
+                .tagsCkb(new LinkedHashSet<>(Set.of("ڕۆمان", "مێژوو")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Roman", "Dîrok")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("مەهاباد", "ئەدەب")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Mehabad", "Edebiyat")))
+                .category(catLiterature).subCategory(subNovel)
+                .build();
+
+        News n10 = News.builder()
+                .coverUrl(IMG_MOUNTAINS_KRD)
+                .coverMediaType(MediaKind.IMAGE)
+                .datePublished(LocalDate.now().minusDays(50))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(NewsContent.builder()
+                        .title("توێژینەوەیەکی نوێ لەسەر زاراوەی کرمانجی باڵو کرایەوە")
+                        .description("""
+                            <h2>توێژینەوەی زمانەوانی</h2>
+                            <p>تیمی زمانەوانی دامەزراوەکەمان توێژینەوەیەکی فراوانی لەسەر زاراوەی کرمانجی و گۆڕانکارییەکانی باڵو کردەوە.</p>
+                            <img src=\"%s\" alt=\"چیا\">
+                            <video controls src=\"%s\"></video>
+                            <p>توێژینەوەکە چەندین دیالێکتی ناوچەیی کرمانجی شیکار دەکات.</p>
+                            <a href=\"%s\">توێژینەوەی تەواو (PDF)</a>
+                            """.formatted(IMG_MOUNTAINS_KRD, VID_ELEPHANTS, PDF_DUMMY))
+                        .build())
+                .kmrContent(NewsContent.builder()
+                        .title("Lêkolîneke nû li ser zaravayê kurmancî hat weşandin")
+                        .description("""
+                            <h2>Lêkolîna zimanzanî</h2>
+                            <p>Tîma zimanzaniyê ya saziya me lêkolîneke berfireh li ser zaravayê kurmancî û guherînên wê weşand.</p>
+                            <img src=\"%s\" alt=\"Çiya\">
+                            <video controls src=\"%s\"></video>
+                            <p>Lêkolîn gelek diyalektên herêmî yên kurmancî vedikole.</p>
+                            <a href=\"%s\">Lêkolîna tam (PDF)</a>
+                            """.formatted(IMG_MOUNTAINS_KRD, VID_ELEPHANTS, PDF_DUMMY))
+                        .build())
+                .tagsCkb(new LinkedHashSet<>(Set.of("زمان", "کرمانجی", "توێژینەوە")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Ziman", "Kurmancî", "Lêkolîn")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("زمانەوانی", "دیالێکت")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Zimanzanî", "Diyalekt")))
+                .category(catHistory).subCategory(subAncient)
+                .build();
+
+        newsRepository.saveAll(List.of(n1, n2, n3, n4, n5, n6, n7, n8, n9, n10));
+        log.info("[seed:News] inserted 10 rows (3 categories, 4 sub-categories)");
     }
 
     // =========================================================================
-    // 5) PROJECT
+    // 5) PROJECT  — 10 projects
     // =========================================================================
 
     @Transactional
@@ -848,10 +977,13 @@ public class MockDataSeeder implements CommandLineRunner {
         ProjectTag tagHistory   = ensureTag("History");
         ProjectTag tagFolklore  = ensureTag("Folklore");
         ProjectTag tagLanguage  = ensureTag("Language");
+        ProjectTag tagMusic     = ensureTag("Music");
+        ProjectTag tagEducation = ensureTag("Education");
 
         ProjectKeyword kwKurdish   = ensureKeyword("Kurdish");
         ProjectKeyword kwHeritage  = ensureKeyword("Heritage");
         ProjectKeyword kwResearch  = ensureKeyword("Research");
+        ProjectKeyword kwCulture   = ensureKeyword("Culture");
 
         Project p1 = Project.builder()
                 .coverUrl(IMG_ARCHIVE)
@@ -1007,8 +1139,221 @@ public class MockDataSeeder implements CommandLineRunner {
                 .keywordsKmr(new LinkedHashSet<>(Set.of(kwHeritage)))
                 .build();
 
-        projectRepository.saveAll(List.of(p1, p2, p3, p4));
-        log.info("[seed:Project] inserted 4 rows");
+        Project p5 = Project.builder()
+                .coverUrl(IMG_BOOKS_SHELF)
+                .coverMediaType(MediaKind.IMAGE)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title("وەشاندنەوەی کتێبە کلاسیکیە کوردیەکان")
+                        .description("""
+                            <h2>پرۆژەی وەشان</h2>
+                            <p>پرۆژەیەک بۆ چاپ و وەشاندنەوەی ئەو کتێبە کلاسیکیە کوردیانەی کە لەبەردەستدا نەماون.</p>
+                            <img src=\"%s\" alt=\"کتێب\">
+                            <p>تا ئێستا ٢٥ کتێبی کلاسیکی دووبارە چاپ کراونەتەوە.</p>
+                            <a href=\"%s\">لیستی کتێبەکان (PDF)</a>
+                            """.formatted(IMG_BOOKS_SHELF, PDF_DUMMY))
+                        .location("هەولێر")
+                        .build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title("Vejandina pirtûkên klasîk ên kurdî")
+                        .description("""
+                            <h2>Projeya weşanê</h2>
+                            <p>Projeyek ji bo çap û vejandina wan pirtûkên klasîk ên kurdî ku êdî berdest nemane.</p>
+                            <img src=\"%s\" alt=\"Pirtûk\">
+                            <p>Heta niha 25 pirtûkên klasîk ji nû ve hatine çapkirin.</p>
+                            <a href=\"%s\">Lîsteya pirtûkan (PDF)</a>
+                            """.formatted(IMG_BOOKS_SHELF, PDF_DUMMY))
+                        .location("Hewlêr")
+                        .build())
+                .projectTypeCkb("وەشان")
+                .projectTypeKmr("Weşan")
+                .status(ProjectStatus.ONGOING)
+                .projectDate(LocalDate.now().minusMonths(8))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagEducation, tagHistory)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagEducation, tagHistory)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwKurdish, kwResearch)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwKurdish, kwResearch)))
+                .build();
+
+        Project p6 = Project.builder()
+                .coverUrl(IMG_CONCERT)
+                .coverMediaType(MediaKind.IMAGE)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title("ئەرشیفی مۆسیقای کوردی")
+                        .description("""
+                            <p>پرۆژەیەک بۆ کۆکردنەوە و پاراستنی هەموو ئەو گۆرانیە کۆنە کوردیانەی لە سەردەمی ١٩٤٠ تا ١٩٩٠ تۆمار کراون.</p>
+                            <img src=\"%s\" alt=\"مۆسیقا\">
+                            <audio controls src=\"%s\"></audio>
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_CONCERT, AUD_SONG_1, VID_ELEPHANTS))
+                        .location("سلێمانی و هەولێر")
+                        .build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title("Arşîva muzîka kurdî")
+                        .description("""
+                            <p>Projeyek ji bo berhevkirin û parastina hemû wan stranên kevn ên kurdî yên ku di serdema 1940 heta 1990 de hatine tomarkirin.</p>
+                            <img src=\"%s\" alt=\"Muzîk\">
+                            <audio controls src=\"%s\"></audio>
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_CONCERT, AUD_SONG_1, VID_ELEPHANTS))
+                        .location("Silêmanî û Hewlêr")
+                        .build())
+                .projectTypeCkb("ئەرشیفی دەنگی")
+                .projectTypeKmr("Arşîva dengî")
+                .status(ProjectStatus.ONGOING)
+                .projectDate(LocalDate.now().minusMonths(4))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagMusic, tagArchive)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagMusic, tagArchive)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwHeritage, kwCulture)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwHeritage, kwCulture)))
+                .mediaGallery(List.of(
+                        MediaItem.builder().url(IMG_CONCERT).kind(MediaKind.IMAGE).sortOrder(0).build(),
+                        MediaItem.builder().url(AUD_SONG_3).kind(MediaKind.AUDIO)
+                                .thumbnailUrl(IMG_AUDIO_STUDIO).sortOrder(1).build()
+                ))
+                .build();
+
+        Project p7 = Project.builder()
+                .coverUrl(IMG_CALLIGRAPHY)
+                .coverMediaType(MediaKind.IMAGE)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title("پاراستنی هونەری خوسنۆڤی کوردی")
+                        .description("""
+                            <p>پرۆژەیەک بۆ تۆمارکردن و فێرکردنی هونەری خوسنۆڤی کوردی بۆ نەوەی نوێ.</p>
+                            <img src=\"%s\" alt=\"خوسنۆڤی\">
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_CALLIGRAPHY, VID_SINTEL))
+                        .location("سلێمانی")
+                        .build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title("Parastina hunera xetatiya kurdî")
+                        .description("""
+                            <p>Projeyek ji bo tomarkirin û fêrkirina hunera xetatiya kurdî ji bo nifşê nû.</p>
+                            <img src=\"%s\" alt=\"Xetatî\">
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_CALLIGRAPHY, VID_SINTEL))
+                        .location("Silêmanî")
+                        .build())
+                .projectTypeCkb("هونەر")
+                .projectTypeKmr("Huner")
+                .status(ProjectStatus.COMPLETED)
+                .projectDate(LocalDate.now().minusMonths(14))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagEducation, tagFolklore)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagEducation, tagFolklore)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwCulture, kwHeritage)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwCulture, kwHeritage)))
+                .build();
+
+        Project p8 = Project.builder()
+                .coverUrl(IMG_MOUNTAINS_KRD)
+                .coverMediaType(MediaKind.IMAGE)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title("ئەتڵەسی ناوە جوگرافیە کوردیەکان")
+                        .description("""
+                            <h2>پرۆژەی جوگرافی</h2>
+                            <p>پرۆژەیەک بۆ تۆمارکردنی هەموو ناوە جوگرافیە کوردیەکان و مێژووی ناوەکان.</p>
+                            <img src=\"%s\" alt=\"چیا\">
+                            <a href=\"%s\">ئەتڵەسی سەرەتایی (PDF)</a>
+                            """.formatted(IMG_MOUNTAINS_KRD, PDF_DUMMY))
+                        .location("هەرێمی کوردستان")
+                        .build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title("Atlasa navên erdnîgarî yên kurdî")
+                        .description("""
+                            <h2>Projeya erdnîgarî</h2>
+                            <p>Projeyek ji bo tomarkirina hemû navên erdnîgarî yên kurdî û dîroka navan.</p>
+                            <img src=\"%s\" alt=\"Çiya\">
+                            <a href=\"%s\">Atlasa destpêkê (PDF)</a>
+                            """.formatted(IMG_MOUNTAINS_KRD, PDF_DUMMY))
+                        .location("Herêma Kurdistanê")
+                        .build())
+                .projectTypeCkb("توێژینەوە")
+                .projectTypeKmr("Lêkolîn")
+                .status(ProjectStatus.ONGOING)
+                .projectDate(LocalDate.now().minusMonths(1))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagHistory, tagLanguage)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagHistory, tagLanguage)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwResearch, kwKurdish)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwResearch, kwKurdish)))
+                .build();
+
+        Project p9 = Project.builder()
+                .coverUrl(IMG_TEAM)
+                .coverMediaType(MediaKind.IMAGE)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title("بەرنامەی مامۆستایانی نووسینی گەنج")
+                        .description("""
+                            <p>پرۆژەیەکی پەروەردەیی بۆ ڕاهێنانی نەوەیەکی نوێ لە نووسەران و توێژەرانی کورد.</p>
+                            <img src=\"%s\" alt=\"تیم\">
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_TEAM, VID_FOR_BIGGER))
+                        .location("هەولێر")
+                        .build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title("Bernameya rahênana nivîskarên ciwan")
+                        .description("""
+                            <p>Projeyeke perwerdeyî ji bo rahênana nifşekî nû ji nivîskar û lêkolînerên kurd.</p>
+                            <img src=\"%s\" alt=\"Tîm\">
+                            <video controls src=\"%s\"></video>
+                            """.formatted(IMG_TEAM, VID_FOR_BIGGER))
+                        .location("Hewlêr")
+                        .build())
+                .projectTypeCkb("پەروەردە")
+                .projectTypeKmr("Perwerde")
+                .status(ProjectStatus.ONGOING)
+                .projectDate(LocalDate.now().minusMonths(5))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagEducation)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagEducation)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwResearch)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwResearch)))
+                .build();
+
+        Project p10 = Project.builder()
+                .coverUrl(IMG_ERBIL_CITADEL)
+                .coverMediaType(MediaKind.IMAGE)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title("بەڵگەنامەکردنی شوێنە مێژووییەکانی کوردستان")
+                        .description("""
+                            <h2>پرۆژەی بەڵگەنامەیی</h2>
+                            <p>پرۆژەیەک بۆ وێنەگرتن و بەڵگەنامەکردنی شوێنە مێژووییەکانی کوردستان وەکو قەڵاکان و پردە کۆنەکان.</p>
+                            <img src=\"%s\" alt=\"قەڵا\">
+                            <video controls src=\"%s\"></video>
+                            <p>تا ئێستا ٤٠ شوێنی مێژوویی بەڵگەنامە کراون.</p>
+                            """.formatted(IMG_ERBIL_CITADEL, VID_BIG_BUCK_BUNNY))
+                        .location("هەرێمی کوردستان")
+                        .build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title("Belgekirina cihên dîrokî yên Kurdistanê")
+                        .description("""
+                            <h2>Projeya belgeyî</h2>
+                            <p>Projeyek ji bo wênekirin û belgekirina cihên dîrokî yên Kurdistanê wek kela û pirên kevn.</p>
+                            <img src=\"%s\" alt=\"Kela\">
+                            <video controls src=\"%s\"></video>
+                            <p>Heta niha 40 cihên dîrokî hatine belgekirin.</p>
+                            """.formatted(IMG_ERBIL_CITADEL, VID_BIG_BUCK_BUNNY))
+                        .location("Herêma Kurdistanê")
+                        .build())
+                .projectTypeCkb("بەڵگەنامە")
+                .projectTypeKmr("Belgekirin")
+                .status(ProjectStatus.ONGOING)
+                .projectDate(LocalDate.now().minusMonths(7))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagHistory, tagArchive)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagHistory, tagArchive)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwHeritage, kwResearch)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwHeritage, kwResearch)))
+                .mediaGallery(List.of(
+                        MediaItem.builder().url(IMG_ERBIL_CITADEL).kind(MediaKind.IMAGE).sortOrder(0).build(),
+                        MediaItem.builder().url(IMG_OLD_DOCUMENT).kind(MediaKind.IMAGE).sortOrder(1).build()
+                ))
+                .build();
+
+        projectRepository.saveAll(List.of(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10));
+        log.info("[seed:Project] inserted 10 rows");
     }
 
     private ProjectTag ensureTag(String name) {
@@ -1040,15 +1385,19 @@ public class MockDataSeeder implements CommandLineRunner {
                 topic("SOUND",   "گۆرانی فۆلکلۆری",       "Stranên folklorîk"),
                 topic("SOUND",   "هۆنراوەی کوردی",        "Helbesta kurdî"),
                 topic("SOUND",   "ئەزانی دینی",           "Mewlûd û dînî"),
+                topic("SOUND",   "مۆسیقای کلاسیک",        "Muzîka klasîk"),
                 topic("VIDEO",   "بەڵگەنامەی مێژوویی",    "Belgefîlma dîrokî"),
                 topic("VIDEO",   "فیلمی ئەدەبی",          "Fîlma edebî"),
                 topic("VIDEO",   "کلیپی مۆسیقا",          "Klîpên muzîkê"),
+                topic("VIDEO",   "چاوپێکەوتن",            "Hevpeyvîn"),
                 topic("IMAGE",   "گەلەری مێژوویی",        "Galeriya dîrokî"),
                 topic("IMAGE",   "وێنەی فۆلکلۆری",       "Wêneyên folklorîk"),
                 topic("IMAGE",   "ژیانی ڕۆژانە",          "Jiyana rojane"),
+                topic("IMAGE",   "سروشتی کوردستان",      "Xwezaya Kurdistanê"),
                 topic("WRITING", "شیعر و ئەدەب",          "Helbest û edebiyat"),
                 topic("WRITING", "مێژووی کورد",           "Dîroka kurdî"),
-                topic("WRITING", "زمانناسی کوردی",        "Zimanzaniya kurdî")
+                topic("WRITING", "زمانناسی کوردی",        "Zimanzaniya kurdî"),
+                topic("WRITING", "ڕۆمان و چیرۆک",         "Roman û çîrok")
         );
 
         publishmentTopicRepository.saveAll(topics);
@@ -1071,7 +1420,7 @@ public class MockDataSeeder implements CommandLineRunner {
     }
 
     // =========================================================================
-    // 7) SOUND TRACK
+    // 7) SOUND TRACK  — 10 tracks
     // =========================================================================
 
     @Transactional
@@ -1256,12 +1605,205 @@ public class MockDataSeeder implements CommandLineRunner {
                 .build();
         st3.addFile(f3);
 
-        soundTrackRepository.saveAll(List.of(st1, st2, st3));
-        log.info("[seed:SoundTrack] inserted 3 rows (with files, brochures, attachments)");
+        // ─── Track 4 — SINGLE classical ─────────────────────────────────────
+        SoundTrack st4 = singleSound(
+                IMG_AUDIO_STUDIO, IMG_CONCERT, "Classical",
+                findTopic("SOUND", "مۆسیقای کلاسیک"),
+                "مۆسیقای کلاسیکی کوردی - مەقامی دەشتی",
+                "<p>پارچەیەکی مۆسیقای کلاسیکی کوردی بە مەقامی دەشتی، تۆمارکراو لە ستۆدیۆی هەولێر.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "Muzîka klasîk a kurdî - Meqamê Deştî",
+                "<p>Parçeyeke muzîka klasîk a kurdî bi meqamê Deştî, li stûdyoya Hewlêrê hatiye tomarkirin.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "ئۆرکێسترای کلاسیکی کوردستان", AUD_SONG_2, 2024, 330L, AudioChannel.STEREO,
+                "Classical", "کلاسیک", "Klasîk", "مەقام", "Meqam", true);
+
+        // ─── Track 5 — SINGLE folk (Kurmanji) ───────────────────────────────
+        SoundTrack st5 = singleSound(
+                IMG_FOLK_DANCE, IMG_FOLK_DANCE, "Folk",
+                findTopic("SOUND", "گۆرانی فۆلکلۆری"),
+                "گۆرانیی فۆلکلۆری بادینی - لاوکێ",
+                "<p>گۆرانیێکی فۆلکلۆری بە زاراوەی کرمانجی لە ناوچەی بادینان.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "Strana folklorî ya behdînî - Lawikê",
+                "<p>Stranek folklorî bi zaravayê kurmancî ji herêma Behdînan.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "هونەرمەندی گەلی", AUD_SONG_3, 2022, 240L, AudioChannel.STEREO,
+                "Folk", "فۆلکلۆر", "Folklor", "بادینی", "Behdînî", true);
+
+        // ─── Track 6 — SINGLE poetry recitation ─────────────────────────────
+        SoundTrack st6 = singleSound(
+                IMG_OPEN_BOOK, IMG_BOOKS_SHELF, "Poetry",
+                findTopic("SOUND", "هۆنراوەی کوردی"),
+                "هۆنراوەخوێندنەوە - شیعری شێرکۆ بێکەس",
+                "<p>خوێندنەوەی هۆنراوەیەکی شێرکۆ بێکەس بە دەنگی هونەرمەند.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_4),
+                "Helbestxwendin - Helbesta Şêrko Bêkes",
+                "<p>Xwendina helbesteke Şêrko Bêkes bi dengê hunermend.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_4),
+                "ئاسۆ کەمال", AUD_SONG_4, 2023, 195L, AudioChannel.MONO,
+                "Recitation", "شیعر", "Helbest", "شێرکۆ", "Şêrko", true);
+
+        // ─── Track 7 — SINGLE religious ─────────────────────────────────────
+        SoundTrack st7 = singleSound(
+                IMG_CALLIGRAPHY, IMG_CALLIGRAPHY, "Religious",
+                findTopic("SOUND", "ئەزانی دینی"),
+                "زیکر و مەولوودی کوردی",
+                "<p>زیکرێکی کوردی بە شێوازی سۆفیانە.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_5),
+                "",
+                "",
+                "گرووپی سۆفی", AUD_SONG_5, 2021, 510L, AudioChannel.MONO,
+                "Religious", "ئاینی", null, "زیکر", null, false);
+
+        // ─── Track 8 — MULTI album (memories) ───────────────────────────────
+        SoundTrack st8 = SoundTrack.builder()
+                .ckbCoverUrl(IMG_CONCERT)
+                .kmrCoverUrl(IMG_CONCERT)
+                .hoverCoverUrl(IMG_AUDIO_STUDIO)
+                .soundType("Music")
+                .trackState(TrackState.MULTI)
+                .albumOfMemories(true)
+                .topic(findTopic("SOUND", "مۆسیقای کلاسیک"))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(SoundTrackContent.builder()
+                        .title("ئەلبوومی مەقامەکانی کوردی")
+                        .description("""
+                            <h2>کۆکراوەی مەقام</h2>
+                            <p>ئەلبوومێکی تەواو لە مەقامە کلاسیکیە کوردیەکان کە لە لایەن ئۆرکێسترای نیشتمانیەوە پێشکەش کراون.</p>
+                            <img src=\"%s\" alt=\"ئەلبووم\">
+                            <audio controls src=\"%s\"></audio>
+                            """.formatted(IMG_CONCERT, AUD_SONG_1))
+                        .build())
+                .kmrContent(SoundTrackContent.builder()
+                        .title("Albûma meqamên kurdî")
+                        .description("""
+                            <h2>Berhevoka meqaman</h2>
+                            <p>Albûmeke tam ji meqamên klasîk ên kurdî ku ji aliyê orkestra neteweyî ve hatine pêşkêşkirin.</p>
+                            <img src=\"%s\" alt=\"Albûm\">
+                            <audio controls src=\"%s\"></audio>
+                            """.formatted(IMG_CONCERT, AUD_SONG_1))
+                        .build())
+                .locations(new LinkedHashSet<>(Set.of("Erbil", "Sulaymaniyah")))
+                .reader("ئۆرکێسترای نیشتمانی")
+                .directors(new LinkedHashSet<>(Set.of("دلێر مەحمود")))
+                .terms("سۆرانی")
+                .thisProjectOfInstitute(true)
+                .albumName("مەقامەکان - The Maqams")
+                .publishmentYear(2024)
+                .cdNumber(1)
+                .totalTracks(8)
+                .keywordsCkb(new LinkedHashSet<>(Set.of("مەقام", "کلاسیک")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Meqam", "Klasîk")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("ئەلبووم", "کلاسیک")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Albûm", "Klasîk")))
+                .build();
+        for (int i = 1; i <= 4; i++) {
+            String url = switch (i) {
+                case 1 -> AUD_SONG_1;
+                case 2 -> AUD_SONG_2;
+                case 3 -> AUD_SONG_3;
+                default -> AUD_SONG_5;
+            };
+            st8.addFile(SoundTrackFile.builder()
+                    .fileUrl(url)
+                    .title("مەقامی " + i)
+                    .fileType(FileType.MP3)
+                    .publishmentYear(2024)
+                    .fileFormat("MP3")
+                    .sizeBytes(6_000_000L + (i * 120_000L))
+                    .durationSeconds(300L + (i * 20L))
+                    .bitRate("320 kbps")
+                    .sampleRate("48000 Hz")
+                    .audioChannel(AudioChannel.STEREO)
+                    .form("مەقام")
+                    .genre("Classical")
+                    .recordingVenue("National Studio, Erbil")
+                    .build());
+        }
+
+        // ─── Track 9 — SINGLE folk (institute) ──────────────────────────────
+        SoundTrack st9 = singleSound(
+                IMG_AUDIO_STUDIO, IMG_FOLK_DANCE, "Folk",
+                findTopic("SOUND", "گۆرانی فۆلکلۆری"),
+                "گۆرانیی هەڵپەڕکێ - دیلان",
+                "<p>گۆرانیێکی هەڵپەڕکێ بۆ سەماکانی نەتەوەیی.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "Strana govendê - Dîlan",
+                "<p>Stranek govendê ji bo dîlanên neteweyî.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "گرووپی فۆلکلۆری دهۆک", AUD_SONG_2, 2023, 260L, AudioChannel.STEREO,
+                "Folk", "هەڵپەڕکێ", "Govend", "سەما", "Dîlan", true);
+
+        // ─── Track 10 — SINGLE poetry ───────────────────────────────────────
+        SoundTrack st10 = singleSound(
+                IMG_OPEN_BOOK, IMG_OPEN_BOOK, "Poetry",
+                findTopic("SOUND", "هۆنراوەی کوردی"),
+                "هۆنراوەی نالی - دیوانی کلاسیک",
+                "<p>خوێندنەوەی هۆنراوەیەکی نالی، شاعیری گەورەی کلاسیکی کوردی.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "Helbesta Nalî - Dîwana klasîk",
+                "<p>Xwendina helbesteke Nalî, helbestvanê mezin ê klasîk ê kurdî.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "هێمن مەلا کەریم", AUD_SONG_3, 2022, 220L, AudioChannel.MONO,
+                "Recitation", "نالی", "Nalî", "کلاسیک", "Klasîk", true);
+
+        soundTrackRepository.saveAll(List.of(st1, st2, st3, st4, st5, st6, st7, st8, st9, st10));
+        log.info("[seed:SoundTrack] inserted 10 rows (with files, brochures, attachments)");
+    }
+
+    /**
+     * Helper for SINGLE-state sound tracks with exactly one file.
+     * Kmr fields may be empty strings / null tag to mirror CKB-only entries.
+     */
+    private SoundTrack singleSound(String ckbCover, String hoverCover, String soundType,
+                                   PublishmentTopic topic,
+                                   String titleCkb, String descCkb,
+                                   String titleKmr, String descKmr,
+                                   String reader, String fileUrl, int year, long durationSec,
+                                   AudioChannel channel, String genre,
+                                   String tagCkb, String tagKmr,
+                                   String kwCkb, String kwKmr,
+                                   boolean instituteProject) {
+        boolean hasKmr = titleKmr != null && !titleKmr.isEmpty();
+        Set<Language> langs = hasKmr
+                ? new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR))
+                : new LinkedHashSet<>(Set.of(Language.CKB));
+        Set<String> tagsKmrSet = (tagKmr != null)
+                ? new LinkedHashSet<>(Set.of(tagKmr)) : new LinkedHashSet<>();
+        Set<String> kwKmrSet = (kwKmr != null)
+                ? new LinkedHashSet<>(Set.of(kwKmr)) : new LinkedHashSet<>();
+        SoundTrack st = SoundTrack.builder()
+                .ckbCoverUrl(ckbCover)
+                .kmrCoverUrl(hasKmr ? ckbCover : null)
+                .hoverCoverUrl(hoverCover)
+                .soundType(soundType)
+                .trackState(TrackState.SINGLE)
+                .albumOfMemories(false)
+                .topic(topic)
+                .contentLanguages(langs)
+                .ckbContent(SoundTrackContent.builder().title(titleCkb).description(descCkb).build())
+                .kmrContent(SoundTrackContent.builder()
+                        .title(hasKmr ? titleKmr : "")
+                        .description(hasKmr ? descKmr : "")
+                        .build())
+                .reader(reader)
+                .terms("سۆرانی")
+                .thisProjectOfInstitute(instituteProject)
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwCkb)))
+                .keywordsKmr(kwKmrSet)
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagCkb)))
+                .tagsKmr(tagsKmrSet)
+                .build();
+        st.addFile(SoundTrackFile.builder()
+                .fileUrl(fileUrl)
+                .title(titleCkb)
+                .fileType(FileType.MP3)
+                .publishmentYear(year)
+                .fileFormat("MP3")
+                .sizeBytes(5_000_000L)
+                .durationSeconds(durationSec)
+                .bitRate("320 kbps")
+                .sampleRate("44100 Hz")
+                .audioChannel(channel)
+                .form("کێشدار")
+                .genre(genre)
+                .recordingVenue("KHI Studio")
+                .build());
+        return st;
     }
 
     // =========================================================================
-    // 8) VIDEO
+    // 8) VIDEO  — 10 videos
     // =========================================================================
 
     @Transactional
@@ -1437,12 +1979,174 @@ public class MockDataSeeder implements CommandLineRunner {
                 .keywordsKmr(new LinkedHashSet<>(Set.of("Şêrko", "Edebiyat")))
                 .build();
 
-        videoRepository.saveAll(List.of(v1, v2, v3));
-        log.info("[seed:Video] inserted 3 rows (1 FILM, 1 VIDEO_CLIP with 3 clips, 1 FILM)");
+        Video v4 = filmVideo(IMG_ERBIL_CITADEL, IMG_MOUNTAINS_KRD,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی قەڵای هەولێر",
+                """
+                    <h2>کۆنترین شار</h2>
+                    <p>بەڵگەنامەیەک لەسەر قەڵای هەولێر، یەکێک لە کۆنترین شارە دانیشتراوەکانی جیهان.</p>
+                    <img src=\"%s\" alt=\"قەڵا\"><video controls src=\"%s\"></video>
+                    """.formatted(IMG_ERBIL_CITADEL, VID_ELEPHANTS),
+                "Belgefîlma Kelaya Hewlêrê",
+                """
+                    <h2>Kevintirîn bajar</h2>
+                    <p>Belgefîlmek li ser Kelaya Hewlêrê, yek ji kevintirîn bajarên niştecîh ên cîhanê.</p>
+                    <img src=\"%s\" alt=\"Kela\"><video controls src=\"%s\"></video>
+                    """.formatted(IMG_ERBIL_CITADEL, VID_ELEPHANTS),
+                "هەولێر", "Hewlêr", "ڕێبوار ئەحمەد", "Rêbwar Ehmed",
+                VID_ELEPHANTS, 2700, "1920x1080", 620.0,
+                LocalDate.now().minusMonths(9),
+                "قەڵا", "Kela", "مێژوو", "Dîrok");
+
+        Video v5 = filmVideo(IMG_FOLK_DANCE, IMG_TRADITIONAL,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی فۆلکلۆری کوردی",
+                """
+                    <p>بەڵگەنامەیەک لەسەر سەما و جلوبەرگ و دابونەریتە کوردیەکان.</p>
+                    <img src=\"%s\"><video controls src=\"%s\"></video>
+                    """.formatted(IMG_FOLK_DANCE, VID_TEARS),
+                "Belgefîlma folklora kurdî",
+                """
+                    <p>Belgefîlmek li ser govend, kinc û edet û toreyên kurdî.</p>
+                    <img src=\"%s\"><video controls src=\"%s\"></video>
+                    """.formatted(IMG_FOLK_DANCE, VID_TEARS),
+                "دهۆک", "Duhok", "شیلان عومەر", "Şîlan Omer",
+                VID_TEARS, 3300, "1920x1080", 740.0,
+                LocalDate.now().minusMonths(11),
+                "فۆلکلۆر", "Folklor", "کلتوور", "Çand");
+
+        Video v6 = filmVideo(IMG_INTERVIEW, IMG_PRESENTER,
+                findTopic("VIDEO", "چاوپێکەوتن"),
+                "چاوپێکەوتن لەگەڵ هونەرمەندی گەلی",
+                "<p>چاوپێکەوتنێک لەگەڵ یەکێک لە هونەرمەندە گەلیە ناودارەکان.</p><video controls src=\"%s\"></video>".formatted(VID_FOR_BIGGER),
+                "Hevpeyvîn bi hunermendê gelî re",
+                "<p>Hevpeyvînek bi yek ji hunermendên gelî yên navdar re.</p><video controls src=\"%s\"></video>".formatted(VID_FOR_BIGGER),
+                "سلێمانی", "Silêmanî", "کارزان سەعید", "Karzan Seîd",
+                VID_FOR_BIGGER, 1800, "1280x720", 210.0,
+                LocalDate.now().minusMonths(3),
+                "چاوپێکەوتن", "Hevpeyvîn", "هونەرمەند", "Hunermend");
+
+        Video v7 = filmVideo(IMG_OPEN_BOOK, IMG_BOOKS_SHELF,
+                findTopic("VIDEO", "فیلمی ئەدەبی"),
+                "فیلمێکی کورت لەسەر ئەدەبی کوردی",
+                "<p>فیلمێکی کورتی ئەدەبی لەسەر ژیانی نووسەرێکی کورد.</p><video controls src=\"%s\"></video>".formatted(VID_SINTEL),
+                "Fîlmek kurt li ser edebiyata kurdî",
+                "<p>Fîlmeke kurt a edebî li ser jiyana nivîskarekî kurd.</p><video controls src=\"%s\"></video>".formatted(VID_SINTEL),
+                "هەولێر", "Hewlêr", "هانا ڕەسوڵ", "Hana Resûl",
+                VID_SINTEL, 1500, "1920x1080", 320.0,
+                LocalDate.now().minusMonths(4),
+                "ئەدەب", "Edebiyat", "فیلم", "Fîlm");
+
+        // ─── v8 — VIDEO_CLIP album with clips ───────────────────────────────
+        Video v8 = Video.builder()
+                .ckbCoverUrl(IMG_CONCERT)
+                .kmrCoverUrl(IMG_CONCERT)
+                .videoType(VideoType.VIDEO_CLIP)
+                .albumOfMemories(true)
+                .topic(findTopic("VIDEO", "کلیپی مۆسیقا"))
+                .ckbContent(VideoContent.builder()
+                        .title("کۆکراوەی کلیپی مۆسیقای هاوچەرخ")
+                        .description("<p>کۆکراوەیەک لە کلیپە مۆسیقیە هاوچەرخەکانی کوردی.</p><img src=\"%s\">".formatted(IMG_CONCERT))
+                        .location("Multiple")
+                        .director("دیار سابیر")
+                        .producer("KHI")
+                        .build())
+                .kmrContent(VideoContent.builder()
+                        .title("Berhevoka klîpên muzîka hevçerx")
+                        .description("<p>Berhevokek ji klîpên muzîka hevçerx ên kurdî.</p><img src=\"%s\">".formatted(IMG_CONCERT))
+                        .location("Cuda")
+                        .director("Diyar Sabir")
+                        .producer("KHI")
+                        .build())
+                .publishmentDate(LocalDate.now().minusMonths(1))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of("کلیپ", "هاوچەرخ")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Klîp", "Hevçerx")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("مۆسیقا")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Muzîk")))
+                .build();
+        v8.addClipItem(VideoClipItem.builder()
+                .url(VID_BIG_BUCK_BUNNY).clipNumber(1).durationSeconds(200)
+                .resolution("1920x1080").fileFormat("MP4").fileSizeMb(20.0)
+                .titleCkb("کلیپی یەکەم").titleKmr("Klîpa yekem")
+                .descriptionCkb("<p>کلیپی یەکەم.</p>").descriptionKmr("<p>Klîpa yekem.</p>")
+                .build());
+        v8.addClipItem(VideoClipItem.builder()
+                .url(VID_FOR_BIGGER).clipNumber(2).durationSeconds(165)
+                .resolution("1280x720").fileFormat("MP4").fileSizeMb(14.0)
+                .titleCkb("کلیپی دووەم").titleKmr("Klîpa duyem")
+                .descriptionCkb("<p>کلیپی دووەم.</p>").descriptionKmr("<p>Klîpa duyem.</p>")
+                .build());
+
+        Video v9 = filmVideo(IMG_AUDIO_STUDIO, IMG_STAGE,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی مۆسیقای کوردی",
+                "<p>بەڵگەنامەیەک لەسەر مێژووی مۆسیقای کوردی و ئامێرە مۆسیقیە کۆنەکان.</p><video controls src=\"%s\"></video>".formatted(VID_BIG_BUCK_BUNNY),
+                "Belgefîlma muzîka kurdî",
+                "<p>Belgefîlmek li ser dîroka muzîka kurdî û amûrên muzîkê yên kevn.</p><video controls src=\"%s\"></video>".formatted(VID_BIG_BUCK_BUNNY),
+                "سلێمانی", "Silêmanî", "ئاسۆ مەجید", "Aso Mecîd",
+                VID_BIG_BUCK_BUNNY, 2400, "1920x1080", 560.0,
+                LocalDate.now().minusMonths(8),
+                "مۆسیقا", "Muzîk", "مێژوو", "Dîrok");
+
+        Video v10 = filmVideo(IMG_MOUNTAINS_KRD, IMG_ERBIL_CITADEL,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی سروشتی کوردستان",
+                """
+                    <p>بەڵگەنامەیەک لەسەر جوانی سروشتی کوردستان، چیاکان و دۆڵەکان و ڕووبارەکان.</p>
+                    <img src=\"%s\"><video controls src=\"%s\"></video>
+                    """.formatted(IMG_MOUNTAINS_KRD, VID_TEARS),
+                "Belgefîlma xwezaya Kurdistanê",
+                """
+                    <p>Belgefîlmek li ser bedewiya xwezaya Kurdistanê, çiya û newal û çeman.</p>
+                    <img src=\"%s\"><video controls src=\"%s\"></video>
+                    """.formatted(IMG_MOUNTAINS_KRD, VID_TEARS),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ژیار نەوزاد", "Jiyar Newzad",
+                VID_TEARS, 3000, "3840x2160", 1800.0,
+                LocalDate.now().minusMonths(2),
+                "سروشت", "Xweza", "چیا", "Çiya");
+
+        videoRepository.saveAll(List.of(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10));
+        log.info("[seed:Video] inserted 10 rows (FILM + VIDEO_CLIP mix)");
+    }
+
+    /** Helper for single-source FILM videos (no clip items). */
+    private Video filmVideo(String ckbCover, String hoverCover, PublishmentTopic topic,
+                            String titleCkb, String descCkb,
+                            String titleKmr, String descKmr,
+                            String locCkb, String locKmr, String directorCkb, String directorKmr,
+                            String sourceUrl, int durationSec, String resolution, double sizeMb,
+                            LocalDate published,
+                            String tagCkb, String tagKmr, String kwCkb, String kwKmr) {
+        return Video.builder()
+                .ckbCoverUrl(ckbCover)
+                .kmrCoverUrl(ckbCover)
+                .hoverCoverUrl(hoverCover)
+                .videoType(VideoType.FILM)
+                .albumOfMemories(false)
+                .topic(topic)
+                .ckbContent(VideoContent.builder()
+                        .title(titleCkb).description(descCkb)
+                        .location(locCkb).director(directorCkb).producer("دامەزراوەی KHI").build())
+                .kmrContent(VideoContent.builder()
+                        .title(titleKmr).description(descKmr)
+                        .location(locKmr).director(directorKmr).producer("Saziya KHI").build())
+                .sourceUrl(sourceUrl)
+                .fileFormat("MP4")
+                .durationSeconds(durationSec)
+                .publishmentDate(published)
+                .resolution(resolution)
+                .fileSizeMb(sizeMb)
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagCkb)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagKmr)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwCkb)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwKmr)))
+                .build();
     }
 
     // =========================================================================
-    // 9) IMAGE COLLECTION
+    // 9) IMAGE COLLECTION  — 10 collections
     // =========================================================================
 
     @Transactional
@@ -1452,140 +2156,245 @@ public class MockDataSeeder implements CommandLineRunner {
             return;
         }
 
+        // ─── ic1 — GALLERY (historical) ─────────────────────────────────────
         ImageCollection ic1 = ImageCollection.builder()
                 .collectionType(ImageCollectionType.GALLERY)
                 .ckbCoverUrl(IMG_ERBIL_CITADEL)
                 .kmrCoverUrl(IMG_ERBIL_CITADEL)
-                .hoverCoverUrl(IMG_MOUNTAINS_KRD)
+                .hoverCoverUrl(IMG_OLD_DOCUMENT)
                 .topic(findTopic("IMAGE", "گەلەری مێژوویی"))
                 .ckbContent(ImageContent.builder()
-                        .title("گەلەری وێنەی قەڵای هەولێر")
+                        .title("گەلەری وێنە مێژووییەکانی هەولێر")
                         .description("""
                             <h2>وێنە کۆنەکان</h2>
-                            <p>کۆکراوەیەکی تایبەت لە وێنەی کۆنی قەڵای هەولێر، یەکێک لە کۆنترین شارە دانیشتراوەکانی جیهان.</p>
-                            <img src=\"%s\" alt=\"قەڵا\">
-                            <p>وێنەکان لە ساڵانی ١٩٠٠ - ١٩٥٠ گیراون.</p>
+                            <p>کۆکراوەیەک لە وێنە مێژووییەکانی شاری هەولێر لە سەردەمی ١٩٢٠ - ١٩٦٠.</p>
+                            <img src=\"%s\" alt=\"هەولێری کۆن\">
                             """.formatted(IMG_ERBIL_CITADEL))
-                        .location("هەولێر، هەرێمی کوردستان")
-                        .collectedBy("ئەرشیفی KHI")
+                        .location("هەولێر")
+                        .collectedBy("ئەرشیفی نەتەوەیی")
                         .build())
                 .kmrContent(ImageContent.builder()
-                        .title("Galeriya wêneyên Kelaya Hewlêrê")
+                        .title("Galeriya wêneyên dîrokî yên Hewlêrê")
                         .description("""
                             <h2>Wêneyên kevn</h2>
-                            <p>Berhevokeke taybet ji wêneyên kevn ên Kelaya Hewlêrê, yek ji kevintirîn bajarên niştecîh ên cîhanê.</p>
-                            <img src=\"%s\" alt=\"Kela\">
-                            <p>Wêne di salên 1900-1950an de hatine girtin.</p>
+                            <p>Berhevokek ji wêneyên dîrokî yên bajarê Hewlêrê ji serdema 1920-1960.</p>
+                            <img src=\"%s\" alt=\"Hewlêra kevn\">
                             """.formatted(IMG_ERBIL_CITADEL))
-                        .location("Hewlêr, Herêma Kurdistanê")
-                        .collectedBy("Arşîva KHI")
+                        .location("Hewlêr")
+                        .collectedBy("Arşîva neteweyî")
                         .build())
-                .publishmentDate(LocalDate.now().minusMonths(3))
+                .publishmentDate(LocalDate.now().minusMonths(5))
                 .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
-                .tagsCkb(new LinkedHashSet<>(Set.of("قەڵا", "مێژوو", "هەولێر")))
-                .tagsKmr(new LinkedHashSet<>(Set.of("Kela", "Dîrok", "Hewlêr")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("مێژوو", "هەولێر")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Dîrok", "Hewlêr")))
                 .keywordsCkb(new LinkedHashSet<>(Set.of("کۆن", "ئەرشیف")))
                 .keywordsKmr(new LinkedHashSet<>(Set.of("Kevn", "Arşîv")))
                 .build();
+        addAlbumItem(ic1, IMG_ERBIL_CITADEL, "قەڵای هەولێر ١٩٣٠", "Kelaya Hewlêrê 1930", 0);
+        addAlbumItem(ic1, IMG_OLD_DOCUMENT, "دۆکیومێنتی کۆن", "Belgenameya kevn", 1);
+        addAlbumItem(ic1, IMG_ARCHIVE, "ئەرشیفی شار", "Arşîva bajêr", 2);
 
-        addAlbumItem(ic1, IMG_ERBIL_CITADEL, "قەڵای هەولێر لە دوورەوە", "Kelaya Hewlêrê ji dûr ve", 0);
-        addAlbumItem(ic1, IMG_OLD_DOCUMENT, "دۆکیومێنتی کۆن لە ناو قەڵا", "Belgenameyên kevn di nava kelayê de", 1);
-        addAlbumItem(ic1, IMG_BUILDING, "بینایەکی کۆن", "Avahiyek kevn", 2);
-        addAlbumItem(ic1, IMG_TRADITIONAL, "ژینگەی تەقلیدی", "Hawîrdora kevneşopî", 3);
-
+        // ─── ic2 — PHOTO_STORY (folklore) ───────────────────────────────────
         ImageCollection ic2 = ImageCollection.builder()
-                .collectionType(ImageCollectionType.SINGLE)
-                .ckbCoverUrl(IMG_CALLIGRAPHY)
-                .kmrCoverUrl(IMG_CALLIGRAPHY)
+                .collectionType(ImageCollectionType.PHOTO_STORY)
+                .ckbCoverUrl(IMG_FOLK_DANCE)
+                .kmrCoverUrl(IMG_FOLK_DANCE)
+                .hoverCoverUrl(IMG_TRADITIONAL)
                 .topic(findTopic("IMAGE", "وێنەی فۆلکلۆری"))
                 .ckbContent(ImageContent.builder()
-                        .title("نموونەی خوسنۆڤی کوردی")
-                        .description("<p>نموونەیەک لە خوسنۆڤی کلاسیکی کوردی.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY))
-                        .location("سلێمانی")
-                        .collectedBy("ئاکار شالی")
+                        .title("چیرۆکی وێنەیی - جلوبەرگی نەتەوەیی کوردی")
+                        .description("""
+                            <p>چیرۆکێکی وێنەیی لەسەر جۆراوجۆری جلوبەرگی نەتەوەیی کوردی لە ناوچە جیاوازەکان.</p>
+                            <img src=\"%s\" alt=\"جلوبەرگ\">
+                            """.formatted(IMG_TRADITIONAL))
+                        .location("هەرێمی کوردستان")
+                        .collectedBy("تیمی فۆلکلۆر")
                         .build())
                 .kmrContent(ImageContent.builder()
-                        .title("Nimûneyek xetatiya kurdî")
-                        .description("<p>Nimûneyek ji xetatiya klasîk a kurdî.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY))
-                        .location("Silêmanî")
-                        .collectedBy("Akar Şalî")
+                        .title("Çîroka wêneyî - Kincê neteweyî yê kurdî")
+                        .description("""
+                            <p>Çîrokeke wêneyî li ser cûrbecûriya kincê neteweyî yê kurdî li herêmên cuda.</p>
+                            <img src=\"%s\" alt=\"Kinc\">
+                            """.formatted(IMG_TRADITIONAL))
+                        .location("Herêma Kurdistanê")
+                        .collectedBy("Tîma folklorê")
                         .build())
-                .publishmentDate(LocalDate.now().minusMonths(1))
+                .publishmentDate(LocalDate.now().minusMonths(3))
                 .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
-                .tagsCkb(new LinkedHashSet<>(Set.of("خوسنۆڤی")))
-                .tagsKmr(new LinkedHashSet<>(Set.of("Xetatî")))
-                .keywordsCkb(new LinkedHashSet<>(Set.of("هونەر")))
-                .keywordsKmr(new LinkedHashSet<>(Set.of("Huner")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("فۆلکلۆر", "جلوبەرگ")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Folklor", "Kinc")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("نەتەوەیی", "کلتوور")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Neteweyî", "Çand")))
                 .build();
-        addAlbumItem(ic2, IMG_CALLIGRAPHY, "خوسنۆڤی", "Xetatî", 0);
+        addAlbumItem(ic2, IMG_TRADITIONAL, "جلوبەرگی بادینی", "Kincê behdînî", 0);
+        addAlbumItem(ic2, IMG_FOLK_DANCE, "جلوبەرگی سۆرانی", "Kincê soranî", 1);
 
+        // ─── ic3 — SINGLE ───────────────────────────────────────────────────
         ImageCollection ic3 = ImageCollection.builder()
-                .collectionType(ImageCollectionType.PHOTO_STORY)
-                .ckbCoverUrl(IMG_TRADITIONAL)
-                .kmrCoverUrl(IMG_TRADITIONAL)
-                .topic(findTopic("IMAGE", "ژیانی ڕۆژانە"))
+                .collectionType(ImageCollectionType.SINGLE)
+                .ckbCoverUrl(IMG_MOUNTAINS_KRD)
+                .topic(findTopic("IMAGE", "سروشتی کوردستان"))
                 .ckbContent(ImageContent.builder()
-                        .title("چیرۆکی وێنە: درووستکردنی فرشی کوردی")
-                        .description("""
-                            <h2>چیرۆکی پیشە</h2>
-                            <p>وێنە بە وێنە چۆن فرشی کوردی درووست دەکرێت، لە دەستپێکی کارەکەوە تا کۆتایی.</p>
-                            <img src=\"%s\">
-                            """.formatted(IMG_TRADITIONAL))
-                        .location("شاری هەڵەبجە")
-                        .collectedBy("KHI Field Team")
+                        .title("وێنەیەک لە چیاکانی کوردستان")
+                        .description("<p>وێنەیەکی تاک لە جوانی چیاکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD))
+                        .location("کوردستان")
+                        .collectedBy("KHI")
                         .build())
-                .kmrContent(ImageContent.builder()
-                        .title("Çîroka wêneyan: Çêkirina farşê kurdî")
-                        .description("""
-                            <h2>Çîroka pîşeyê</h2>
-                            <p>Wêne bi wêne çawa farşê kurdî tê çêkirin, ji destpêka kar heta dawiyê.</p>
-                            <img src=\"%s\">
-                            """.formatted(IMG_TRADITIONAL))
-                        .location("Bajarê Helebceyê")
-                        .collectedBy("Tîma KHI ya Berbihê")
-                        .build())
-                .publishmentDate(LocalDate.now().minusWeeks(2))
-                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
-                .tagsCkb(new LinkedHashSet<>(Set.of("فرش", "پیشە")))
-                .tagsKmr(new LinkedHashSet<>(Set.of("Farş", "Pîşe")))
-                .keywordsCkb(new LinkedHashSet<>(Set.of("فۆلکلۆر", "دەستکردن")))
-                .keywordsKmr(new LinkedHashSet<>(Set.of("Folklor", "Destçêk")))
+                .kmrContent(ImageContent.builder().title("").description("").build())
+                .publishmentDate(LocalDate.now().minusMonths(1))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB)))
+                .tagsCkb(new LinkedHashSet<>(Set.of("سروشت")))
+                .keywordsCkb(new LinkedHashSet<>(Set.of("چیا")))
                 .build();
+        addAlbumItem(ic3, IMG_MOUNTAINS_KRD, "چیاکانی کوردستان", null, 0);
 
-        for (int i = 0; i < 5; i++) {
-            String img = switch (i) {
-                case 0 -> IMG_TRADITIONAL;
-                case 1 -> IMG_FOLK_DANCE;
-                case 2 -> IMG_BUILDING;
-                case 3 -> IMG_ARCHIVE;
-                default -> IMG_OPEN_BOOK;
-            };
-            addAlbumItem(ic3, img, "هەنگاو " + (i + 1), "Gav " + (i + 1), i);
-        }
+        // ─── ic4 — GALLERY (daily life) ─────────────────────────────────────
+        ImageCollection ic4 = gallery(ImageCollectionType.GALLERY,
+                IMG_TRADITIONAL, IMG_FOLK_DANCE,
+                findTopic("IMAGE", "ژیانی ڕۆژانە"),
+                "ژیانی ڕۆژانە لە گوندەکانی کوردستان",
+                "<p>کۆکراوەیەک لە وێنەی ژیانی ڕۆژانە لە گوندە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "Jiyana rojane li gundên Kurdistanê",
+                "<p>Berhevokek ji wêneyên jiyana rojane li gundên kurdî.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "گوندەکانی کوردستان", "Gundên Kurdistanê", "تیمی وێنەگری", "Tîma wênegiriyê",
+                LocalDate.now().minusMonths(6), "ژیان", "Jiyan", "گوند", "Gund");
+        addAlbumItem(ic4, IMG_TRADITIONAL, "گوندێکی کوردی", "Gundekî kurdî", 0);
+        addAlbumItem(ic4, IMG_MOUNTAINS_KRD, "کشتوکاڵ لە چیا", "Cotkarî li çiya", 1);
+        addAlbumItem(ic4, IMG_FOLK_DANCE, "ئاهەنگی گوند", "Şahiya gund", 2);
 
-        imageCollectionRepository.saveAll(List.of(ic1, ic2, ic3));
-        log.info("[seed:ImageCollection] inserted 3 rows (1 GALLERY+4, 1 SINGLE+1, 1 PHOTO_STORY+5)");
+        // ─── ic5 — GALLERY (nature) ─────────────────────────────────────────
+        ImageCollection ic5 = gallery(ImageCollectionType.GALLERY,
+                IMG_MOUNTAINS_KRD, IMG_ERBIL_CITADEL,
+                findTopic("IMAGE", "سروشتی کوردستان"),
+                "گەلەری سروشتی کوردستان",
+                "<p>وێنەی جوانی سروشتی کوردستان لە وەرزە جیاوازەکان.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "Galeriya xwezaya Kurdistanê",
+                "<p>Wêneyên bedewiya xwezaya Kurdistanê di demsalên cuda de.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ئاکۆ ڕەشید", "Ako Reşîd",
+                LocalDate.now().minusMonths(4), "سروشت", "Xweza", "چیا", "Çiya");
+        addAlbumItem(ic5, IMG_MOUNTAINS_KRD, "چیای زۆزان", "Çiyayê zozan", 0);
+        addAlbumItem(ic5, IMG_ERBIL_CITADEL, "دیمەنی شار", "Dîmena bajêr", 1);
+
+        // ─── ic6 — PHOTO_STORY (history) ────────────────────────────────────
+        ImageCollection ic6 = gallery(ImageCollectionType.PHOTO_STORY,
+                IMG_OLD_DOCUMENT, IMG_ARCHIVE,
+                findTopic("IMAGE", "گەلەری مێژوویی"),
+                "چیرۆکی وێنەیی - دۆکیومێنتە مێژووییەکان",
+                "<p>چیرۆکێکی وێنەیی لەسەر دۆکیومێنتە مێژووییە کۆنەکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "Çîroka wêneyî - Belgenameyên dîrokî",
+                "<p>Çîrokeke wêneyî li ser belgenameyên dîrokî yên kevn ên Kurdistanê.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "هەولێر", "Hewlêr", "ئەرشیفی نەتەوەیی", "Arşîva neteweyî",
+                LocalDate.now().minusMonths(7), "مێژوو", "Dîrok", "دۆکیومێنت", "Belge");
+        addAlbumItem(ic6, IMG_OLD_DOCUMENT, "دۆکیومێنتی عوسمانی", "Belgeya osmanî", 0);
+        addAlbumItem(ic6, IMG_ARCHIVE, "ئەرشیفی کۆن", "Arşîva kevn", 1);
+        addAlbumItem(ic6, IMG_CALLIGRAPHY, "خوسنۆڤی کۆن", "Xetatiya kevn", 2);
+
+        // ─── ic7 — GALLERY (folklore) ───────────────────────────────────────
+        ImageCollection ic7 = gallery(ImageCollectionType.GALLERY,
+                IMG_FOLK_DANCE, IMG_CONCERT,
+                findTopic("IMAGE", "وێنەی فۆلکلۆری"),
+                "گەلەری سەماکانی کوردی",
+                "<p>کۆکراوەیەک لە وێنەی سەما و هەڵپەڕکێ کوردیەکان.</p><img src=\"%s\">".formatted(IMG_FOLK_DANCE),
+                "Galeriya govendên kurdî",
+                "<p>Berhevokek ji wêneyên govend û dîlanên kurdî.</p><img src=\"%s\">".formatted(IMG_FOLK_DANCE),
+                "دهۆک", "Duhok", "تیمی فۆلکلۆر", "Tîma folklorê",
+                LocalDate.now().minusMonths(2), "سەما", "Govend", "فۆلکلۆر", "Folklor");
+        addAlbumItem(ic7, IMG_FOLK_DANCE, "هەڵپەڕکێ", "Govend", 0);
+        addAlbumItem(ic7, IMG_TRADITIONAL, "جلوبەرگی سەما", "Kincê govendê", 1);
+
+        // ─── ic8 — SINGLE ───────────────────────────────────────────────────
+        ImageCollection ic8 = gallery(ImageCollectionType.SINGLE,
+                IMG_CALLIGRAPHY, IMG_OPEN_BOOK,
+                findTopic("IMAGE", "گەلەری مێژوویی"),
+                "نموونەیەک لە خوسنۆڤی کوردی",
+                "<p>وێنەیەکی تاک لە هونەری خوسنۆڤی کوردی.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY),
+                "Nimûneyek ji xetatiya kurdî",
+                "<p>Wêneyek tek ji hunera xetatiya kurdî.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY),
+                "سلێمانی", "Silêmanî", "KHI", "KHI",
+                LocalDate.now().minusMonths(1), "خوسنۆڤی", "Xetatî", "هونەر", "Huner");
+        addAlbumItem(ic8, IMG_CALLIGRAPHY, "خوسنۆڤی کوردی", "Xetatiya kurdî", 0);
+
+        // ─── ic9 — GALLERY (daily life) ─────────────────────────────────────
+        ImageCollection ic9 = gallery(ImageCollectionType.GALLERY,
+                IMG_LIBRARY, IMG_BOOKS_SHELF,
+                findTopic("IMAGE", "ژیانی ڕۆژانە"),
+                "گەلەری کتێبخانە و خوێندنگەکان",
+                "<p>وێنەی کتێبخانە و ناوەندە فێرکارییەکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Galeriya pirtûkxane û dibistanan",
+                "<p>Wêneyên pirtûkxane û navendên fêrkariyê yên Kurdistanê.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "هەولێر", "Hewlêr", "تیمی KHI", "Tîma KHI",
+                LocalDate.now().minusMonths(3), "کتێبخانە", "Pirtûkxane", "خوێندن", "Xwendin");
+        addAlbumItem(ic9, IMG_LIBRARY, "کتێبخانەی نەتەوەیی", "Pirtûkxaneya neteweyî", 0);
+        addAlbumItem(ic9, IMG_BOOKS_SHELF, "ڕەفی کتێبەکان", "Refê pirtûkan", 1);
+        addAlbumItem(ic9, IMG_OPEN_BOOK, "کتێبێکی کراوە", "Pirtûkeke vekirî", 2);
+
+        // ─── ic10 — PHOTO_STORY (nature) ────────────────────────────────────
+        ImageCollection ic10 = gallery(ImageCollectionType.PHOTO_STORY,
+                IMG_MOUNTAINS_KRD, IMG_TRADITIONAL,
+                findTopic("IMAGE", "سروشتی کوردستان"),
+                "چیرۆکی وێنەیی - وەرزەکانی کوردستان",
+                "<p>چیرۆکێکی وێنەیی لەسەر گۆڕانی وەرزەکان لە کوردستان.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "Çîroka wêneyî - Demsalên Kurdistanê",
+                "<p>Çîrokeke wêneyî li ser guherîna demsalan li Kurdistanê.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ئاکۆ ڕەشید", "Ako Reşîd",
+                LocalDate.now().minusMonths(5), "وەرز", "Demsal", "سروشت", "Xweza");
+        addAlbumItem(ic10, IMG_MOUNTAINS_KRD, "بەهاری کوردستان", "Bihara Kurdistanê", 0);
+        addAlbumItem(ic10, IMG_ERBIL_CITADEL, "زستانی شار", "Zivistana bajêr", 1);
+
+        imageCollectionRepository.saveAll(List.of(ic1, ic2, ic3, ic4, ic5, ic6, ic7, ic8, ic9, ic10));
+        log.info("[seed:ImageCollection] inserted 10 rows (GALLERY / PHOTO_STORY / SINGLE)");
     }
 
-    private void addAlbumItem(ImageCollection col, String imageUrl, String captionCkb, String captionKmr, int sortOrder) {
+    /** Adds one image item to a collection's album, mirroring CKB/KMR captions. */
+    private void addAlbumItem(ImageCollection collection, String imageUrl,
+                              String captionCkb, String captionKmr, int sortOrder) {
         ImageAlbumItem item = ImageAlbumItem.builder()
                 .imageUrl(imageUrl)
                 .captionCkb(captionCkb)
                 .captionKmr(captionKmr)
-                .descriptionCkb("<p>" + captionCkb + " — وردەکاری زیاتر.</p>")
-                .descriptionKmr("<p>" + captionKmr + " — hûrgilî zêdetir.</p>")
+                .descriptionCkb(captionCkb)
+                .descriptionKmr(captionKmr)
                 .sortOrder(sortOrder)
-                .fileSizeBytes(450_000L)
+                .fileSizeBytes(2_400_000L)
                 .widthPx(1600)
                 .heightPx(1067)
                 .mimeType("image/jpeg")
-                .imageCollection(col)
+                .imageCollection(collection)
                 .build();
-        col.getImageAlbum().add(item);
+        collection.getImageAlbum().add(item);
+    }
+
+    /** Builder helper for image collections (album items added separately). */
+    private ImageCollection gallery(ImageCollectionType type, String ckbCover, String hoverCover,
+                                    PublishmentTopic topic,
+                                    String titleCkb, String descCkb,
+                                    String titleKmr, String descKmr,
+                                    String locCkb, String locKmr, String collectedByCkb, String collectedByKmr,
+                                    LocalDate published,
+                                    String tagCkb, String tagKmr, String kwCkb, String kwKmr) {
+        return ImageCollection.builder()
+                .collectionType(type)
+                .ckbCoverUrl(ckbCover)
+                .kmrCoverUrl(ckbCover)
+                .hoverCoverUrl(hoverCover)
+                .topic(topic)
+                .ckbContent(ImageContent.builder()
+                        .title(titleCkb).description(descCkb)
+                        .location(locCkb).collectedBy(collectedByCkb).build())
+                .kmrContent(ImageContent.builder()
+                        .title(titleKmr).description(descKmr)
+                        .location(locKmr).collectedBy(collectedByKmr).build())
+                .publishmentDate(published)
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagCkb)))
+                .tagsKmr(new LinkedHashSet<>(Set.of(tagKmr)))
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwCkb)))
+                .keywordsKmr(new LinkedHashSet<>(Set.of(kwKmr)))
+                .build();
     }
 
     // =========================================================================
-    // 10) WRITING
+    // 10) WRITING  — 10 writings
     // =========================================================================
 
     @Transactional
@@ -1595,166 +2404,254 @@ public class MockDataSeeder implements CommandLineRunner {
             return;
         }
 
+        String seriesId = UUID.randomUUID().toString();
+
         Writing w1 = Writing.builder()
                 .ckbCoverUrl(IMG_BOOKS_SHELF)
                 .kmrCoverUrl(IMG_BOOKS_SHELF)
                 .hoverCoverUrl(IMG_OPEN_BOOK)
                 .topic(findTopic("WRITING", "شیعر و ئەدەب"))
-                .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.POETRY, BookGenre.CULTURAL)))
+                .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.POETRY)))
                 .publishedByInstitute(true)
                 .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
                 .ckbContent(WritingContent.builder()
-                        .title("دیوانی شیعری شێرکۆ بێکەس")
+                        .title("دیوانی شیعری کوردی - بەرگی یەکەم")
                         .description("""
-                            <h2>دیوانی شیعر</h2>
-                            <p>دیوانی تەواوی شیعرەکانی شاعیر شێرکۆ بێکەس ، یەکێک لە گەورەترین شاعیرانی کورد لە سەدەی ٢١.</p>
+                            <h2>کۆکراوەی شیعر</h2>
+                            <p>بەرگی یەکەمی دیوانێکی شیعری کوردی کە کۆمەڵێک لە باشترین شیعرەکانی شاعیرانی کلاسیکی کورد لەخۆ دەگرێت.</p>
                             <img src=\"%s\" alt=\"دیوان\">
-                            <p>کتێبەکە زیاتر لە ٢٠٠ شیعری هەڵبژێراو لەخۆ دەگرێت لە ساڵانی ١٩٧٠ - ٢٠١٣.</p>
-                            <a href=\"%s\">نموونەیەک لە کتێبەکە</a>
-                            """.formatted(IMG_BOOKS_SHELF, PDF_DUMMY))
-                        .writer("شێرکۆ بێکەس")
+                            <p>ئەم بەرگە تایبەتە بە شاعیرانی سەدەی ١٩.</p>
+                            """.formatted(IMG_BOOKS_SHELF))
+                        .writer("ئامادەکردنی: تیمی ئەدەبی KHI")
                         .fileUrl(PDF_DUMMY)
                         .fileFormat(WritingFileFormat.PDF)
-                        .fileSizeBytes(15_000_000L)
-                        .pageCount(450)
-                        .genre("شیعر")
+                        .fileSizeBytes(3_500_000L)
+                        .pageCount(280)
+                        .genre("شیعری کلاسیک")
                         .build())
                 .kmrContent(WritingContent.builder()
-                        .title("Dîwana helbestên Şêrko Bêkes")
+                        .title("Dîwana helbesta kurdî - Bergê yekem")
                         .description("""
-                            <h2>Dîwana helbestê</h2>
-                            <p>Dîwana tam a helbestên helbestvan Şêrko Bêkes, yek ji helbestvanên herî mezin ên kurd ên sedsala 21ê.</p>
+                            <h2>Berhevoka helbestê</h2>
+                            <p>Bergê yekem ê dîwaneke helbesta kurdî ku komek ji baştirîn helbestên helbestvanên klasîk ên kurd dihewîne.</p>
                             <img src=\"%s\" alt=\"Dîwan\">
-                            <p>Pirtûk zêdetirî 200 helbestên hilbijartî dihewîne ji salên 1970 heta 2013.</p>
-                            <a href=\"%s\">Nimûneyek ji pirtûkê</a>
-                            """.formatted(IMG_BOOKS_SHELF, PDF_DUMMY))
-                        .writer("Şêrko Bêkes")
+                            <p>Ev berg taybet e bi helbestvanên sedsala 19an.</p>
+                            """.formatted(IMG_BOOKS_SHELF))
+                        .writer("Amadekirin: Tîma edebî ya KHI")
                         .fileUrl(PDF_DUMMY)
                         .fileFormat(WritingFileFormat.PDF)
-                        .fileSizeBytes(15_500_000L)
-                        .pageCount(465)
-                        .genre("Helbest")
+                        .fileSizeBytes(3_500_000L)
+                        .pageCount(280)
+                        .genre("Helbesta klasîk")
                         .build())
-                .keywordsCkb(new LinkedHashSet<>(Set.of("شێرکۆ", "شیعر", "کلاسیک")))
-                .keywordsKmr(new LinkedHashSet<>(Set.of("Şêrko", "Helbest", "Klasîk")))
-                .tagsCkb(new LinkedHashSet<>(Set.of("ئەدەب", "نوێ")))
-                .tagsKmr(new LinkedHashSet<>(Set.of("Edebiyat", "Nû")))
-                .seriesId("series-sherko-001")
-                .seriesName("کۆکراوەی شێرکۆ")
+                .keywordsCkb(new LinkedHashSet<>(Set.of("شیعر", "کلاسیک")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Helbest", "Klasîk")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("دیوان", "ئەدەب")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Dîwan", "Edebiyat")))
+                .seriesId(seriesId)
+                .seriesName("دیوانی شیعری کوردی")
                 .seriesOrder(1.0)
                 .seriesTotalBooks(3)
                 .build();
 
         Writing w2 = Writing.builder()
-                .ckbCoverUrl(IMG_NEWSPAPER)
-                .kmrCoverUrl(IMG_NEWSPAPER)
-                .topic(findTopic("WRITING", "مێژووی کورد"))
-                .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.HISTORY, BookGenre.EDUCATIONAL)))
+                .ckbCoverUrl(IMG_OPEN_BOOK)
+                .kmrCoverUrl(IMG_OPEN_BOOK)
+                .topic(findTopic("WRITING", "شیعر و ئەدەب"))
+                .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.POETRY)))
                 .publishedByInstitute(true)
                 .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
                 .ckbContent(WritingContent.builder()
-                        .title("مێژووی نوێی کوردستان ١٩٠٠ - ٢٠٠٠")
-                        .description("""
-                            <p>کتێبێکی ئەکادیمی فراوان لەسەر مێژووی نوێی کوردستان ، نووسراوی پروفیسۆر ئەحمەد فاروقی.</p>
-                            <img src=\"%s\">
-                            <a href=\"%s\">کتێبی تەواو</a>
-                            """.formatted(IMG_NEWSPAPER, PDF_DUMMY))
-                        .writer("پروفیسۆر ئەحمەد فاروقی")
+                        .title("دیوانی شیعری کوردی - بەرگی دووەم")
+                        .description("<p>بەرگی دووەمی دیوانەکە، تایبەت بە شاعیرانی سەدەی ٢٠.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK))
+                        .writer("ئامادەکردنی: تیمی ئەدەبی KHI")
                         .fileUrl(PDF_DUMMY)
                         .fileFormat(WritingFileFormat.PDF)
-                        .fileSizeBytes(28_000_000L)
-                        .pageCount(820)
-                        .genre("مێژوو")
+                        .fileSizeBytes(3_800_000L)
+                        .pageCount(310)
+                        .genre("شیعری هاوچەرخ")
                         .build())
                 .kmrContent(WritingContent.builder()
-                        .title("Dîroka nû ya Kurdistanê 1900-2000")
-                        .description("""
-                            <p>Pirtûkeke akademîk a berfireh li ser dîroka nû ya Kurdistanê, ji aliyê profesor Ehmed Farûqî ve hatiye nivîsîn.</p>
-                            <img src=\"%s\">
-                            <a href=\"%s\">Pirtûka tam</a>
-                            """.formatted(IMG_NEWSPAPER, PDF_DUMMY))
-                        .writer("Profesor Ehmed Farûqî")
+                        .title("Dîwana helbesta kurdî - Bergê duyem")
+                        .description("<p>Bergê duyem ê dîwanê, taybet bi helbestvanên sedsala 20an.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK))
+                        .writer("Amadekirin: Tîma edebî ya KHI")
                         .fileUrl(PDF_DUMMY)
                         .fileFormat(WritingFileFormat.PDF)
-                        .fileSizeBytes(29_000_000L)
-                        .pageCount(845)
-                        .genre("Dîrok")
+                        .fileSizeBytes(3_800_000L)
+                        .pageCount(310)
+                        .genre("Helbesta hevçerx")
                         .build())
-                .keywordsCkb(new LinkedHashSet<>(Set.of("مێژوو", "سەدەی٢٠")))
-                .keywordsKmr(new LinkedHashSet<>(Set.of("Dîrok", "Sedsala20")))
-                .tagsCkb(new LinkedHashSet<>(Set.of("ئەکادیمی", "توێژینەوە")))
-                .tagsKmr(new LinkedHashSet<>(Set.of("Akademîk", "Lêkolîn")))
-                .seriesId("series-history-001")
-                .seriesName("کۆکراوەی مێژوو")
-                .seriesOrder(1.0)
-                .seriesTotalBooks(5)
+                .keywordsCkb(new LinkedHashSet<>(Set.of("شیعر")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Helbest")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("دیوان")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Dîwan")))
+                .seriesId(seriesId)
+                .seriesName("دیوانی شیعری کوردی")
+                .seriesOrder(2.0)
+                .seriesTotalBooks(3)
                 .build();
 
         Writing w3 = Writing.builder()
-                .ckbCoverUrl(IMG_OPEN_BOOK)
-                .kmrCoverUrl(IMG_OPEN_BOOK)
+                .ckbCoverUrl(IMG_OLD_DOCUMENT)
+                .kmrCoverUrl(IMG_OLD_DOCUMENT)
+                .hoverCoverUrl(IMG_ARCHIVE)
+                .topic(findTopic("WRITING", "مێژووی کورد"))
+                .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.HISTORY)))
+                .publishedByInstitute(true)
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(WritingContent.builder()
+                        .title("مێژووی نوێی کوردستان")
+                        .description("""
+                            <h2>توێژینەوەیەکی مێژوویی</h2>
+                            <p>کتێبێکی ئەکادیمی لەسەر مێژووی نوێی کوردستان لە سەدەی بیستەم.</p>
+                            <img src=\"%s\" alt=\"مێژوو\">
+                            """.formatted(IMG_OLD_DOCUMENT))
+                        .writer("د. ئاسۆ هەورامی")
+                        .fileUrl(PDF_DUMMY)
+                        .fileFormat(WritingFileFormat.PDF)
+                        .fileSizeBytes(5_200_000L)
+                        .pageCount(450)
+                        .genre("مێژوو")
+                        .build())
+                .kmrContent(WritingContent.builder()
+                        .title("Dîroka nû ya Kurdistanê")
+                        .description("""
+                            <h2>Lêkolîneke dîrokî</h2>
+                            <p>Pirtûkeke akademîk li ser dîroka nû ya Kurdistanê di sedsala bîstem de.</p>
+                            <img src=\"%s\" alt=\"Dîrok\">
+                            """.formatted(IMG_OLD_DOCUMENT))
+                        .writer("Dr. Aso Hewramî")
+                        .fileUrl(PDF_DUMMY)
+                        .fileFormat(WritingFileFormat.PDF)
+                        .fileSizeBytes(5_200_000L)
+                        .pageCount(450)
+                        .genre("Dîrok")
+                        .build())
+                .keywordsCkb(new LinkedHashSet<>(Set.of("مێژوو", "کوردستان")))
+                .keywordsKmr(new LinkedHashSet<>(Set.of("Dîrok", "Kurdistan")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("ئەکادیمی", "مێژوو")))
+                .tagsKmr(new LinkedHashSet<>(Set.of("Akademîk", "Dîrok")))
+                .build();
+
+        Writing w4 = Writing.builder()
+                .ckbCoverUrl(IMG_LIBRARY)
+                .kmrCoverUrl(IMG_LIBRARY)
                 .topic(findTopic("WRITING", "زمانناسی کوردی"))
                 .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.LINGUISTICS, BookGenre.EDUCATIONAL)))
                 .publishedByInstitute(true)
                 .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB)))
                 .ckbContent(WritingContent.builder()
-                        .title("ڕێزمانی هاوچەرخی زمانی سۆرانی")
-                        .description("""
-                            <p>کتێبێکی پێداگۆژی ڕێزمانی زمانی سۆرانی بۆ قوتابخانە ئامادەییەکان.</p>
-                            <img src=\"%s\">
-                            """.formatted(IMG_OPEN_BOOK))
-                        .writer("دکتۆر هیمن مەلا فەرید")
+                        .title("ڕێزمانی زمانی کوردی - سۆرانی")
+                        .description("<p>کتێبێکی زانستی لەسەر ڕێزمانی زاراوەی سۆرانی.</p><img src=\"%s\"><a href=\"%s\">داگرتن</a>".formatted(IMG_LIBRARY, PDF_DUMMY))
+                        .writer("پ. د. شوان کەریم")
                         .fileUrl(PDF_DUMMY)
                         .fileFormat(WritingFileFormat.PDF)
-                        .fileSizeBytes(8_000_000L)
-                        .pageCount(280)
+                        .fileSizeBytes(4_100_000L)
+                        .pageCount(380)
                         .genre("زمانناسی")
                         .build())
                 .kmrContent(WritingContent.builder().title("").description("").build())
                 .keywordsCkb(new LinkedHashSet<>(Set.of("ڕێزمان", "سۆرانی")))
-                .tagsCkb(new LinkedHashSet<>(Set.of("زمان", "خوێندنگە")))
+                .tagsCkb(new LinkedHashSet<>(Set.of("زمان", "زانستی")))
                 .build();
 
-        Writing w4 = Writing.builder()
-                .ckbCoverUrl(IMG_OPEN_BOOK)
-                .kmrCoverUrl(IMG_OPEN_BOOK)
-                .topic(findTopic("WRITING", "شیعر و ئەدەب"))
-                .bookGenres(new LinkedHashSet<>(Set.of(BookGenre.NOVEL)))
-                .publishedByInstitute(false)
-                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+        Writing w5 = writing(IMG_BOOKS_SHELF, IMG_OPEN_BOOK,
+                findTopic("WRITING", "ڕۆمان و چیرۆک"), BookGenre.NOVEL,
+                "ڕۆمانی کۆماری مەهاباد",
+                "<p>ڕۆمانێکی مێژوویی لەسەر کۆماری مەهاباد ١٩٤٦.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "د. هیوا قادر", 420, "ڕۆمان",
+                "Romana Komara Mehabadê",
+                "<p>Romaneke dîrokî li ser Komara Mehabadê ya 1946an.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "Dr. Hîwa Qadir", "Roman",
+                "ڕۆمان", "Roman", "مەهاباد", "Mehabad", true);
+
+        Writing w6 = writing(IMG_TRADITIONAL, IMG_FOLK_DANCE,
+                findTopic("WRITING", "مێژووی کورد"), BookGenre.CULTURAL,
+                "فۆلکلۆری کوردی - چیرۆک و داستان",
+                "<p>کۆکراوەیەک لە چیرۆک و داستانە فۆلکلۆریە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "ئامادەکردنی: تیمی فۆلکلۆر", 360, "فۆلکلۆر",
+                "Folklora kurdî - Çîrok û destan",
+                "<p>Berhevokek ji çîrok û destanên folklorîk ên kurdî.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "Amadekirin: Tîma folklorê", "Folklor",
+                "فۆلکلۆر", "Folklor", "چیرۆک", "Çîrok", true);
+
+        Writing w7 = writing(IMG_OPEN_BOOK, IMG_BOOKS_SHELF,
+                findTopic("WRITING", "شیعر و ئەدەب"), BookGenre.POETRY,
+                "هۆنراوەکانی نالی",
+                "<p>کۆی هۆنراوەکانی شاعیری گەورە نالی لەگەڵ لێکدانەوە.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "لێکۆڵینەوەی: د. مارف خەزنەدار", 240, "شیعری کلاسیک",
+                "Helbestên Nalî",
+                "<p>Hemû helbestên helbestvanê mezin Nalî bi şîroveyê re.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Lêkolîn: Dr. Marif Xeznedar", "Helbesta klasîk",
+                "نالی", "Nalî", "شیعر", "Helbest", true);
+
+        Writing w8 = writing(IMG_LIBRARY, IMG_OPEN_BOOK,
+                findTopic("WRITING", "زمانناسی کوردی"), BookGenre.LINGUISTICS,
+                "فەرهەنگی کوردی - کرمانجی",
+                "<p>فەرهەنگێکی تەواوی زاراوەی کرمانجی.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "د. زانا فەرهادی", 620, "فەرهەنگ",
+                "Ferhenga kurdî - Kurmancî",
+                "<p>Ferhengeke tam a zaravayê kurmancî.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Dr. Zana Ferhadî", "Ferheng",
+                "فەرهەنگ", "Ferheng", "کرمانجی", "Kurmancî", true);
+
+        Writing w9 = writing(IMG_ARCHIVE, IMG_OLD_DOCUMENT,
+                findTopic("WRITING", "مێژووی کورد"), BookGenre.HISTORY,
+                "ئەرشیفی دۆکیومێنتە مێژووییەکان",
+                "<p>کۆکراوەیەک لە دۆکیومێنتە مێژووییە کۆنەکان لەگەڵ شیکردنەوە.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "ئامادەکردنی: ئەرشیفی نەتەوەیی", 540, "مێژوو",
+                "Arşîva belgenameyên dîrokî",
+                "<p>Berhevokek ji belgenameyên dîrokî yên kevn bi şîroveyê re.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "Amadekirin: Arşîva neteweyî", "Dîrok",
+                "ئەرشیف", "Arşîv", "دۆکیومێنت", "Belge", true);
+
+        Writing w10 = writing(IMG_PRESENTER, IMG_LIBRARY,
+                findTopic("WRITING", "شیعر و ئەدەب"), BookGenre.EDUCATIONAL,
+                "ڕێبەری نووسینی ئەکادیمی",
+                "<p>ڕێبەرێکی تەواو بۆ فێربوونی نووسینی ئەکادیمی بە زمانی کوردی.</p><img src=\"%s\"><a href=\"%s\">داگرتن (PDF)</a>".formatted(IMG_PRESENTER, PDF_DUMMY),
+                "د. ڕێبین عەلی", 200, "پەروەردە",
+                "Rêbera nivîsîna akademîk",
+                "<p>Rêbereke tam ji bo fêrbûna nivîsîna akademîk bi zimanê kurdî.</p><img src=\"%s\"><a href=\"%s\">Daxistin (PDF)</a>".formatted(IMG_PRESENTER, PDF_DUMMY),
+                "Dr. Rêbîn Elî", "Perwerde",
+                "نووسین", "Nivîsîn", "ئەکادیمی", "Akademîk", true);
+
+        writingRepository.saveAll(List.of(w1, w2, w3, w4, w5, w6, w7, w8, w9, w10));
+        log.info("[seed:Writing] inserted 10 rows (incl. a 3-book series)");
+    }
+
+    /** Builder helper for standalone writings (no series). */
+    private Writing writing(String ckbCover, String hoverCover, PublishmentTopic topic, BookGenre genre,
+                            String titleCkb, String descCkb, String writerCkb, int pages, String genreLabelCkb,
+                            String titleKmr, String descKmr, String writerKmr, String genreLabelKmr,
+                            String tagCkb, String tagKmr, String kwCkb, String kwKmr,
+                            boolean byInstitute) {
+        boolean hasKmr = titleKmr != null && !titleKmr.isEmpty();
+        return Writing.builder()
+                .ckbCoverUrl(ckbCover)
+                .kmrCoverUrl(ckbCover)
+                .hoverCoverUrl(hoverCover)
+                .topic(topic)
+                .bookGenres(new LinkedHashSet<>(Set.of(genre)))
+                .publishedByInstitute(byInstitute)
+                .contentLanguages(hasKmr
+                        ? new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR))
+                        : new LinkedHashSet<>(Set.of(Language.CKB)))
                 .ckbContent(WritingContent.builder()
-                        .title("لۆتکەی شیعرگۆیی - ڕۆمانێکی مێژوویی")
-                        .description("""
-                            <p>ڕۆمانێکی مێژوویی لەبارەی ژیانی شاعیرێکی کورد لە سەردەمی عوسمانیەکان.</p>
-                            <img src=\"%s\">
-                            """.formatted(IMG_OPEN_BOOK))
-                        .writer("بەختیار عەلی")
-                        .fileUrl(PDF_DUMMY)
-                        .fileFormat(WritingFileFormat.EPUB)
-                        .fileSizeBytes(3_500_000L)
-                        .pageCount(420)
-                        .genre("ڕۆمان")
-                        .build())
+                        .title(titleCkb).description(descCkb).writer(writerCkb)
+                        .fileUrl(PDF_DUMMY).fileFormat(WritingFileFormat.PDF)
+                        .fileSizeBytes(4_000_000L).pageCount(pages).genre(genreLabelCkb).build())
                 .kmrContent(WritingContent.builder()
-                        .title("Lûtkeya helbestê - Romaneke dîrokî")
-                        .description("""
-                            <p>Romaneke dîrokî li ser jiyana helbestvanekî kurd di serdema osmaniyan de.</p>
-                            <img src=\"%s\">
-                            """.formatted(IMG_OPEN_BOOK))
-                        .writer("Bextiyar Elî")
-                        .fileUrl(PDF_DUMMY)
-                        .fileFormat(WritingFileFormat.EPUB)
-                        .fileSizeBytes(3_800_000L)
-                        .pageCount(440)
-                        .genre("Roman")
-                        .build())
-                .keywordsCkb(new LinkedHashSet<>(Set.of("ڕۆمان", "بەختیار")))
-                .keywordsKmr(new LinkedHashSet<>(Set.of("Roman", "Bextiyar")))
-                .tagsCkb(new LinkedHashSet<>(Set.of("ئەدەب", "ڕۆمان")))
-                .tagsKmr(new LinkedHashSet<>(Set.of("Edebiyat", "Roman")))
+                        .title(hasKmr ? titleKmr : "").description(hasKmr ? descKmr : "")
+                        .writer(hasKmr ? writerKmr : "")
+                        .fileUrl(hasKmr ? PDF_DUMMY : null)
+                        .fileFormat(hasKmr ? WritingFileFormat.PDF : null)
+                        .fileSizeBytes(hasKmr ? 4_000_000L : null)
+                        .pageCount(hasKmr ? pages : null)
+                        .genre(hasKmr ? genreLabelKmr : "").build())
+                .keywordsCkb(new LinkedHashSet<>(Set.of(kwCkb)))
+                .keywordsKmr(hasKmr ? new LinkedHashSet<>(Set.of(kwKmr)) : new LinkedHashSet<>())
+                .tagsCkb(new LinkedHashSet<>(Set.of(tagCkb)))
+                .tagsKmr(hasKmr ? new LinkedHashSet<>(Set.of(tagKmr)) : new LinkedHashSet<>())
                 .build();
-
-        writingRepository.saveAll(List.of(w1, w2, w3, w4));
-        log.info("[seed:Writing] inserted 4 rows");
     }
 }
