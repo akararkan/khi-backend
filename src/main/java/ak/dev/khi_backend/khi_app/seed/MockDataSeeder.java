@@ -570,8 +570,117 @@ public class MockDataSeeder implements CommandLineRunner {
                 ))
                 .build();
 
-        aboutRepository.saveAll(List.of(a1, a2, a3, a4, a5, a6, a7, a8));
-        log.info("[seed:About] inserted 8 rows");
+        About a9 = aboutEntry("کتێبخانەکەمان", "pirtûkxaneya-me", 8,
+                "کتێبخانەی نیشتمانی کوردی", "گەورەترین کۆکراوەی کتێبی کوردی",
+                "کتێبخانەکەمان زیاتر لە ٥٠٠٠ کتێبی کوردی و بیانی لەخۆ دەگرێت لە بوارەکانی مێژوو، ئەدەب و زانست.",
+                "<h1>کتێبخانەکەمان</h1><p>کتێبخانەی ئێمە یەکێکە لە دەوڵەمەندترین کۆکراوەکانی کتێبی کوردی.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_BOOKS_SHELF, VID_BIG_BUCK_BUNNY),
+                "Pirtûkxaneya me", "Mezintirîn berhevoka pirtûka kurdî",
+                "Pirtûkxaneya me zêdetirî 5000 pirtûkên kurdî û biyanî dihewîne di warên dîrok, edebiyat û zanistê de.",
+                "<h1>Pirtûkxaneya me</h1><p>Pirtûkxaneya me yek ji dewlemendtirîn berhevokên pirtûka kurdî ye.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_BOOKS_SHELF, VID_BIG_BUCK_BUNNY),
+                List.of(stat("کتێب", "Pirtûk", "5,000+"), stat("زمان", "Ziman", "6")));
+
+        About a10 = aboutEntry("لابراتوار-دیجیتاڵی", "lab-dîjîtal", 9,
+                "لابراتواری دیجیتاڵکردن", "تەکنەلۆژیا لە خزمەتی میرات",
+                "لابراتواری دیجیتاڵی ئێمە بە نوێترین ئامێرەکان دۆکیومێنتە کۆنەکان دیجیتاڵ دەکات.",
+                "<h1>لابراتوارەکەمان</h1><p>بە نوێترین تەکنەلۆژیا، دۆکیومێنت و وێنە کۆنەکان دەپارێزین.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_ARCHIVE, AUD_SONG_1),
+                "Laboratuara dîjîtalkirinê", "Teknolojî di xizmeta mîrateyê de",
+                "Laboratuara me ya dîjîtal bi amûrên nûtirîn belgenameyên kevn dîjîtal dike.",
+                "<h1>Laboratuara me</h1><p>Bi teknolojiya nûtirîn, belgename û wêneyên kevn diparêzin.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_ARCHIVE, AUD_SONG_1),
+                List.of(stat("ئامێر", "Amûr", "15"), stat("دۆکیومێنت/مانگ", "Belge/meh", "500")));
+
+        About a11 = aboutEntry("وەشانخانەکەمان", "weşanxaneya-me", 10,
+                "وەشانخانەی دامەزراوە", "باڵوکردنەوەی زانست و ئەدەب",
+                "وەشانخانەکەمان ساڵانە دەیان کتێب و توێژینەوەی زانستی باڵو دەکاتەوە.",
+                "<h1>وەشانخانە</h1><p>ئێمە کتێب و گۆڤار و توێژینەوەی زانستی باڵو دەکەینەوە.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Weşanxaneya me", "Belavkirina zanist û edebiyatê",
+                "Weşanxaneya me salane bi dehan pirtûk û lêkolînên zanistî belav dike.",
+                "<h1>Weşanxane</h1><p>Em pirtûk, kovar û lêkolînên zanistî belav dikin.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                List.of(stat("کتێب/ساڵ", "Pirtûk/sal", "30+"), stat("گۆڤار", "Kovar", "4")));
+
+        About a12 = aboutEntry("بەشی-پەروەردە", "beşa-perwerde", 11,
+                "بەشی پەروەردە و ڕاهێنان", "گەشەپێدانی نەوەی نوێ",
+                "بەشی پەروەردەی ئێمە خول و وۆرکشۆپ بۆ گەنجان و توێژەران ڕێکدەخات.",
+                "<h1>پەروەردە</h1><p>ساڵانە دەیان خول و وۆرکشۆپ بۆ گەنجان ڕێکدەخەین.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_TEAM, VID_FOR_BIGGER),
+                "Beşa perwerde û rahênanê", "Pêşxistina nifşê nû",
+                "Beşa perwerdeya me kurs û atolyeyan ji bo ciwan û lêkolîneran rêk dixe.",
+                "<h1>Perwerde</h1><p>Salane bi dehan kurs û atolyeyan ji bo ciwanan rêk dixin.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_TEAM, VID_FOR_BIGGER),
+                List.of(stat("خول/ساڵ", "Kurs/sal", "25"), stat("بەشدار", "Beşdar", "600+")));
+
+        About a13 = aboutEntry("ناوەندی-توێژینەوە", "navenda-lêkolînê", 12,
+                "ناوەندی توێژینەوەی کوردی", "زانست لە خزمەتی شوناس",
+                "ناوەندی توێژینەوەی ئێمە لەسەر مێژوو، زمان و کولتووری کوردی لێکۆڵینەوە دەکات.",
+                "<h1>ناوەندی توێژینەوە</h1><p>توێژەرانمان لەسەر هەموو لایەنەکانی کولتووری کوردی کاردەکەن.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Navenda lêkolîna kurdî", "Zanist di xizmeta nasnameyê de",
+                "Navenda lêkolîna me li ser dîrok, ziman û çanda kurdî dixebite.",
+                "<h1>Navenda lêkolînê</h1><p>Lêkolînerên me li ser hemû aliyên çanda kurdî dixebitin.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                List.of(stat("توێژینەوە", "Lêkolîn", "1,200+"), stat("توێژەر", "Lêkolîner", "20+")));
+
+        About a14 = aboutEntry("گەلەری-هونەری", "galeriya-hunerî", 13,
+                "گەلەری هونەری دامەزراوە", "پێشانگای هونەری کوردی",
+                "گەلەری ئێمە کارە هونەرییە کوردیەکان پێشان دەدات لە وێنە و پەیکەرتاشی.",
+                "<h1>گەلەری هونەری</h1><p>پێشانگای بەردەوامی کارە هونەرییە کوردیەکان.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_TRADITIONAL, VID_SINTEL),
+                "Galeriya hunerî ya saziyê", "Pêşangeha hunera kurdî",
+                "Galeriya me karên hunerî yên kurdî pêşan dide di wêne û peykersaziyê de.",
+                "<h1>Galeriya hunerî</h1><p>Pêşangeha berdewam a karên hunerî yên kurdî.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_TRADITIONAL, VID_SINTEL),
+                List.of(stat("کاری هونەری", "Karê hunerî", "300+"), stat("هونەرمەند", "Hunermend", "45")));
+
+        About a15 = aboutEntry("ستۆدیۆی-دەنگ", "stûdyoya-deng", 14,
+                "ستۆدیۆی تۆمارکردنی دەنگ", "پاراستنی دەنگی هونەرمەندان",
+                "ستۆدیۆی پیشەیی ئێمە دەنگی هونەرمەندە کۆنەکان تۆمار و دەپارێزێت.",
+                "<h1>ستۆدیۆی دەنگ</h1><p>دەنگی هونەرمەندان بە کوالێتی بەرز تۆمار دەکەین.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_2),
+                "Stûdyoya tomarkirina dengî", "Parastina dengê hunermendan",
+                "Stûdyoya me ya profesyonel dengê hunermendên kevn tomar û diparêze.",
+                "<h1>Stûdyoya deng</h1><p>Dengê hunermendan bi kalîteya bilind tomar dikin.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_2),
+                List.of(stat("تۆمار", "Tomar", "3,500+"), stat("هونەرمەند", "Hunermend", "200")));
+
+        About a16 = aboutEntry("بەشی-وەرگێڕان", "beşa-wergerê", 15,
+                "بەشی وەرگێڕان", "پردێک نێوان زمانەکان",
+                "بەشی وەرگێڕانی ئێمە کار لەسەر وەرگێڕان نێوان سۆرانی، کرمانجی و زمانە بیانییەکان دەکات.",
+                "<h1>وەرگێڕان</h1><p>وەرگێڕان نێوان زاراوەکانی کوردی و زمانە جیهانییەکان.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Beşa wergerê", "Pirek di navbera zimanan de",
+                "Beşa wergera me li ser wergerê di navbera soranî, kurmancî û zimanên biyanî dixebite.",
+                "<h1>Werger</h1><p>Werger di navbera zaravayên kurdî û zimanên cîhanî de.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                List.of(stat("وەرگێڕان", "Werger", "800+"), stat("زمان", "Ziman", "5")));
+
+        About a17 = aboutEntry("ئامانجە-ستراتیجیەکان", "armancên-stratejîk", 16,
+                "ئامانجە ستراتیجیەکانی ٢٠٣٠", "پلانی دە ساڵە",
+                "پلانی ستراتیجی ئێمە بۆ ساڵی ٢٠٣٠ لەسەر فراوانکردنی ئەرشیف و دیجیتاڵکردن ڕاوەستاوە.",
+                "<h1>ئامانجی ٢٠٣٠</h1><p>پلانێکی فراوان بۆ دە ساڵی داهاتوو.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_BUILDING, VID_ELEPHANTS),
+                "Armancên stratejîk ên 2030", "Plana deh salî",
+                "Plana stratejîk a me ji bo sala 2030 li ser berfirehkirina arşîv û dîjîtalkirinê rawestiyaye.",
+                "<h1>Armanca 2030</h1><p>Planeke berfireh ji bo deh salên pêş.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_BUILDING, VID_ELEPHANTS),
+                List.of(stat("ئامانج", "Armanc", "12"), stat("ساڵ", "Sal", "10")));
+
+        About a18 = aboutEntry("خۆبەخشان", "dilxwazan", 17,
+                "بەرنامەی خۆبەخشان", "هێزی کۆمەڵگا",
+                "بەرنامەی خۆبەخشی ئێمە دەرفەت دەڕەخسێنێت بۆ بەشداری لە پاراستنی میراتی کوردی.",
+                "<h1>خۆبەخشان</h1><p>زیاتر لە ٨٠ خۆبەخش لەگەڵمان کاردەکەن.</p><img src=\"%s\">".formatted(IMG_TEAM),
+                "Bernameya dilxwazan", "Hêza civakê",
+                "Bernameya dilxwaziya me derfetê dide ji bo beşdarî di parastina mîrateya kurdî de.",
+                "<h1>Dilxwaz</h1><p>Zêdetirî 80 dilxwaz bi me re dixebitin.</p><img src=\"%s\">".formatted(IMG_TEAM),
+                List.of(stat("خۆبەخش", "Dilxwaz", "80+"), stat("کاتژمێر/ساڵ", "Saet/sal", "5,000")));
+
+        About a19 = aboutEntry("خەڵات-و-ناسینەوە", "xelat-naskirin", 18,
+                "خەڵات و ناسینەوەکان", "دانپێدانان بە کارەکانمان",
+                "دامەزراوەکەمان چەندین خەڵاتی نێودەوڵەتی وەرگرتووە لە بواری پاراستنی میرات.",
+                "<h1>خەڵاتەکان</h1><p>کارەکانمان لە ئاستی نێودەوڵەتی ناسراون.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_STAGE, AUD_SONG_3),
+                "Xelat û naskirin", "Danpêdanîn bi xebatên me",
+                "Saziya me çend xelatên navneteweyî di warê parastina mîrateyê de wergirtine.",
+                "<h1>Xelat</h1><p>Xebatên me di astê navneteweyî de têne naskirin.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_STAGE, AUD_SONG_3),
+                List.of(stat("خەڵات", "Xelat", "8"), stat("ناسینەوە", "Naskirin", "15")));
+
+        About a20 = aboutEntry("ڕاپۆرتی-ساڵانە", "rapora-salane", 19,
+                "ڕاپۆرتی ساڵانەی دامەزراوە", "شەفافیەت لە کارەکانمان",
+                "ڕاپۆرتی ساڵانەی ئێمە هەموو چالاکی و سەرکەوتنەکانمان بە شەفافیەت پیشان دەدات.",
+                "<h1>ڕاپۆرتی ساڵانە</h1><p>هەموو ساڵێک ڕاپۆرتێکی تەواو باڵو دەکەینەوە.</p><img src=\"%s\"><p><a href=\"%s\">ڕاپۆرتی ٢٠٢٥ (PDF)</a></p>".formatted(IMG_ARCHIVE, PDF_DUMMY),
+                "Rapora salane ya saziyê", "Şefafiyet di xebatên me de",
+                "Rapora salane ya me hemû çalakî û serkeftinên me bi şefafiyet pêşan dide.",
+                "<h1>Rapora salane</h1><p>Her sal raporeke tam belav dikin.</p><img src=\"%s\"><p><a href=\"%s\">Rapora 2025 (PDF)</a></p>".formatted(IMG_ARCHIVE, PDF_DUMMY),
+                List.of(stat("ڕاپۆرت", "Rapor", "15"), stat("ساڵ", "Sal", "15")));
+
+        aboutRepository.saveAll(List.of(a1, a2, a3, a4, a5, a6, a7, a8,
+                a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20));
+        log.info("[seed:About] inserted 20 rows");
     }
 
     // =========================================================================
@@ -917,8 +1026,117 @@ public class MockDataSeeder implements CommandLineRunner {
                 .email("social@khi-institute.org")
                 .build();
 
-        contactRepository.saveAll(List.of(c1, c2, c3, c4, c5, c6, c7, c8));
-        log.info("[seed:Contact] inserted 8 rows");
+        Contact c9 = contactEntry("پەیوەندی-بەخشین", "peywendi-bexşîn", 8,
+                "بەشی بەخشین و پشتگیری", "یارمەتیمان بدە", "بەشی بەخشین، ناوەندی سەرەکی، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٦:٠٠",
+                "<h2>بەخشین</h2><p>بۆ بەخشینی دارایی یان میرات، پەیوەندیمان پێوەبکە.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Beşa bexşîn û piştgiriyê", "Alîkariya me bike", "Beşa bexşînê, Navenda sereke, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 16:00",
+                "<h2>Bexşîn</h2><p>Ji bo bexşîna darayî an mîrateyê, bi me re têkilî daynin.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "+964 750 100 2000", "donate@khi-institute.org");
+
+        Contact c10 = contactEntry("پەیوەندی-کتێبخانە", "peywendi-pirtûkxane", 9,
+                "کتێبخانە و خوێندنەوە", "سەردانی کتێبخانەکەمان بکە", "کتێبخانەی نیشتمانی، هەولێر",
+                "یەکشەممە - هەینی، ٨:٠٠ - ١٨:٠٠",
+                "<h2>کتێبخانە</h2><p>کتێبخانەکەمان کراوەیە بۆ گشت توێژەران و خوێنەران.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "Pirtûkxane û xwendin", "Serdana pirtûkxaneya me bike", "Pirtûkxaneya neteweyî, Hewlêr",
+                "Yekşem - În, 8:00 - 18:00",
+                "<h2>Pirtûkxane</h2><p>Pirtûkxaneya me ji bo hemû lêkolîner û xwendevanan vekirî ye.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "+964 750 200 3000", "library@khi-institute.org");
+
+        Contact c11 = contactEntry("پەیوەندی-تەکنیکی", "peywendi-teknîkî", 10,
+                "پشتگیری تەکنیکی", "یارمەتی بۆ بەکارهێنانی پلاتفۆرم", "بەشی IT، ناوەندی سەرەکی، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠",
+                "<h2>پشتگیری تەکنیکی</h2><p>کێشەیەکت هەیە لەگەڵ ماڵپەڕەکەمان؟ ئێمە لێرەین.</p>",
+                "Piştgiriya teknîkî", "Alîkarî ji bo bikaranîna platformê", "Beşa IT, Navenda sereke, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 17:00",
+                "<h2>Piştgiriya teknîkî</h2><p>Pirsgirêkek bi malpera me re heye? Em li vir in.</p>",
+                "+964 751 300 4000", "support@khi-institute.org");
+
+        Contact c12 = contactEntry("پەیوەندی-کۆنفرانس", "peywendi-konferans", 11,
+                "کۆنفرانس و چالاکییەکان", "بەشداری لە چالاکییەکانمان بکە", "بەشی چالاکی، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠",
+                "<h2>چالاکییەکان</h2><p>بۆ زانیاری دەربارەی کۆنفرانس و وۆرکشۆپەکانمان.</p><img src=\"%s\">".formatted(IMG_STAGE),
+                "Konferans û çalakî", "Beşdarî çalakiyên me bibe", "Beşa çalakiyan, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 17:00",
+                "<h2>Çalakî</h2><p>Ji bo zanyarî li ser konferans û atolyeyên me.</p><img src=\"%s\">".formatted(IMG_STAGE),
+                "+964 750 400 5000", "events@khi-institute.org");
+
+        Contact c13 = contactEntry("پەیوەندی-وەشان", "peywendi-weşan", 12,
+                "وەشانخانە و چاپ", "کتێبەکانت لەگەڵ ئێمە باڵوبکەرەوە", "وەشانخانە، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٦:٠٠",
+                "<h2>وەشان</h2><p>نووسەری؟ پەیوەندیمان پێوەبکە بۆ باڵوکردنەوەی کارەکانت.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Weşanxane û çap", "Pirtûkên xwe bi me re belav bike", "Weşanxane, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 16:00",
+                "<h2>Weşan</h2><p>Nivîskar î? Bi me re têkilî daynin ji bo belavkirina xebatên xwe.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "+964 751 500 6000", "publishing@khi-institute.org");
+
+        Contact c14 = contactEntry("پەیوەندی-ئەرشیف", "peywendi-arşîv", 13,
+                "ئەرشیف و کۆگا", "داواکردنی دەستگەیشتن بە ئەرشیف", "بەشی ئەرشیف، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٦:٠٠",
+                "<h2>ئەرشیف</h2><p>بۆ دەستگەیشتن بە دۆکیومێنتە مێژووییەکان.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "Arşîv û kogeh", "Daxwaza gihîştina arşîvê", "Beşa arşîvê, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 16:00",
+                "<h2>Arşîv</h2><p>Ji bo gihîştina belgenameyên dîrokî.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "+964 750 600 7000", "archive@khi-institute.org");
+
+        Contact c15 = contactEntry("پەیوەندی-زانکۆ", "peywendi-zanîngeh", 14,
+                "هاوکاری زانکۆیی", "بۆ زانکۆ و دامەزراوە ئەکادیمیەکان", "بەشی هاوکاری، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠",
+                "<h2>هاوکاری زانکۆیی</h2><p>بۆ هاوبەشی توێژینەوە لەگەڵ زانکۆکان.</p>",
+                "Hevkariya zanîngehî", "Ji bo zanîngeh û saziyên akademîk", "Beşa hevkariyê, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 17:00",
+                "<h2>Hevkariya zanîngehî</h2><p>Ji bo hevpariya lêkolînê bi zanîngehan re.</p>",
+                "+964 751 700 8000", "academic@khi-institute.org");
+
+        Contact c16 = contactEntry("پەیوەندی-منداڵان", "peywendi-zarokan", 15,
+                "بەرنامەی منداڵان", "فێرکاری بۆ نەوەی نوێ", "بەشی منداڵان، هەولێر",
+                "یەکشەممە - پێنجشەممە، ١٠:٠٠ - ١٥:٠٠",
+                "<h2>بەرنامەی منداڵان</h2><p>چالاکی فێرکاری بۆ منداڵان لەسەر کولتووری کوردی.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Bernameya zarokan", "Fêrkarî ji bo nifşê nû", "Beşa zarokan, Hewlêr",
+                "Yekşem - Pêncşem, 10:00 - 15:00",
+                "<h2>Bernameya zarokan</h2><p>Çalakiyên fêrkarî ji bo zarokan li ser çanda kurdî.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "+964 750 800 9000", "kids@khi-institute.org");
+
+        Contact c17 = contactEntry("پەیوەندی-سلێمانی-٢", "peywendi-silemani-2", 16,
+                "نووسینگەی دووەمی سلێمانی", "خزمەتگوزاری زیاتر لە سلێمانی", "گەڕەکی سەرچنار، سلێمانی",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠",
+                "<h2>نووسینگەی نوێ</h2><p>نووسینگەیەکی نوێمان لە سەرچنار کردەوە.</p><img src=\"%s\">".formatted(IMG_BUILDING),
+                "Buroya duyem a Silêmaniyê", "Xizmeta zêdetir li Silêmaniyê", "Taxa Serçinar, Silêmanî",
+                "Yekşem - Pêncşem, 9:00 - 17:00",
+                "<h2>Buroya nû</h2><p>Buroyeke nû me li Serçinarê vekir.</p><img src=\"%s\">".formatted(IMG_BUILDING),
+                "+964 770 900 1000", "slemani2@khi-institute.org");
+
+        Contact c18 = contactEntry("پەیوەندی-کەرکووک", "peywendi-kerkûk", 17,
+                "نووسینگەی کەرکووک", "خزمەتگوزاری لە کەرکووک", "ناوەندی شار، کەرکووک",
+                "شەممە - چوارشەممە، ٩:٠٠ - ١٦:٠٠",
+                "<h2>نووسینگەی کەرکووک</h2><p>خزمەتگوزاری کولتووری لە شاری کەرکووک.</p><img src=\"%s\">".formatted(IMG_ERBIL_CITADEL),
+                "Buroya Kerkûkê", "Xizmet li Kerkûkê", "Navenda bajêr, Kerkûk",
+                "Şemî - Çarşem, 9:00 - 16:00",
+                "<h2>Buroya Kerkûkê</h2><p>Xizmeta çandî li bajarê Kerkûkê.</p><img src=\"%s\">".formatted(IMG_ERBIL_CITADEL),
+                "+964 770 110 2200", "kerkuk@khi-institute.org");
+
+        Contact c19 = contactEntry("پەیوەندی-هەلەبجە", "peywendi-helebce", 18,
+                "نووسینگەی هەڵەبجە", "ناوەندی یادەوەری", "نزیک یادگای شەهیدان، هەڵەبجە",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٦:٠٠",
+                "<h2>نووسینگەی هەڵەبجە</h2><p>تایبەت بە پاراستنی یادەوەری مێژوویی.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "Buroya Helebceyê", "Navenda bîranînê", "Nêzîkî bîrgeha şehîdan, Helebce",
+                "Yekşem - Pêncşem, 9:00 - 16:00",
+                "<h2>Buroya Helebceyê</h2><p>Taybet bi parastina bîranîna dîrokî.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "+964 770 220 3300", "helebce@khi-institute.org");
+
+        Contact c20 = contactEntry("پەیوەندی-نێودەوڵەتی", "peywendi-navneteweyî", 19,
+                "پەیوەندی نێودەوڵەتی", "بۆ هاوکارانی دەرەوەی وڵات", "بەشی نێودەوڵەتی، هەولێر",
+                "یەکشەممە - پێنجشەممە، ٩:٠٠ - ١٧:٠٠",
+                "<h2>پەیوەندی نێودەوڵەتی</h2><p>بۆ دامەزراوە و زانکۆکانی دەرەوەی وڵات.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_BUILDING, VID_TEARS),
+                "Têkiliya navneteweyî", "Ji bo hevkarên derveyî welat", "Beşa navneteweyî, Hewlêr",
+                "Yekşem - Pêncşem, 9:00 - 17:00",
+                "<h2>Têkiliya navneteweyî</h2><p>Ji bo sazî û zanîngehên derveyî welat.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_BUILDING, VID_TEARS),
+                "+964 751 330 4400", "international@khi-institute.org");
+
+        contactRepository.saveAll(List.of(c1, c2, c3, c4, c5, c6, c7, c8,
+                c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20));
+        log.info("[seed:Contact] inserted 20 rows");
     }
 
     // =========================================================================
@@ -1260,8 +1478,69 @@ public class MockDataSeeder implements CommandLineRunner {
                     """.formatted(IMG_STAGE, AUD_SONG_1, VID_TEARS))
                 .build());
 
-        serviceRepository.saveAll(List.of(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10));
-        log.info("[seed:Service] inserted 10 rows");
+        ak.dev.khi_backend.khi_app.model.service.Service s11 = serviceEntry("Training", "Erbil, KHI Hall", 25,
+                "خولی فێرکاری زمانی کرمانجی",
+                "<h2>خولی کرمانجی</h2><p>خولێک بۆ فێربوونی زاراوەی کرمانجی بۆ قسەکەرانی سۆرانی.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_OPEN_BOOK, AUD_SONG_1),
+                "Kursa fêrkirina zimanê kurmancî",
+                "<h2>Kursa kurmancî</h2><p>Kursek ji bo fêrbûna zaravayê kurmancî ji bo axiverên soranî.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_OPEN_BOOK, AUD_SONG_1));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s12 = serviceEntry("Workshop", "Sulaymaniyah", 22,
+                "وۆرکشۆپی وێنەگرتنی بەڵگەنامەیی",
+                "<p>وۆرکشۆپێک بۆ فێربوونی وێنەگرتنی بەڵگەنامەیی شوێنە مێژووییەکان.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_ERBIL_CITADEL, VID_SINTEL),
+                "Atolyeya wênegirtina belgeyî",
+                "<p>Atolyeyek ji bo fêrbûna wênegirtina belgeyî ya cihên dîrokî.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_ERBIL_CITADEL, VID_SINTEL));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s13 = serviceEntry("Program", "Online", 19,
+                "بەرنامەی فێرکاری ئۆنلاینی مێژوو",
+                "<h2>فێرکاری ئۆنلاین</h2><p>کۆرسی ئۆنلاین لەسەر مێژووی کوردستان بۆ گشت تەمەنەکان.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_OLD_DOCUMENT, VID_BIG_BUCK_BUNNY),
+                "Bernameya fêrkariya onlîne ya dîrokê",
+                "<h2>Fêrkariya onlîne</h2><p>Kursa onlîne li ser dîroka Kurdistanê ji bo hemû temenan.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_OLD_DOCUMENT, VID_BIG_BUCK_BUNNY));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s14 = serviceEntry("Event", "Erbil, KHI Hall", 16,
+                "کۆبوونەوەی هونەرمەندانی کورد",
+                "<p>کۆبوونەوەیەکی ساڵانە بۆ هونەرمەندان و مۆسیقاژەنانی کورد.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_CONCERT, AUD_SONG_2),
+                "Civîna hunermendên kurd",
+                "<p>Civîneke salane ji bo hunermend û muzîkjenên kurd.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_CONCERT, AUD_SONG_2));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s15 = serviceEntry("Workshop", "Duhok University", 14,
+                "وۆرکشۆپی نووسینی ڕۆمان",
+                "<p>وۆرکشۆپێکی پراکتیکی بۆ نووسەرانی گەنج لەسەر هونەری نووسینی ڕۆمان.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "Atolyeya nivîsîna romanê",
+                "<p>Atolyeyeke praktîk ji bo nivîskarên ciwan li ser hunera nivîsîna romanê.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s16 = serviceEntry("Program", "Erbil & Sulaymaniyah", 11,
+                "بەرنامەی پاراستنی ئامێرە مۆسیقیە کۆنەکان",
+                "<h2>ئامێرە کۆنەکان</h2><p>بەرنامەیەک بۆ کۆکردنەوە و پاراستنی ئامێرە مۆسیقیە کۆنە کوردیەکان.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_4),
+                "Bernameya parastina amûrên muzîkê yên kevn",
+                "<h2>Amûrên kevn</h2><p>Bernameyek ji bo berhevkirin û parastina amûrên muzîkê yên kevn ên kurdî.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_4));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s17 = serviceEntry("Training", "Online", 9,
+                "خولی میتاداتا و پۆلێنکردنی ئەرشیف",
+                "<p>خولێکی تەکنیکی بۆ فێربوونی میتاداتا و پۆلێنکردنی دۆکیومێنتە دیجیتاڵەکان.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "Kursa metadata û rêzkirina arşîvê",
+                "<p>Kurseke teknîkî ji bo fêrbûna metadata û rêzkirina belgenameyên dîjîtal.</p><img src=\"%s\">".formatted(IMG_ARCHIVE));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s18 = serviceEntry("Event", "Sulaymaniyah, Cultural Center", 6,
+                "ئاهەنگی نەورۆز",
+                "<h2>نەورۆز پیرۆز</h2><p>ئاهەنگی ساڵانەی نەورۆز لەگەڵ مۆسیقا و سەمای فۆلکلۆری.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_FOLK_DANCE, VID_TEARS),
+                "Şahiya Newrozê",
+                "<h2>Newroz pîroz</h2><p>Şahiya salane ya Newrozê bi muzîk û govenda folklorîk.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_FOLK_DANCE, VID_TEARS));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s19 = serviceEntry("Program", "Erbil, KHI Hall", 4,
+                "بەرنامەی خوێندنەوەی کتێب",
+                "<p>کۆڕی مانگانەی خوێندنەوەی کتێب بۆ خۆشەویستانی ئەدەبی کوردی.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Bernameya xwendina pirtûkê",
+                "<p>Koma mehane ya xwendina pirtûkê ji bo hezkiriyên edebiyata kurdî.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK));
+
+        ak.dev.khi_backend.khi_app.model.service.Service s20 = serviceEntry("Workshop", "Online", 2,
+                "وۆرکشۆپی هونەری گێڕانەوەی چیرۆک",
+                "<p>وۆرکشۆپێک لەسەر هونەری گێڕانەوەی چیرۆکی فۆلکلۆری کوردی.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_TRADITIONAL, AUD_SONG_5),
+                "Atolyeya hunera çîrokbêjiyê",
+                "<p>Atolyeyek li ser hunera çîrokbêjiya folklora kurdî.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_TRADITIONAL, AUD_SONG_5));
+
+        serviceRepository.saveAll(List.of(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10,
+                s11, s12, s13, s14, s15, s16, s17, s18, s19, s20));
+        log.info("[seed:Service] inserted 20 rows");
     }
 
     // =========================================================================
@@ -1621,8 +1900,89 @@ public class MockDataSeeder implements CommandLineRunner {
                 .category(catHistory).subCategory(subAncient)
                 .build();
 
-        newsRepository.saveAll(List.of(n1, n2, n3, n4, n5, n6, n7, n8, n9, n10));
-        log.info("[seed:News] inserted 10 rows (3 categories, 4 sub-categories)");
+        News n11 = newsEntry(IMG_LIBRARY, MediaKind.IMAGE, 55,
+                "کتێبخانەی نیشتمانی ١٠،٠٠٠ کتێبی نوێ زیاد دەکات",
+                "<p>کتێبخانەی نیشتمانیمان ١٠،٠٠٠ کتێبی نوێی کوردی و بیانی زیاد کرد بۆ کۆکراوەکەی.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Pirtûkxaneya neteweyî 10,000 pirtûkên nû zêde dike",
+                "<p>Pirtûkxaneya me ya neteweyî 10,000 pirtûkên nû yên kurdî û biyanî li berhevoka xwe zêde kir.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                Set.of("کتێبخانە", "کتێب"), Set.of("Pirtûkxane", "Pirtûk"),
+                Set.of("کۆکراوە"), Set.of("Berhevok"), catCulture, subFolk);
+
+        News n12 = newsEntry(IMG_AUDIO_STUDIO, MediaKind.IMAGE, 60,
+                "پرۆژەی تۆمارکردنی مۆسیقای کلاسیک تەواو بوو",
+                "<p>پرۆژەی تۆمارکردنی مەقامە کلاسیکیە کوردیەکان بە سەرکەوتوویی تەواو بوو.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_1),
+                "Projeya tomarkirina muzîka klasîk qediya",
+                "<p>Projeya tomarkirina meqamên klasîk ên kurdî bi serkeftî qediya.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_1),
+                Set.of("مۆسیقا", "مەقام"), Set.of("Muzîk", "Meqam"),
+                Set.of("کلاسیک"), Set.of("Klasîk"), catCulture, subFolk);
+
+        News n13 = newsEntry(IMG_ERBIL_CITADEL, MediaKind.IMAGE, 65,
+                "دۆزینەوەی ئاسەواری مێژوویی نوێ لە دەشتی هەولێر",
+                "<p>تیمێکی ئاسەوارناسی ئاسەوارێکی نوێی دۆزیوەتەوە کە دەگەڕێتەوە بۆ هەزاران ساڵ.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_ERBIL_CITADEL, VID_ELEPHANTS),
+                "Vedîtina kelûpelên dîrokî yên nû li deşta Hewlêrê",
+                "<p>Tîmeke arkeolojî kelûpelên nû dîtine ku digihîjin bi hezaran salan.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_ERBIL_CITADEL, VID_ELEPHANTS),
+                Set.of("ئاسەوار", "مێژوو"), Set.of("Arkeolojî", "Dîrok"),
+                Set.of("هەولێر"), Set.of("Hewlêr"), catHistory, subAncient);
+
+        News n14 = newsEntry(IMG_CALLIGRAPHY, MediaKind.IMAGE, 70,
+                "پیشانگای خوسنۆڤی کوردی لە هەولێر کرایەوە",
+                "<p>پیشانگایەکی تایبەت بە هونەری خوسنۆڤی کوردی لە گەلەری ناوەندیمان کرایەوە.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY),
+                "Pêşangeha xetatiya kurdî li Hewlêrê hat vekirin",
+                "<p>Pêşangeheke taybet bi hunera xetatiya kurdî li galeriya me ya navendî hat vekirin.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY),
+                Set.of("خوسنۆڤی", "هونەر"), Set.of("Xetatî", "Huner"),
+                Set.of("پیشانگا"), Set.of("Pêşange"), catCulture, subFolk);
+
+        News n15 = newsEntry(IMG_BOOKS_SHELF, MediaKind.IMAGE, 75,
+                "کۆمەڵە چیرۆکێکی نوێ لە لایەن نووسەرێکی گەنجەوە باڵو کرایەوە",
+                "<p>کۆمەڵە چیرۆکێکی نوێ بە زمانی سۆرانی لە لایەن نووسەرێکی گەنجەوە باڵو کرایەوە.</p><img src=\"%s\"><a href=\"%s\">نموونە (PDF)</a>".formatted(IMG_BOOKS_SHELF, PDF_DUMMY),
+                "Berhevokeke çîrokan a nû ji aliyê nivîskarekî ciwan ve hat weşandin",
+                "<p>Berhevokeke çîrokan a nû bi zimanê soranî ji aliyê nivîskarekî ciwan ve hat weşandin.</p><img src=\"%s\"><a href=\"%s\">Nimûne (PDF)</a>".formatted(IMG_BOOKS_SHELF, PDF_DUMMY),
+                Set.of("چیرۆک", "نووسەر"), Set.of("Çîrok", "Nivîskar"),
+                Set.of("ئەدەب"), Set.of("Edebiyat"), catLiterature, subNovel);
+
+        News n16 = newsEntry(IMG_MOUNTAINS_KRD, MediaKind.IMAGE, 80,
+                "توێژینەوەیەکی نوێ لەسەر ناوە جوگرافیە کوردیەکان",
+                "<p>توێژینەوەیەکی فراوان لەسەر ڕەسەنایەتی ناوە جوگرافیە کوردیەکان باڵو کرایەوە.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "Lêkolîneke nû li ser navên erdnîgarî yên kurdî",
+                "<p>Lêkolîneke berfireh li ser resenahiya navên erdnîgarî yên kurdî hat weşandin.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                Set.of("جوگرافیا", "ناو"), Set.of("Erdnîgarî", "Nav"),
+                Set.of("توێژینەوە"), Set.of("Lêkolîn"), catHistory, subAncient);
+
+        News n17 = newsEntry(IMG_INTERVIEW, MediaKind.IMAGE, 85,
+                "چاوپێکەوتن لەگەڵ کۆمەڵێک هونەرمەندی تەمەن بەرز",
+                "<p>زنجیرە چاوپێکەوتنێک لەگەڵ هونەرمەندە تەمەن بەرزەکان بۆ پاراستنی یادەوەرییەکانیان.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_INTERVIEW, AUD_SONG_3),
+                "Hevpeyvîn bi komek hunermendên temen-bilind re",
+                "<p>Rêzehevpeyvînek bi hunermendên temen-bilind re ji bo parastina bîranînên wan.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_INTERVIEW, AUD_SONG_3),
+                Set.of("چاوپێکەوتن", "هونەرمەند"), Set.of("Hevpeyvîn", "Hunermend"),
+                Set.of("یادەوەری"), Set.of("Bîranîn"), catCulture, subFolk);
+
+        News n18 = newsEntry(IMG_STAGE, MediaKind.IMAGE, 90,
+                "فێستیڤاڵی فیلمی کوردی بەڕێوەچوو",
+                "<p>یەکەمین فێستیڤاڵی فیلمی بەڵگەنامەیی کوردی لە هەولێر بەڕێوەچوو.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_STAGE, VID_SINTEL),
+                "Festîvala fîlma kurdî pêk hat",
+                "<p>Festîvala yekem a fîlma belgeyî ya kurdî li Hewlêrê pêk hat.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_STAGE, VID_SINTEL),
+                Set.of("فیلم", "فێستیڤاڵ"), Set.of("Fîlm", "Festîval"),
+                Set.of("بەڵگەنامە"), Set.of("Belgefîlm"), catCulture, subFolk);
+
+        News n19 = newsEntry(IMG_OLD_DOCUMENT, MediaKind.IMAGE, 95,
+                "دەستنووسێکی کۆنی نایاب لە ئەرشیف زیاد کرا",
+                "<p>دەستنووسێکی کۆنی نایابی سەدەی ١٨ بۆ کۆکراوەی ئەرشیفەکەمان زیاد کرا.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "Destnivîseke kevn û nayab li arşîvê hat zêdekirin",
+                "<p>Destnivîseke kevn û nayab a sedsala 18an li berhevoka arşîva me hat zêdekirin.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                Set.of("دەستنووس", "ئەرشیف"), Set.of("Destnivîs", "Arşîv"),
+                Set.of("مێژوو"), Set.of("Dîrok"), catHistory, subAncient);
+
+        News n20 = newsEntry(IMG_OPEN_BOOK, MediaKind.IMAGE, 100,
+                "خولی نووسینی شیعر بۆ گەنجان دەستی پێکرد",
+                "<p>خولێکی تایبەت بۆ فێرکردنی هونەری نووسینی شیعر بۆ گەنجانی کورد دەستی پێکرد.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Kursa nivîsîna helbestê ji bo ciwanan dest pê kir",
+                "<p>Kurseke taybet ji bo fêrkirina hunera nivîsîna helbestê ji bo ciwanên kurd dest pê kir.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                Set.of("شیعر", "خول"), Set.of("Helbest", "Kurs"),
+                Set.of("گەنجان"), Set.of("Ciwan"), catLiterature, subPoetry);
+
+        newsRepository.saveAll(List.of(n1, n2, n3, n4, n5, n6, n7, n8, n9, n10,
+                n11, n12, n13, n14, n15, n16, n17, n18, n19, n20));
+        log.info("[seed:News] inserted 20 rows (3 categories, 4 sub-categories)");
     }
 
     // =========================================================================
@@ -2016,8 +2376,69 @@ public class MockDataSeeder implements CommandLineRunner {
                 ))
                 .build();
 
-        projectRepository.saveAll(List.of(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10));
-        log.info("[seed:Project] inserted 10 rows");
+        Project p11 = projectEntry(IMG_LIBRARY, MediaKind.IMAGE,
+                "کاتالۆگی دیجیتاڵی کتێبخانە", "<p>پرۆژەیەک بۆ دروستکردنی کاتالۆگێکی دیجیتاڵی تەواو بۆ کتێبخانەکەمان.</p><img src=\"%s\">".formatted(IMG_LIBRARY), "هەولێر",
+                "Katalogê dîjîtal ê pirtûkxaneyê", "<p>Projeyek ji bo çêkirina katalogeke dîjîtal a tam ji bo pirtûkxaneya me.</p><img src=\"%s\">".formatted(IMG_LIBRARY), "Hewlêr",
+                "دیجیتاڵکردن", "Dîjîtalkirin", ProjectStatus.ONGOING, 3,
+                Set.of(tagDigital, tagArchive), Set.of(kwKurdish, kwResearch));
+
+        Project p12 = projectEntry(IMG_CONCERT, MediaKind.IMAGE,
+                "ئەرشیفی ڤیدیۆیی مۆسیقای کوردی", "<p>کۆکردنەوە و دیجیتاڵکردنی کلیپە ڤیدیۆییە کۆنەکانی مۆسیقای کوردی.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_CONCERT, VID_ELEPHANTS), "سلێمانی",
+                "Arşîva vîdyoyî ya muzîka kurdî", "<p>Berhevkirin û dîjîtalkirina klîpên vîdyoyî yên kevn ên muzîka kurdî.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_CONCERT, VID_ELEPHANTS), "Silêmanî",
+                "ئەرشیفی ڤیدیۆ", "Arşîva vîdyo", ProjectStatus.ONGOING, 5,
+                Set.of(tagMusic, tagDigital), Set.of(kwHeritage, kwCulture));
+
+        Project p13 = projectEntry(IMG_TRADITIONAL, MediaKind.IMAGE,
+                "پاراستنی جلوبەرگی نەتەوەیی", "<p>پرۆژەیەک بۆ تۆمارکردن و پاراستنی جۆراوجۆری جلوبەرگی نەتەوەیی کوردی.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL), "هەرێمی کوردستان",
+                "Parastina kincê neteweyî", "<p>Projeyek ji bo tomarkirin û parastina cûrbecûriya kincê neteweyî yê kurdî.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL), "Herêma Kurdistanê",
+                "فۆلکلۆر", "Folklor", ProjectStatus.COMPLETED, 16,
+                Set.of(tagFolklore), Set.of(kwHeritage, kwCulture));
+
+        Project p14 = projectEntry(IMG_OPEN_BOOK, MediaKind.IMAGE,
+                "فەرهەنگی ئەلیکترۆنی کوردی", "<p>دروستکردنی فەرهەنگێکی ئەلیکترۆنی تەواو بۆ هەردوو زاراوەی کوردی.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK), "هەولێر",
+                "Ferhenga elektronîk a kurdî", "<p>Çêkirina ferhengeke elektronîk a tam ji bo her du zaravayên kurdî.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK), "Hewlêr",
+                "زمان", "Ziman", ProjectStatus.ONGOING, 4,
+                Set.of(tagLanguage, tagEducation), Set.of(kwKurdish, kwResearch));
+
+        Project p15 = projectEntry(IMG_AUDIO_STUDIO, MediaKind.IMAGE,
+                "پاراستنی دەنگی شاعیرانی کورد", "<p>تۆمارکردنی دەنگی شاعیرانی کورد لە کاتی خوێندنەوەی شیعرەکانیان.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_4), "سلێمانی",
+                "Parastina dengê helbestvanên kurd", "<p>Tomarkirina dengê helbestvanên kurd di dema xwendina helbestên wan de.</p><img src=\"%s\"><audio controls src=\"%s\"></audio>".formatted(IMG_AUDIO_STUDIO, AUD_SONG_4), "Silêmanî",
+                "تۆمارکردن", "Tomarkirin", ProjectStatus.ONGOING, 2,
+                Set.of(tagArchive, tagMusic), Set.of(kwHeritage)) ;
+
+        Project p16 = projectEntry(IMG_NEWSPAPER, MediaKind.IMAGE,
+                "ئەرشیفی ڕۆژنامەی کۆنی کوردی", "<p>کۆکردنەوە و دیجیتاڵکردنی ڕۆژنامە و گۆڤارە کۆنە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_NEWSPAPER), "هەولێر",
+                "Arşîva rojnameyên kevn ên kurdî", "<p>Berhevkirin û dîjîtalkirina rojname û kovarên kevn ên kurdî.</p><img src=\"%s\">".formatted(IMG_NEWSPAPER), "Hewlêr",
+                "ئەرشیف", "Arşîv", ProjectStatus.ONGOING, 6,
+                Set.of(tagArchive, tagHistory), Set.of(kwHeritage, kwResearch));
+
+        Project p17 = projectEntry(IMG_FOLK_DANCE, MediaKind.IMAGE,
+                "بەڵگەنامەکردنی سەماکانی کوردی", "<p>تۆمارکردنی ڤیدیۆیی هەموو جۆرەکانی سەما و هەڵپەڕکێی کوردی.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_FOLK_DANCE, VID_TEARS), "دهۆک",
+                "Belgekirina govendên kurdî", "<p>Tomarkirina vîdyoyî ya hemû cûreyên govend û dîlanên kurdî.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_FOLK_DANCE, VID_TEARS), "Duhok",
+                "فۆلکلۆر", "Folklor", ProjectStatus.ONGOING, 1,
+                Set.of(tagFolklore), Set.of(kwCulture, kwHeritage));
+
+        Project p18 = projectEntry(IMG_BOOKS_SHELF, MediaKind.IMAGE,
+                "وەرگێڕانی ئەدەبی جیهانی بۆ کوردی", "<p>پرۆژەیەک بۆ وەرگێڕانی شاکارە ئەدەبیە جیهانییەکان بۆ زمانی کوردی.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF), "هەولێر",
+                "Wergerandina edebiyata cîhanî bo kurdî", "<p>Projeyek ji bo wergerandina şaserên edebî yên cîhanî bo zimanê kurdî.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF), "Hewlêr",
+                "وەرگێڕان", "Werger", ProjectStatus.ONGOING, 8,
+                Set.of(tagLanguage, tagEducation), Set.of(kwKurdish));
+
+        Project p19 = projectEntry(IMG_ERBIL_CITADEL, MediaKind.IMAGE,
+                "وێنەگرتنی ٣٦٠ پلەی شوێنە مێژووییەکان", "<p>دروستکردنی گەشتی ئەلیکترۆنی ٣٦٠ پلە بۆ شوێنە مێژووییەکانی کوردستان.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_ERBIL_CITADEL, VID_BIG_BUCK_BUNNY), "هەرێمی کوردستان",
+                "Wênegirtina 360 pile ya cihên dîrokî", "<p>Çêkirina geşta elektronîk a 360 pile ji bo cihên dîrokî yên Kurdistanê.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_ERBIL_CITADEL, VID_BIG_BUCK_BUNNY), "Herêma Kurdistanê",
+                "بەڵگەنامە", "Belgekirin", ProjectStatus.ONGOING, 7,
+                Set.of(tagHistory, tagDigital), Set.of(kwHeritage, kwResearch));
+
+        Project p20 = projectEntry(IMG_TEAM, MediaKind.IMAGE,
+                "بەرنامەی ڕاهێنانی توێژەرانی گەنج", "<p>پرۆژەیەکی پەروەردەیی بۆ ڕاهێنانی نەوەیەکی نوێ لە توێژەرانی کورد.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_TEAM, VID_FOR_BIGGER), "هەولێر",
+                "Bernameya rahênana lêkolînerên ciwan", "<p>Projeyeke perwerdeyî ji bo rahênana nifşekî nû ji lêkolînerên kurd.</p><img src=\"%s\"><video controls src=\"%s\"></video>".formatted(IMG_TEAM, VID_FOR_BIGGER), "Hewlêr",
+                "پەروەردە", "Perwerde", ProjectStatus.ONGOING, 5,
+                Set.of(tagEducation), Set.of(kwResearch));
+
+        projectRepository.saveAll(List.of(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10,
+                p11, p12, p13, p14, p15, p16, p17, p18, p19, p20));
+        log.info("[seed:Project] inserted 20 rows");
     }
 
     private ProjectTag ensureTag(String name) {
@@ -2401,8 +2822,79 @@ public class MockDataSeeder implements CommandLineRunner {
                 "هێمن مەلا کەریم", AUD_SONG_3, 2022, 220L, AudioChannel.MONO,
                 "Recitation", "نالی", "Nalî", "کلاسیک", "Klasîk", true);
 
-        soundTrackRepository.saveAll(List.of(st1, st2, st3, st4, st5, st6, st7, st8, st9, st10));
-        log.info("[seed:SoundTrack] inserted 10 rows (with files, brochures, attachments)");
+        SoundTrack st11 = singleSound(IMG_AUDIO_STUDIO, IMG_CONCERT, "Folk",
+                findTopic("SOUND", "گۆرانی فۆلکلۆری"),
+                "گۆرانیی شوانان", "<p>گۆرانیێکی فۆلکلۆری شوانانی کوردستان.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_1),
+                "Strana şivanan", "<p>Stranek folklorî ya şivanên Kurdistanê.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_1),
+                "هونەرمەندی گەلی", AUD_SONG_1, 2023, 230L, AudioChannel.STEREO,
+                "Folk", "شوان", "Şivan", "فۆلکلۆر", "Folklor", true);
+
+        SoundTrack st12 = singleSound(IMG_CONCERT, IMG_AUDIO_STUDIO, "Classical",
+                findTopic("SOUND", "مۆسیقای کلاسیک"),
+                "مەقامی حجاز", "<p>پارچەیەکی کلاسیکی بە مەقامی حجاز.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "Meqamê Hîcaz", "<p>Parçeyeke klasîk bi meqamê Hîcaz.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "ئۆرکێسترای کلاسیک", AUD_SONG_2, 2024, 310L, AudioChannel.STEREO,
+                "Classical", "مەقام", "Meqam", "کلاسیک", "Klasîk", true);
+
+        SoundTrack st13 = singleSound(IMG_OPEN_BOOK, IMG_BOOKS_SHELF, "Poetry",
+                findTopic("SOUND", "هۆنراوەی کوردی"),
+                "هۆنراوەی گۆران", "<p>خوێندنەوەی هۆنراوەیەکی شاعیر گۆران.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "Helbesta Goran", "<p>Xwendina helbesteke helbestvan Goran.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "ئاسۆ کەمال", AUD_SONG_3, 2022, 200L, AudioChannel.MONO,
+                "Recitation", "گۆران", "Goran", "شیعر", "Helbest", true);
+
+        SoundTrack st14 = singleSound(IMG_CALLIGRAPHY, IMG_CALLIGRAPHY, "Religious",
+                findTopic("SOUND", "ئەزانی دینی"),
+                "مەولوودی نەبەوی", "<p>مەولوودێکی کوردی بۆ تەکریمی پێغەمبەر.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_5),
+                "", "",
+                "مەلا یاسین", AUD_SONG_5, 2021, 480L, AudioChannel.MONO,
+                "Religious", "مەولوود", null, "ئاینی", null, false);
+
+        SoundTrack st15 = singleSound(IMG_FOLK_DANCE, IMG_FOLK_DANCE, "Folk",
+                findTopic("SOUND", "گۆرانی فۆلکلۆری"),
+                "گۆرانیی هەڵپەڕکێی بادینی", "<p>گۆرانیێکی هەڵپەڕکێ بە زاراوەی بادینی.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_4),
+                "Strana govenda behdînî", "<p>Stranek govendê bi zaravayê behdînî.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_4),
+                "گرووپی فۆلکلۆری دهۆک", AUD_SONG_4, 2023, 250L, AudioChannel.STEREO,
+                "Folk", "هەڵپەڕکێ", "Govend", "بادینی", "Behdînî", true);
+
+        SoundTrack st16 = singleSound(IMG_AUDIO_STUDIO, IMG_CONCERT, "Music",
+                findTopic("SOUND", "مۆسیقای کلاسیک"),
+                "تەنبوور سۆلۆ", "<p>پارچەیەکی تەنبوور بە تەنها.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_1),
+                "Tembûr solo", "<p>Parçeyeke tembûrê bi tenê.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_1),
+                "ئەستێرە مەحمود", AUD_SONG_1, 2024, 280L, AudioChannel.STEREO,
+                "Instrumental", "تەنبوور", "Tembûr", "ئامێر", "Amûr", true);
+
+        SoundTrack st17 = singleSound(IMG_OPEN_BOOK, IMG_OPEN_BOOK, "Poetry",
+                findTopic("SOUND", "هۆنراوەی کوردی"),
+                "هۆنراوەی مەحوی", "<p>خوێندنەوەی هۆنراوەیەکی مەحوی.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "Helbesta Mehwî", "<p>Xwendina helbesteke Mehwî.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_2),
+                "هێمن مەلا", AUD_SONG_2, 2022, 210L, AudioChannel.MONO,
+                "Recitation", "مەحوی", "Mehwî", "کلاسیک", "Klasîk", true);
+
+        SoundTrack st18 = singleSound(IMG_CONCERT, IMG_FOLK_DANCE, "Folk",
+                findTopic("SOUND", "گۆرانی فۆلکلۆری"),
+                "گۆرانیی هاوار", "<p>گۆرانیێکی فۆلکلۆری بە ناوبانگ.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "Strana Hawar", "<p>Stranek folklorî ya navdar.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_3),
+                "هونەرمەندی گەلی", AUD_SONG_3, 2023, 240L, AudioChannel.STEREO,
+                "Folk", "هاوار", "Hawar", "فۆلکلۆر", "Folklor", true);
+
+        SoundTrack st19 = singleSound(IMG_CALLIGRAPHY, IMG_CALLIGRAPHY, "Religious",
+                findTopic("SOUND", "ئەزانی دینی"),
+                "زیکری سۆفیانە", "<p>زیکرێکی سۆفیانەی کوردی.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_5),
+                "", "",
+                "گرووپی سۆفی", AUD_SONG_5, 2021, 530L, AudioChannel.MONO,
+                "Religious", "زیکر", null, "سۆفی", null, false);
+
+        SoundTrack st20 = singleSound(IMG_AUDIO_STUDIO, IMG_CONCERT, "Classical",
+                findTopic("SOUND", "مۆسیقای کلاسیک"),
+                "مەقامی بایات", "<p>پارچەیەکی کلاسیکی بە مەقامی بایات.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_4),
+                "Meqamê Bayat", "<p>Parçeyeke klasîk bi meqamê Bayat.</p><audio controls src=\"%s\"></audio>".formatted(AUD_SONG_4),
+                "ئۆرکێسترای نیشتمانی", AUD_SONG_4, 2024, 320L, AudioChannel.STEREO,
+                "Classical", "مەقام", "Meqam", "کلاسیک", "Klasîk", true);
+
+        soundTrackRepository.saveAll(List.of(st1, st2, st3, st4, st5, st6, st7, st8, st9, st10,
+                st11, st12, st13, st14, st15, st16, st17, st18, st19, st20));
+        log.info("[seed:SoundTrack] inserted 20 rows (with files, brochures, attachments)");
     }
 
     /**
@@ -2770,8 +3262,109 @@ public class MockDataSeeder implements CommandLineRunner {
                 LocalDate.now().minusMonths(2),
                 "سروشت", "Xweza", "چیا", "Çiya");
 
-        videoRepository.saveAll(List.of(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10));
-        log.info("[seed:Video] inserted 10 rows (FILM + VIDEO_CLIP mix)");
+        Video v11 = filmVideo(IMG_OLD_DOCUMENT, IMG_ARCHIVE,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی کۆماری مەهاباد",
+                "<p>بەڵگەنامەیەک لەسەر مێژووی کۆماری مەهاباد ١٩٤٦.</p><video controls src=\"%s\"></video>".formatted(VID_BIG_BUCK_BUNNY),
+                "Belgefîlma Komara Mehabadê",
+                "<p>Belgefîlmek li ser dîroka Komara Mehabadê ya 1946an.</p><video controls src=\"%s\"></video>".formatted(VID_BIG_BUCK_BUNNY),
+                "مەهاباد", "Mehabad", "کاوە ئەحمەد", "Kawe Ehmed",
+                VID_BIG_BUCK_BUNNY, 3000, "1920x1080", 680.0, LocalDate.now().minusMonths(10),
+                "مێژوو", "Dîrok", "مەهاباد", "Mehabad");
+
+        Video v12 = filmVideo(IMG_TRADITIONAL, IMG_FOLK_DANCE,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی پیشەسازییە کۆنەکانی کوردی",
+                "<p>بەڵگەنامەیەک لەسەر پیشە و سەنعەتە کۆنە کوردیەکان.</p><video controls src=\"%s\"></video>".formatted(VID_FOR_BIGGER),
+                "Belgefîlma pîşeyên kevn ên kurdî",
+                "<p>Belgefîlmek li ser pîşe û senetên kevn ên kurdî.</p><video controls src=\"%s\"></video>".formatted(VID_FOR_BIGGER),
+                "سلێمانی", "Silêmanî", "نیان عەلی", "Niyan Elî",
+                VID_FOR_BIGGER, 2100, "1280x720", 290.0, LocalDate.now().minusMonths(6),
+                "پیشە", "Pîşe", "کلتوور", "Çand");
+
+        Video v13 = filmVideo(IMG_INTERVIEW, IMG_PRESENTER,
+                findTopic("VIDEO", "چاوپێکەوتن"),
+                "چاوپێکەوتن لەگەڵ نووسەرێکی ناودار",
+                "<p>چاوپێکەوتنێک لەگەڵ یەکێک لە نووسەرە ناودارەکانی کورد.</p><video controls src=\"%s\"></video>".formatted(VID_SINTEL),
+                "Hevpeyvîn bi nivîskarekî navdar re",
+                "<p>Hevpeyvînek bi yek ji nivîskarên navdar ên kurd re.</p><video controls src=\"%s\"></video>".formatted(VID_SINTEL),
+                "هەولێر", "Hewlêr", "ڕێژین کەریم", "Rêjîn Kerîm",
+                VID_SINTEL, 2700, "1920x1080", 720.0, LocalDate.now().minusMonths(3),
+                "چاوپێکەوتن", "Hevpeyvîn", "نووسەر", "Nivîskar");
+
+        Video v14 = filmVideo(IMG_OPEN_BOOK, IMG_BOOKS_SHELF,
+                findTopic("VIDEO", "فیلمی ئەدەبی"),
+                "فیلمێکی کورت لەسەر شیعری کوردی",
+                "<p>فیلمێکی کورتی هونەری لەسەر شیعری هاوچەرخی کوردی.</p><video controls src=\"%s\"></video>".formatted(VID_TEARS),
+                "Fîlmek kurt li ser helbesta kurdî",
+                "<p>Fîlmeke kurt a hunerî li ser helbesta hevçerx a kurdî.</p><video controls src=\"%s\"></video>".formatted(VID_TEARS),
+                "سلێمانی", "Silêmanî", "هانا ڕەسوڵ", "Hana Resûl",
+                VID_TEARS, 1200, "1920x1080", 280.0, LocalDate.now().minusMonths(4),
+                "ئەدەب", "Edebiyat", "شیعر", "Helbest");
+
+        Video v15 = filmVideo(IMG_MOUNTAINS_KRD, IMG_ERBIL_CITADEL,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی ژیانی کۆچەری",
+                "<p>بەڵگەنامەیەک لەسەر ژیانی کۆچەری و گەشتی ساڵانەی هۆزە کوردیەکان.</p><video controls src=\"%s\"></video>".formatted(VID_ELEPHANTS),
+                "Belgefîlma jiyana koçerî",
+                "<p>Belgefîlmek li ser jiyana koçerî û koça salane ya eşîrên kurdî.</p><video controls src=\"%s\"></video>".formatted(VID_ELEPHANTS),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ئاکۆ ڕەشید", "Ako Reşîd",
+                VID_ELEPHANTS, 3300, "1920x1080", 800.0, LocalDate.now().minusMonths(9),
+                "کۆچەری", "Koçerî", "ژیان", "Jiyan");
+
+        Video v16 = filmVideo(IMG_CALLIGRAPHY, IMG_OPEN_BOOK,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی هونەری خوسنۆڤی",
+                "<p>بەڵگەنامەیەک لەسەر مێژوو و گەشەی هونەری خوسنۆڤی کوردی.</p><video controls src=\"%s\"></video>".formatted(VID_BIG_BUCK_BUNNY),
+                "Belgefîlma hunera xetatiyê",
+                "<p>Belgefîlmek li ser dîrok û pêşveçûna hunera xetatiya kurdî.</p><video controls src=\"%s\"></video>".formatted(VID_BIG_BUCK_BUNNY),
+                "هەولێر", "Hewlêr", "شیلان عومەر", "Şîlan Omer",
+                VID_BIG_BUCK_BUNNY, 1800, "1920x1080", 420.0, LocalDate.now().minusMonths(5),
+                "خوسنۆڤی", "Xetatî", "هونەر", "Huner");
+
+        Video v17 = filmVideo(IMG_CONCERT, IMG_AUDIO_STUDIO,
+                findTopic("VIDEO", "کلیپی مۆسیقا"),
+                "کلیپی مۆسیقای هاوچەرخ",
+                "<p>کلیپێکی مۆسیقای هاوچەرخ لە هونەرمەندێکی گەنج.</p><video controls src=\"%s\"></video>".formatted(VID_FOR_BIGGER),
+                "Klîpa muzîka hevçerx",
+                "<p>Klîpek muzîka hevçerx ji hunermendekî ciwan.</p><video controls src=\"%s\"></video>".formatted(VID_FOR_BIGGER),
+                "سلێمانی", "Silêmanî", "دیار سابیر", "Diyar Sabir",
+                VID_FOR_BIGGER, 240, "1920x1080", 35.0, LocalDate.now().minusMonths(2),
+                "کلیپ", "Klîp", "مۆسیقا", "Muzîk");
+
+        Video v18 = filmVideo(IMG_STAGE, IMG_CONCERT,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی شانۆی کوردی",
+                "<p>بەڵگەنامەیەک لەسەر مێژووی شانۆ و درامای کوردی.</p><video controls src=\"%s\"></video>".formatted(VID_SINTEL),
+                "Belgefîlma şanoya kurdî",
+                "<p>Belgefîlmek li ser dîroka şano û drama kurdî.</p><video controls src=\"%s\"></video>".formatted(VID_SINTEL),
+                "هەولێر", "Hewlêr", "کارزان سەعید", "Karzan Seîd",
+                VID_SINTEL, 2400, "1920x1080", 540.0, LocalDate.now().minusMonths(7),
+                "شانۆ", "Şano", "درامە", "Drama");
+
+        Video v19 = filmVideo(IMG_LIBRARY, IMG_BOOKS_SHELF,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی کتێبخانە مێژووییەکان",
+                "<p>بەڵگەنامەیەک لەسەر کتێبخانە مێژووییەکانی کوردستان.</p><video controls src=\"%s\"></video>".formatted(VID_TEARS),
+                "Belgefîlma pirtûkxaneyên dîrokî",
+                "<p>Belgefîlmek li ser pirtûkxaneyên dîrokî yên Kurdistanê.</p><video controls src=\"%s\"></video>".formatted(VID_TEARS),
+                "سلێمانی", "Silêmanî", "ئاسۆ مەجید", "Aso Mecîd",
+                VID_TEARS, 2100, "1920x1080", 480.0, LocalDate.now().minusMonths(8),
+                "کتێبخانە", "Pirtûkxane", "مێژوو", "Dîrok");
+
+        Video v20 = filmVideo(IMG_ERBIL_CITADEL, IMG_MOUNTAINS_KRD,
+                findTopic("VIDEO", "بەڵگەنامەی مێژوویی"),
+                "بەڵگەنامەی پردە مێژووییەکان",
+                "<p>بەڵگەنامەیەک لەسەر پردە کۆنە مێژووییەکانی کوردستان.</p><video controls src=\"%s\"></video>".formatted(VID_ELEPHANTS),
+                "Belgefîlma pirên dîrokî",
+                "<p>Belgefîlmek li ser pirên kevn ên dîrokî yên Kurdistanê.</p><video controls src=\"%s\"></video>".formatted(VID_ELEPHANTS),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ژیار نەوزاد", "Jiyar Newzad",
+                VID_ELEPHANTS, 1800, "3840x2160", 1500.0, LocalDate.now().minusMonths(1),
+                "پرد", "Pir", "مێژوو", "Dîrok");
+
+        videoRepository.saveAll(List.of(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10,
+                v11, v12, v13, v14, v15, v16, v17, v18, v19, v20));
+        log.info("[seed:Video] inserted 20 rows (FILM + VIDEO_CLIP mix)");
     }
 
     /** Helper for single-source FILM videos (no clip items). */
@@ -3005,8 +3598,98 @@ public class MockDataSeeder implements CommandLineRunner {
         addAlbumItem(ic10, IMG_MOUNTAINS_KRD, "بەهاری کوردستان", "Bihara Kurdistanê", 0);
         addAlbumItem(ic10, IMG_ERBIL_CITADEL, "زستانی شار", "Zivistana bajêr", 1);
 
-        imageCollectionRepository.saveAll(List.of(ic1, ic2, ic3, ic4, ic5, ic6, ic7, ic8, ic9, ic10));
-        log.info("[seed:ImageCollection] inserted 10 rows (GALLERY / PHOTO_STORY / SINGLE)");
+        ImageCollection ic11 = gallery(ImageCollectionType.GALLERY, IMG_ERBIL_CITADEL, IMG_OLD_DOCUMENT,
+                findTopic("IMAGE", "گەلەری مێژوویی"),
+                "گەلەری شارە مێژووییەکان", "<p>وێنەی شارە مێژووییەکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_ERBIL_CITADEL),
+                "Galeriya bajarên dîrokî", "<p>Wêneyên bajarên dîrokî yên Kurdistanê.</p><img src=\"%s\">".formatted(IMG_ERBIL_CITADEL),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ئەرشیفی نەتەوەیی", "Arşîva neteweyî",
+                LocalDate.now().minusMonths(6), "شار", "Bajar", "مێژوو", "Dîrok");
+        addAlbumItem(ic11, IMG_ERBIL_CITADEL, "هەولێری کۆن", "Hewlêra kevn", 0);
+        addAlbumItem(ic11, IMG_OLD_DOCUMENT, "دۆکیومێنتی شار", "Belgeya bajêr", 1);
+
+        ImageCollection ic12 = gallery(ImageCollectionType.PHOTO_STORY, IMG_FOLK_DANCE, IMG_TRADITIONAL,
+                findTopic("IMAGE", "وێنەی فۆلکلۆری"),
+                "چیرۆکی وێنەیی - ئاهەنگە کوردیەکان", "<p>چیرۆکێکی وێنەیی لەسەر ئاهەنگ و بۆنە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_FOLK_DANCE),
+                "Çîroka wêneyî - Şahiyên kurdî", "<p>Çîrokeke wêneyî li ser şahî û boneyên kurdî.</p><img src=\"%s\">".formatted(IMG_FOLK_DANCE),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "تیمی فۆلکلۆر", "Tîma folklorê",
+                LocalDate.now().minusMonths(4), "ئاهەنگ", "Şahî", "فۆلکلۆر", "Folklor");
+        addAlbumItem(ic12, IMG_FOLK_DANCE, "ئاهەنگی زەماوەند", "Şahiya dawetê", 0);
+        addAlbumItem(ic12, IMG_TRADITIONAL, "بۆنەی نەورۆز", "Bona Newrozê", 1);
+        addAlbumItem(ic12, IMG_CONCERT, "ئاهەنگی مۆسیقا", "Şahiya muzîkê", 2);
+
+        ImageCollection ic13 = gallery(ImageCollectionType.GALLERY, IMG_TRADITIONAL, IMG_FOLK_DANCE,
+                findTopic("IMAGE", "ژیانی ڕۆژانە"),
+                "ژیانی بازاڕە کۆنەکان", "<p>وێنەی بازاڕە کۆنە کوردیەکان و کاسبکارەکان.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "Jiyana sûkên kevn", "<p>Wêneyên sûkên kevn ên kurdî û bazirganan.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "هەولێر", "Hewlêr", "تیمی وێنەگری", "Tîma wênegiriyê",
+                LocalDate.now().minusMonths(5), "بازاڕ", "Sûk", "ژیان", "Jiyan");
+        addAlbumItem(ic13, IMG_TRADITIONAL, "بازاڕی قەیسەری", "Sûka Qeyserî", 0);
+        addAlbumItem(ic13, IMG_ARCHIVE, "کاسبکاری کۆن", "Bazirganê kevn", 1);
+
+        ImageCollection ic14 = gallery(ImageCollectionType.GALLERY, IMG_MOUNTAINS_KRD, IMG_ERBIL_CITADEL,
+                findTopic("IMAGE", "سروشتی کوردستان"),
+                "گەلەری ڕووبار و دۆڵەکان", "<p>وێنەی ڕووبار و دۆڵە جوانەکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "Galeriya çem û newalan", "<p>Wêneyên çem û newalên bedew ên Kurdistanê.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ئاکۆ ڕەشید", "Ako Reşîd",
+                LocalDate.now().minusMonths(3), "ڕووبار", "Çem", "سروشت", "Xweza");
+        addAlbumItem(ic14, IMG_MOUNTAINS_KRD, "دۆڵی کوردستان", "Newala Kurdistanê", 0);
+
+        ImageCollection ic15 = gallery(ImageCollectionType.PHOTO_STORY, IMG_OLD_DOCUMENT, IMG_ARCHIVE,
+                findTopic("IMAGE", "گەلەری مێژوویی"),
+                "چیرۆکی وێنەیی - دەستنووسە کۆنەکان", "<p>چیرۆکێکی وێنەیی لەسەر دەستنووسە کۆنە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "Çîroka wêneyî - Destnivîsên kevn", "<p>Çîrokeke wêneyî li ser destnivîsên kevn ên kurdî.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "هەولێر", "Hewlêr", "ئەرشیفی نەتەوەیی", "Arşîva neteweyî",
+                LocalDate.now().minusMonths(7), "دەستنووس", "Destnivîs", "مێژوو", "Dîrok");
+        addAlbumItem(ic15, IMG_OLD_DOCUMENT, "دەستنووسی سەدەی ١٨", "Destnivîsa sedsala 18", 0);
+        addAlbumItem(ic15, IMG_CALLIGRAPHY, "خوسنۆڤی کۆن", "Xetatiya kevn", 1);
+
+        ImageCollection ic16 = gallery(ImageCollectionType.GALLERY, IMG_CONCERT, IMG_AUDIO_STUDIO,
+                findTopic("IMAGE", "وێنەی فۆلکلۆری"),
+                "گەلەری ئامێرە مۆسیقیەکان", "<p>وێنەی ئامێرە مۆسیقیە کۆنە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_CONCERT),
+                "Galeriya amûrên muzîkê", "<p>Wêneyên amûrên muzîkê yên kevn ên kurdî.</p><img src=\"%s\">".formatted(IMG_CONCERT),
+                "سلێمانی", "Silêmanî", "تیمی مۆسیقا", "Tîma muzîkê",
+                LocalDate.now().minusMonths(4), "ئامێر", "Amûr", "مۆسیقا", "Muzîk");
+        addAlbumItem(ic16, IMG_CONCERT, "تەنبوور", "Tembûr", 0);
+        addAlbumItem(ic16, IMG_AUDIO_STUDIO, "دەف", "Def", 1);
+
+        ImageCollection ic17 = gallery(ImageCollectionType.SINGLE, IMG_LIBRARY, IMG_BOOKS_SHELF,
+                findTopic("IMAGE", "ژیانی ڕۆژانە"),
+                "وێنەیەک لە کتێبخانەی نیشتمانی", "<p>وێنەیەکی تاک لە کتێبخانەی نیشتمانیمان.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Wêneyek ji pirtûkxaneya neteweyî", "<p>Wêneyek tek ji pirtûkxaneya me ya neteweyî.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "هەولێر", "Hewlêr", "KHI", "KHI",
+                LocalDate.now().minusMonths(2), "کتێبخانە", "Pirtûkxane", "خوێندن", "Xwendin");
+        addAlbumItem(ic17, IMG_LIBRARY, "کتێبخانەی نیشتمانی", "Pirtûkxaneya neteweyî", 0);
+
+        ImageCollection ic18 = gallery(ImageCollectionType.GALLERY, IMG_INTERVIEW, IMG_PRESENTER,
+                findTopic("IMAGE", "ژیانی ڕۆژانە"),
+                "گەلەری هونەرمەندانی کورد", "<p>وێنەی هونەرمەند و نووسەرانی ناوداری کورد.</p><img src=\"%s\">".formatted(IMG_INTERVIEW),
+                "Galeriya hunermendên kurd", "<p>Wêneyên hunermend û nivîskarên navdar ên kurd.</p><img src=\"%s\">".formatted(IMG_INTERVIEW),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "تیمی ئەرشیف", "Tîma arşîvê",
+                LocalDate.now().minusMonths(6), "هونەرمەند", "Hunermend", "پۆرترێت", "Portre");
+        addAlbumItem(ic18, IMG_INTERVIEW, "نووسەرێکی ناودار", "Nivîskarekî navdar", 0);
+        addAlbumItem(ic18, IMG_PRESENTER, "هونەرمەندێکی گەلی", "Hunermendekî gelî", 1);
+
+        ImageCollection ic19 = gallery(ImageCollectionType.PHOTO_STORY, IMG_MOUNTAINS_KRD, IMG_TRADITIONAL,
+                findTopic("IMAGE", "سروشتی کوردستان"),
+                "چیرۆکی وێنەیی - زۆزانەکان", "<p>چیرۆکێکی وێنەیی لەسەر زۆزان و لەوەڕگاکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "Çîroka wêneyî - Zozanan", "<p>Çîrokeke wêneyî li ser zozan û çêregehên Kurdistanê.</p><img src=\"%s\">".formatted(IMG_MOUNTAINS_KRD),
+                "هەرێمی کوردستان", "Herêma Kurdistanê", "ئاکۆ ڕەشید", "Ako Reşîd",
+                LocalDate.now().minusMonths(5), "زۆزان", "Zozan", "سروشت", "Xweza");
+        addAlbumItem(ic19, IMG_MOUNTAINS_KRD, "زۆزانی هاوین", "Zozana havînê", 0);
+        addAlbumItem(ic19, IMG_ERBIL_CITADEL, "لەوەڕگا", "Çêregeh", 1);
+
+        ImageCollection ic20 = gallery(ImageCollectionType.GALLERY, IMG_CALLIGRAPHY, IMG_OPEN_BOOK,
+                findTopic("IMAGE", "گەلەری مێژوویی"),
+                "گەلەری هونەری خوسنۆڤی", "<p>کۆکراوەیەک لە نموونەکانی هونەری خوسنۆڤی کوردی.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY),
+                "Galeriya hunera xetatiyê", "<p>Berhevokek ji nimûneyên hunera xetatiya kurdî.</p><img src=\"%s\">".formatted(IMG_CALLIGRAPHY),
+                "سلێمانی", "Silêmanî", "تیمی هونەر", "Tîma hunerê",
+                LocalDate.now().minusMonths(3), "خوسنۆڤی", "Xetatî", "هونەر", "Huner");
+        addAlbumItem(ic20, IMG_CALLIGRAPHY, "خوسنۆڤی کلاسیک", "Xetatiya klasîk", 0);
+        addAlbumItem(ic20, IMG_OPEN_BOOK, "دەستنووسی هونەری", "Destnivîsa hunerî", 1);
+
+        imageCollectionRepository.saveAll(List.of(ic1, ic2, ic3, ic4, ic5, ic6, ic7, ic8, ic9, ic10,
+                ic11, ic12, ic13, ic14, ic15, ic16, ic17, ic18, ic19, ic20));
+        log.info("[seed:ImageCollection] inserted 20 rows (GALLERY / PHOTO_STORY / SINGLE)");
     }
 
     /** Adds one image item to a collection's album, mirroring CKB/KMR captions. */
@@ -3279,8 +3962,109 @@ public class MockDataSeeder implements CommandLineRunner {
                 "Dr. Rêbîn Elî", "Perwerde",
                 "نووسین", "Nivîsîn", "ئەکادیمی", "Akademîk", true);
 
-        writingRepository.saveAll(List.of(w1, w2, w3, w4, w5, w6, w7, w8, w9, w10));
-        log.info("[seed:Writing] inserted 10 rows (incl. a 3-book series)");
+        Writing w11 = writing(IMG_BOOKS_SHELF, IMG_OPEN_BOOK,
+                findTopic("WRITING", "شیعر و ئەدەب"), BookGenre.POETRY,
+                "دیوانی شیعری کوردی - بەرگی سێیەم",
+                "<p>بەرگی سێیەمی دیوانەکە، تایبەت بە شاعیرانی هاوچەرخ.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "ئامادەکردنی: تیمی ئەدەبی KHI", 295, "شیعری هاوچەرخ",
+                "Dîwana helbesta kurdî - Bergê sêyem",
+                "<p>Bergê sêyem ê dîwanê, taybet bi helbestvanên hevçerx.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "Amadekirin: Tîma edebî ya KHI", "Helbesta hevçerx",
+                "دیوان", "Dîwan", "شیعر", "Helbest", true);
+
+        Writing w12 = writing(IMG_OLD_DOCUMENT, IMG_ARCHIVE,
+                findTopic("WRITING", "مێژووی کورد"), BookGenre.HISTORY,
+                "مێژووی کۆماری مەهاباد",
+                "<p>کتێبێکی ئەکادیمی لەسەر مێژووی کۆماری مەهاباد ١٩٤٦.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "د. کاوە بایز", 380, "مێژوو",
+                "Dîroka Komara Mehabadê",
+                "<p>Pirtûkeke akademîk li ser dîroka Komara Mehabadê ya 1946an.</p><img src=\"%s\">".formatted(IMG_OLD_DOCUMENT),
+                "Dr. Kawe Bayiz", "Dîrok",
+                "مەهاباد", "Mehabad", "مێژوو", "Dîrok", true);
+
+        Writing w13 = writing(IMG_LIBRARY, IMG_OPEN_BOOK,
+                findTopic("WRITING", "زمانناسی کوردی"), BookGenre.LINGUISTICS,
+                "ڕێزمانی زمانی کوردی - کرمانجی",
+                "<p>کتێبێکی زانستی لەسەر ڕێزمانی زاراوەی کرمانجی.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "پ. د. زانا فەرهادی", 410, "زمانناسی",
+                "Rêzimana zimanê kurdî - Kurmancî",
+                "<p>Pirtûkeke zanistî li ser rêzimana zaravayê kurmancî.</p><img src=\"%s\">".formatted(IMG_LIBRARY),
+                "Prof. Dr. Zana Ferhadî", "Zimanzanî",
+                "ڕێزمان", "Rêziman", "کرمانجی", "Kurmancî", true);
+
+        Writing w14 = writing(IMG_BOOKS_SHELF, IMG_OPEN_BOOK,
+                findTopic("WRITING", "ڕۆمان و چیرۆک"), BookGenre.NOVEL,
+                "ڕۆمانی کۆچ",
+                "<p>ڕۆمانێکی مێژوویی لەسەر کۆچی هۆزە کوردیەکان.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "د. هیوا قادر", 350, "ڕۆمان",
+                "Romana Koçê",
+                "<p>Romaneke dîrokî li ser koça eşîrên kurdî.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "Dr. Hîwa Qadir", "Roman",
+                "ڕۆمان", "Roman", "کۆچ", "Koç", true);
+
+        Writing w15 = writing(IMG_TRADITIONAL, IMG_FOLK_DANCE,
+                findTopic("WRITING", "مێژووی کورد"), BookGenre.CULTURAL,
+                "دابونەریتی کوردی",
+                "<p>کتێبێک لەسەر دابونەریت و فۆلکلۆری کوردی.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "ئامادەکردنی: تیمی فۆلکلۆر", 320, "کلتوور",
+                "Edet û toreyên kurdî",
+                "<p>Pirtûkek li ser edet û folklora kurdî.</p><img src=\"%s\">".formatted(IMG_TRADITIONAL),
+                "Amadekirin: Tîma folklorê", "Çand",
+                "دابونەریت", "Edet", "فۆلکلۆر", "Folklor", true);
+
+        Writing w16 = writing(IMG_OPEN_BOOK, IMG_BOOKS_SHELF,
+                findTopic("WRITING", "شیعر و ئەدەب"), BookGenre.POETRY,
+                "هۆنراوەکانی مەحوی",
+                "<p>کۆی هۆنراوەکانی شاعیر مەحوی لەگەڵ لێکدانەوە.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "لێکۆڵینەوەی: د. مارف خەزنەدار", 260, "شیعری کلاسیک",
+                "Helbestên Mehwî",
+                "<p>Hemû helbestên helbestvan Mehwî bi şîroveyê re.</p><img src=\"%s\">".formatted(IMG_OPEN_BOOK),
+                "Lêkolîn: Dr. Marif Xeznedar", "Helbesta klasîk",
+                "مەحوی", "Mehwî", "شیعر", "Helbest", true);
+
+        Writing w17 = writing(IMG_LIBRARY, IMG_OPEN_BOOK,
+                findTopic("WRITING", "زمانناسی کوردی"), BookGenre.EDUCATIONAL,
+                "ڕێبەری فێربوونی سۆرانی",
+                "<p>ڕێبەرێکی فێرکاری بۆ فێربوونی زاراوەی سۆرانی بۆ سەرەتاییەکان.</p><img src=\"%s\"><a href=\"%s\">داگرتن</a>".formatted(IMG_LIBRARY, PDF_DUMMY),
+                "د. شوان کەریم", 240, "پەروەردە",
+                "Rêbera fêrbûna soranî",
+                "<p>Rêbereke fêrkarî ji bo fêrbûna zaravayê soranî ji bo destpêkeran.</p><img src=\"%s\"><a href=\"%s\">Daxistin</a>".formatted(IMG_LIBRARY, PDF_DUMMY),
+                "Dr. Şivan Kerîm", "Perwerde",
+                "فێرکاری", "Fêrkarî", "سۆرانی", "Soranî", true);
+
+        Writing w18 = writing(IMG_ARCHIVE, IMG_OLD_DOCUMENT,
+                findTopic("WRITING", "مێژووی کورد"), BookGenre.HISTORY,
+                "مێژووی شارەکانی کوردستان",
+                "<p>کتێبێکی ئەکادیمی لەسەر مێژووی شارە سەرەکیەکانی کوردستان.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "د. ئاسۆ هەورامی", 480, "مێژوو",
+                "Dîroka bajarên Kurdistanê",
+                "<p>Pirtûkeke akademîk li ser dîroka bajarên sereke yên Kurdistanê.</p><img src=\"%s\">".formatted(IMG_ARCHIVE),
+                "Dr. Aso Hewramî", "Dîrok",
+                "شار", "Bajar", "مێژوو", "Dîrok", true);
+
+        Writing w19 = writing(IMG_BOOKS_SHELF, IMG_OPEN_BOOK,
+                findTopic("WRITING", "ڕۆمان و چیرۆک"), BookGenre.NOVEL,
+                "کۆمەڵە چیرۆکی کوردی",
+                "<p>کۆمەڵە چیرۆکێکی هاوچەرخ لە نووسەرانی گەنجی کورد.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "نووسەرانی جیاواز", 280, "چیرۆک",
+                "Berhevoka çîrokên kurdî",
+                "<p>Berhevokeke çîrokan a hevçerx ji nivîskarên ciwan ên kurd.</p><img src=\"%s\">".formatted(IMG_BOOKS_SHELF),
+                "Nivîskarên cuda", "Çîrok",
+                "چیرۆک", "Çîrok", "هاوچەرخ", "Hevçerx", true);
+
+        Writing w20 = writing(IMG_OPEN_BOOK, IMG_LIBRARY,
+                findTopic("WRITING", "شیعر و ئەدەب"), BookGenre.EDUCATIONAL,
+                "ڕێبەری وەرگێڕانی ئەدەبی",
+                "<p>ڕێبەرێک بۆ فێربوونی ئەساسەکانی وەرگێڕانی ئەدەبی.</p><img src=\"%s\"><a href=\"%s\">داگرتن (PDF)</a>".formatted(IMG_OPEN_BOOK, PDF_DUMMY),
+                "د. ڕێبین عەلی", 220, "پەروەردە",
+                "Rêbera wergera edebî",
+                "<p>Rêberek ji bo fêrbûna bingehên wergera edebî.</p><img src=\"%s\"><a href=\"%s\">Daxistin (PDF)</a>".formatted(IMG_OPEN_BOOK, PDF_DUMMY),
+                "Dr. Rêbîn Elî", "Perwerde",
+                "وەرگێڕان", "Werger", "ئەدەب", "Edebiyat", true);
+
+        writingRepository.saveAll(List.of(w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
+                w11, w12, w13, w14, w15, w16, w17, w18, w19, w20));
+        log.info("[seed:Writing] inserted 20 rows (incl. a 3-book series)");
     }
 
     /** Builder helper for standalone writings (no series). */
@@ -3316,6 +4100,111 @@ public class MockDataSeeder implements CommandLineRunner {
                 .keywordsKmr(hasKmr ? new LinkedHashSet<>(Set.of(kwKmr)) : new LinkedHashSet<>())
                 .tagsCkb(new LinkedHashSet<>(Set.of(tagCkb)))
                 .tagsKmr(hasKmr ? new LinkedHashSet<>(Set.of(tagKmr)) : new LinkedHashSet<>())
+                .build();
+    }
+
+    // =========================================================================
+    // BULK BUILDER HELPERS (used to add the extra entries up to 20 each)
+    // =========================================================================
+
+    private StatItem stat(String labelCkb, String labelKmr, String value) {
+        return StatItem.builder().labelCkb(labelCkb).labelKmr(labelKmr).value(value).build();
+    }
+
+    private About aboutEntry(String slugCkb, String slugKmr, int order,
+                             String titleCkb, String subCkb, String metaCkb, String bodyCkb,
+                             String titleKmr, String subKmr, String metaKmr, String bodyKmr,
+                             List<StatItem> stats) {
+        return About.builder()
+                .slugCkb(slugCkb)
+                .slugKmr(slugKmr)
+                .active(true)
+                .displayOrder(order)
+                .ckbContent(AboutContent.builder()
+                        .title(titleCkb).subtitle(subCkb).metaDescription(metaCkb).body(bodyCkb).build())
+                .kmrContent(AboutContent.builder()
+                        .title(titleKmr).subtitle(subKmr).metaDescription(metaKmr).body(bodyKmr).build())
+                .stats(stats)
+                .build();
+    }
+
+    private Contact contactEntry(String slugCkb, String slugKmr, int order,
+                                 String titleCkb, String subCkb, String addrCkb, String hoursCkb, String descCkb,
+                                 String titleKmr, String subKmr, String addrKmr, String hoursKmr, String descKmr,
+                                 String phone, String email) {
+        return Contact.builder()
+                .slugCkb(slugCkb)
+                .slugKmr(slugKmr)
+                .active(true)
+                .displayOrder(order)
+                .ckbContent(ContactContent.builder()
+                        .title(titleCkb).subtitle(subCkb).address(addrCkb)
+                        .workingHours(hoursCkb).description(descCkb).build())
+                .kmrContent(ContactContent.builder()
+                        .title(titleKmr).subtitle(subKmr).address(addrKmr)
+                        .workingHours(hoursKmr).description(descKmr).build())
+                .phone(phone)
+                .email(email)
+                .build();
+    }
+
+    private ak.dev.khi_backend.khi_app.model.service.Service serviceEntry(
+            String type, String location, int daysAgo,
+            String titleCkb, String descCkb, String titleKmr, String descKmr) {
+        ak.dev.khi_backend.khi_app.model.service.Service s =
+                ak.dev.khi_backend.khi_app.model.service.Service.builder()
+                        .serviceType(type)
+                        .location(location)
+                        .active(true)
+                        .publishedAt(LocalDateTime.now().minusDays(daysAgo))
+                        .build();
+        s.addContent(ServiceContent.builder().languageCode("CKB").title(titleCkb).description(descCkb).build());
+        s.addContent(ServiceContent.builder().languageCode("KMR").title(titleKmr).description(descKmr).build());
+        return s;
+    }
+
+    private News newsEntry(String coverUrl, MediaKind coverKind, int daysAgo,
+                           String titleCkb, String descCkb, String titleKmr, String descKmr,
+                           Set<String> tagsCkb, Set<String> tagsKmr,
+                           Set<String> kwCkb, Set<String> kwKmr,
+                           NewsCategory cat, NewsSubCategory sub) {
+        return News.builder()
+                .coverUrl(coverUrl)
+                .coverMediaType(coverKind)
+                .datePublished(LocalDate.now().minusDays(daysAgo))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .ckbContent(NewsContent.builder().title(titleCkb).description(descCkb).build())
+                .kmrContent(NewsContent.builder().title(titleKmr).description(descKmr).build())
+                .tagsCkb(new LinkedHashSet<>(tagsCkb))
+                .tagsKmr(new LinkedHashSet<>(tagsKmr))
+                .keywordsCkb(new LinkedHashSet<>(kwCkb))
+                .keywordsKmr(new LinkedHashSet<>(kwKmr))
+                .category(cat)
+                .subCategory(sub)
+                .build();
+    }
+
+    private Project projectEntry(String coverUrl, MediaKind coverKind,
+                                 String titleCkb, String descCkb, String locCkb,
+                                 String titleKmr, String descKmr, String locKmr,
+                                 String typeCkb, String typeKmr, ProjectStatus status, int monthsAgo,
+                                 Set<ProjectTag> tags, Set<ProjectKeyword> kws) {
+        return Project.builder()
+                .coverUrl(coverUrl)
+                .coverMediaType(coverKind)
+                .ckbContent(ProjectContentBlock.builder()
+                        .title(titleCkb).description(descCkb).location(locCkb).build())
+                .kmrContent(ProjectContentBlock.builder()
+                        .title(titleKmr).description(descKmr).location(locKmr).build())
+                .projectTypeCkb(typeCkb)
+                .projectTypeKmr(typeKmr)
+                .status(status)
+                .projectDate(LocalDate.now().minusMonths(monthsAgo))
+                .contentLanguages(new LinkedHashSet<>(Set.of(Language.CKB, Language.KMR)))
+                .tagsCkb(new LinkedHashSet<>(tags))
+                .tagsKmr(new LinkedHashSet<>(tags))
+                .keywordsCkb(new LinkedHashSet<>(kws))
+                .keywordsKmr(new LinkedHashSet<>(kws))
                 .build();
     }
 }
