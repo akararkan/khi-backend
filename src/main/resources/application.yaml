@@ -15,29 +15,18 @@ spring:
   # ===============================
   jpa:
     open-in-view: false
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: create-drop
     properties:
       hibernate:
-        format_sql: true
-        use_sql_comments: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
         jdbc:
           time_zone: UTC
 
   # ===============================
-  # WEB MVC / I18N
+  # WEB MVC
   # ===============================
-  web:
-    locale: ckb
-    locale-resolver: fixed
-
-  messages:
-    basename: i18n/messages
-    encoding: UTF-8
-    fallback-to-system-locale: false
-
   mvc:
     format:
       date: yyyy-MM-dd
@@ -57,9 +46,9 @@ spring:
   # ===============================
   devtools:
     restart:
-      enabled: true
+      enabled: false
     livereload:
-      enabled: true
+      enabled: false
 
   # ===============================
   # MULTIPART UPLOAD LIMITS
@@ -188,15 +177,15 @@ server:
 # ===============================
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId}] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"
 
   level:
-    root: INFO
-    ak.dev.khi_backend: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-    org.springframework.web.servlet: DEBUG
-    org.springframework.security: INFO
-    org.springframework.data.redis: DEBUG
-    org.springframework.cache: DEBUG
-    org.springframework.jdbc: DEBUG
+    root: WARN
+    ak.dev.khi_backend: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.springframework.web.servlet: WARN
+    org.springframework.security: WARN
+    org.springframework.data.redis: WARN
+    org.springframework.cache: WARN
+    org.springframework.jdbc: WARN
