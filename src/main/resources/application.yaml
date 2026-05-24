@@ -123,8 +123,6 @@ jwt:
 # APP CUSTOM CONFIG
 # ===============================
 app:
-  seed:
-    enabled: ${APP_SEED_ENABLED:true}
   oauth2:
     redirect-uri: ${OAUTH2_REDIRECT_URI}
   cors:
