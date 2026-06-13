@@ -6,6 +6,7 @@ import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.publishment.writing.WritingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/writings")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Writings", description = "Bilingual books with multi-genre, series linking, multi-axis search")
 public class WritingController {
 
     private final WritingService writingService;

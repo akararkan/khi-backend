@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.publishment.topic;
 
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.service.publishment.topic.PublishmentTopicService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/topics")
 @RequiredArgsConstructor
+@Tag(name = "Publishment Topics", description = "Central VIDEO / SOUND / IMAGE / WRITING taxonomy")
 public class PublishmentTopicController {
 
     private final PublishmentTopicService topicService;

@@ -85,6 +85,29 @@ spring:
 
 
 # ===============================
+# OPENAPI / SWAGGER (springdoc-openapi)
+# ===============================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    disable-swagger-default-url: true
+    deep-linking: true
+    display-request-duration: true
+    persist-authorization: true       # remembers Bearer token across page reloads
+    doc-expansion: none               # collapsed by default — cleaner with this many endpoints
+    show-extensions: true
+    show-common-extensions: true
+  default-produces-media-type: application/json
+  packages-to-scan: ak.dev.khi_backend
+  paths-to-match: /api/**
+  show-actuator: false
+
+# ===============================
 # JWT (ENV SECRET ONLY)
 # ===============================
 jwt:

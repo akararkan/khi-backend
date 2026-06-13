@@ -40,6 +40,17 @@ public class SecurityConfig {
                         // ── Preflight ──────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // ── OpenAPI / Swagger UI (springdoc-openapi) ───────────────
+                        .requestMatchers(
+                                "/v3/api-docs",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
+
                         // ── Session management ─────────────────────────────────────
                         .requestMatchers("/api/auth/sessions/**").authenticated()
 

@@ -8,6 +8,7 @@ import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicR
 import ak.dev.khi_backend.khi_app.service.publishment.sound.SoundTrackService;
 import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -65,6 +66,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/sound-tracks")
 @RequiredArgsConstructor
+@Tag(name = "Sound Tracks", description = "Bilingual sound tracks (SINGLE / MULTI) with files, brochures, attachments")
 public class SoundTrackController {
 
     private final SoundTrackService          soundTrackService;

@@ -10,6 +10,7 @@ import ak.dev.khi_backend.user.model.User;
 import ak.dev.khi_backend.user.repo.SessionRepository;
 import ak.dev.khi_backend.user.service.TokenService;
 import ak.dev.khi_backend.user.service.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 @Validated
 @RequestMapping("/api/auth")
+@Tag(name = "Auth", description = "Registration, login, password reset, logout, token blacklist")
 public class UserAPI {
 
     private final UserService    userService;

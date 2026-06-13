@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.contact;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.contact.ContactDTOs.*;
 import ak.dev.khi_backend.khi_app.service.contact.ContactService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,7 @@ import java.util.List;
 @RequestMapping("/api/v1/contact")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Contact", description = "Bilingual Contact pages with Tiptap descriptions")
 public class ContactController {
 
     private final ContactService contactService;

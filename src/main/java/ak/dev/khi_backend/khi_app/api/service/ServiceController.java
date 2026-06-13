@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.service;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.service.ServiceDTOs.*;
 import ak.dev.khi_backend.khi_app.service.service.ServiceService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/services")
 @RequiredArgsConstructor
+@Tag(name = "Services", description = "Bilingual service catalogue with soft-active and type filtering")
 public class ServiceController {
 
     private final ServiceService serviceService;

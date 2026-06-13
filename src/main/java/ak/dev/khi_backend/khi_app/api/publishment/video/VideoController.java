@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.publishment.video;
 import ak.dev.khi_backend.khi_app.dto.publishment.video.VideoDTO;
 import ak.dev.khi_backend.khi_app.service.publishment.video.VideoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/videos")
 @RequiredArgsConstructor
+@Tag(name = "Videos", description = "Bilingual videos with multipart uploads and co-located topic CRUD")
 public class VideoController {
 
     private final VideoService videoService;

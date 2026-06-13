@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.search;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.search.GlobalSearchResponse;
 import ak.dev.khi_backend.khi_app.service.search.GlobalSearchService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -79,6 +80,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/search")
 @RequiredArgsConstructor
+@Tag(name = "Global Search", description = "One endpoint searching every content type at once")
 public class GlobalSearchController {
 
     private final GlobalSearchService globalSearchService;

@@ -6,6 +6,7 @@ import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.publishment.image.ImageCollectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/image-collections")
 @RequiredArgsConstructor
+@Tag(name = "Image Collections", description = "Bilingual image collections with album items and topic taxonomy")
 public class ImageCollectionController {
 
     private final ImageCollectionService   imageCollectionService;

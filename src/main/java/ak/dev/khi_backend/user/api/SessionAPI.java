@@ -4,6 +4,7 @@ import ak.dev.khi_backend.user.dto.SessionDTO;
 import ak.dev.khi_backend.user.model.Session;
 import ak.dev.khi_backend.user.model.User;
 import ak.dev.khi_backend.user.repo.SessionRepository;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/auth/sessions")
 @RequiredArgsConstructor
+@Tag(name = "Sessions", description = "Per-device session listing and revocation")
 public class SessionAPI {
 
     private final SessionRepository sessionRepository;

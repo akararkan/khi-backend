@@ -2,6 +2,7 @@ package ak.dev.khi_backend.khi_app.api.about;
 
 import ak.dev.khi_backend.khi_app.dto.about.AboutDTOs;
 import ak.dev.khi_backend.khi_app.service.about.AboutService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/about")
 @RequiredArgsConstructor
+@Tag(name = "About", description = "Bilingual About pages with Tiptap bodies and structured stats")
 public class AboutController {
 
     private final AboutService aboutService;

@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.api.media;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.media.MediaDtos.UploadResponse;
 import ak.dev.khi_backend.khi_app.service.media.MediaService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -29,6 +30,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/media")
 @RequiredArgsConstructor
+@Tag(name = "Media", description = "Shared S3 upload pipeline used by every Tiptap editor")
 public class MediaController {
 
     private final MediaService mediaService;

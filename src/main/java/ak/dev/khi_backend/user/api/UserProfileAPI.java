@@ -4,6 +4,7 @@ import ak.dev.khi_backend.user.dto.UserResponseDTO;
 import ak.dev.khi_backend.user.service.UserProfileService;
 import ak.dev.khi_backend.user.dto.UpdateProfileRequestDTO;
 import ak.dev.khi_backend.user.dto.ChangePasswordRequestDTO;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -32,6 +33,7 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/user")
+@Tag(name = "User Profile", description = "Self-service profile: name, username, password, avatar, account deletion")
 public class UserProfileAPI {
 
     private final UserProfileService userProfileService;
