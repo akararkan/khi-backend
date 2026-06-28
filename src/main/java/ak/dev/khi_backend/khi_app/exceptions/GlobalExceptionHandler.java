@@ -3,6 +3,7 @@ import ak.dev.khi_backend.khi_app.config.TraceIdFilter;
 import ak.dev.khi_backend.user.consts.SecurityConstants;
 import ak.dev.khi_backend.user.exceptions.UserAlreadyExistsException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -145,6 +146,18 @@ public class GlobalExceptionHandler {
                         "If you do not have an account yet, please register."
         ));
         log.warn("UsernameNotFound path={} traceId={}", req.getRequestURI(), body.getTraceId());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleEntityNotFound(
+            EntityNotFoundException ex, HttpServletRequest req, Locale locale) {
+        String reason = ex.getMessage() != null ? ex.getMessage() : "Resource not found.";
+        ApiErrorResponse body = base(req, 404, ErrorCode.NOT_FOUND);
+        body.setMessage(reason);
+        body.setMessageEn(reason);
+        body.setMessageKu(reason);
+        body.setDetails(Map.of("resource", reason));
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
     /**

@@ -1,14 +1,14 @@
 package ak.dev.khi_backend.khi_app.api.about;
 
+import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.about.AboutDTOs;
 import ak.dev.khi_backend.khi_app.service.about.AboutService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * AboutController — Tiptap-aware About endpoints.
@@ -30,13 +30,29 @@ public class AboutController {
     private final AboutService aboutService;
 
     @GetMapping
-    public ResponseEntity<List<AboutDTOs.AboutResponse>> getAll() {
-        return ResponseEntity.ok(aboutService.getAllActive());
+    public ResponseEntity<ApiResponse<Page<AboutDTOs.AboutResponse>>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                aboutService.getAllActive(page, size), "About pages fetched"));
     }
 
-    @GetMapping("/{slug}")
-    public ResponseEntity<AboutDTOs.AboutResponse> getBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(aboutService.getBySlug(slug));
+    /**
+     * Backward-compatible detail lookup. Numeric values resolve by ID; all
+     * other values resolve against both localized slugs.
+     */
+    @GetMapping("/{identifier}")
+    public ResponseEntity<ApiResponse<AboutDTOs.AboutResponse>> getByIdentifier(
+            @PathVariable String identifier) {
+        return ResponseEntity.ok(ApiResponse.success(
+                aboutService.getByIdentifier(identifier), "About page fetched"));
+    }
+
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<ApiResponse<AboutDTOs.AboutResponse>> getBySlug(
+            @PathVariable String slug) {
+        return ResponseEntity.ok(ApiResponse.success(
+                aboutService.getBySlug(slug), "About page fetched"));
     }
 
     @PostMapping

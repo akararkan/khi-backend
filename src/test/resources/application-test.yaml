@@ -18,8 +18,31 @@ spring:
       repositories:
         enabled: false
 
+jwt:
+  secret: test-only-secret-key-that-is-long-enough-for-hmac-signing
+  expiration-ms: 86400000
+  cookie-name: khi_test_auth
+  cookie-secure: false
+  cookie-http-only: true
+  cookie-same-site: Lax
+  cookie-path: /
+  cookie-max-age: 86400
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
+aws:
+  s3:
+    region: us-east-1
+    bucket: test-bucket
+    base-folder: test
+
 logging:
   level:
     root: WARN
     ak.dev.khi_backend: INFO
-

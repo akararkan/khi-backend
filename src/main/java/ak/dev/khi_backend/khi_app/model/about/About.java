@@ -100,6 +100,21 @@ public class About {
     @Builder.Default
     private List<StatItem> stats = new ArrayList<>();
 
+    @Column(name = "founder_name_ckb", length = 300)
+    private String founderNameCkb;
+    @Column(name = "founder_name_kmr", length = 300)
+    private String founderNameKmr;
+    @Column(name = "founder_bio_ckb", columnDefinition = "TEXT")
+    private String founderBioCkb;
+    @Column(name = "founder_bio_kmr", columnDefinition = "TEXT")
+    private String founderBioKmr;
+    @Column(name = "founder_image_url", columnDefinition = "TEXT")
+    private String founderImageUrl;
+    @Column(name = "hero_video_url", columnDefinition = "TEXT")
+    private String heroVideoUrl;
+    @Column(name = "hero_poster_url", columnDefinition = "TEXT")
+    private String heroPosterUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

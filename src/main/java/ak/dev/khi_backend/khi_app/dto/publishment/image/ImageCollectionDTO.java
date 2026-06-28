@@ -115,6 +115,9 @@ public final class ImageCollectionDTO {
     @Builder
     public static class CreateRequest {
 
+        private String slugCkb;
+        private String slugKmr;
+
         @NotNull(message = "collectionType is required")
         private ImageCollectionType collectionType;
 
@@ -151,6 +154,9 @@ public final class ImageCollectionDTO {
     @NoArgsConstructor @AllArgsConstructor
     @Builder
     public static class UpdateRequest {
+
+        private String slugCkb;
+        private String slugKmr;
 
         private ImageCollectionType collectionType;
 
@@ -189,6 +195,8 @@ public final class ImageCollectionDTO {
     public static class Response {
 
         private Long id;
+        private String slugCkb;
+        private String slugKmr;
         private ImageCollectionType collectionType;
 
         // ── Three cover image URLs ────────────────────────────────────────────

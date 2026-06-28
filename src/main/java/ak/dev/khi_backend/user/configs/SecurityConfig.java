@@ -73,6 +73,50 @@ public class SecurityConfig {
                         // ── Admin: user management ────────────────────────────────
                         .requestMatchers("/api/users/**").hasRole("SUPER_ADMIN")
 
+                        // ── Public visitor submissions and legacy hero read ──────
+                        .requestMatchers(HttpMethod.GET, "/featured").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/contact/messages",
+                                "/api/v1/donations/financial",
+                                "/api/v1/donations/archive"
+                        ).permitAll()
+
+                        // ── Sensitive submissions are admin-readable only ─────────
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/contact/messages",
+                                "/api/v1/donations/financial",
+                                "/api/v1/donations/archive",
+                                "/api/v1/contact",
+                                "/api/v1/services/admin/**",
+                                "/api/v1/services/search/admin"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH,
+                                "/api/v1/contact/messages/**",
+                                "/api/v1/donations/financial/**",
+                                "/api/v1/donations/archive/**"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        // ── Public-site configuration writes are admin-only ───────
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/featured/**",
+                                "/api/v1/about/team/**",
+                                "/api/v1/about/partners/**",
+                                "/api/v1/settings/social/**"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT,
+                                "/api/v1/featured/**",
+                                "/api/v1/about/team/**",
+                                "/api/v1/about/partners/**",
+                                "/api/v1/settings/social/**",
+                                "/api/v1/donations/settings"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE,
+                                "/api/v1/featured/**",
+                                "/api/v1/about/team/**",
+                                "/api/v1/about/partners/**",
+                                "/api/v1/settings/social/**"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
                         // ── About Page: public reads, admin writes ────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/about/**").permitAll()
                         .requestMatchers("/api/v1/about/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
@@ -86,23 +130,26 @@ public class SecurityConfig {
 
                         // ── Content: writes require EMPLOYEE+ ────────────────────
                         .requestMatchers(HttpMethod.POST,
-                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/films/**",
-                                "/api/v1/image-collections/**", "/api/v1/soundtracks/**",
+                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/videos/**",
+                                "/api/v1/image-collections/**", "/api/v1/sound-tracks/**",
                                 "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("EMPLOYEE", "ADMIN", "SUPER_ADMIN")
 
                         .requestMatchers(HttpMethod.PUT,
-                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/films/**",
-                                "/api/v1/image-collections/**", "/api/v1/soundtracks/**",
+                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/videos/**",
+                                "/api/v1/image-collections/**", "/api/v1/sound-tracks/**",
                                 "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("EMPLOYEE", "ADMIN", "SUPER_ADMIN")
 
                         // ── Content: deletes require ADMIN+ ──────────────────────
                         .requestMatchers(HttpMethod.DELETE,
-                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/films/**",
-                                "/api/v1/image-collections/**", "/api/v1/soundtracks/**",
+                                "/api/v1/projects/**", "/api/v1/news/**", "/api/v1/videos/**",
+                                "/api/v1/image-collections/**", "/api/v1/sound-tracks/**",
                                 "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        .requestMatchers("/api/v1/media/**")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         .anyRequest().authenticated()
                 )

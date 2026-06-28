@@ -35,6 +35,13 @@ public class ServiceDTOs {
          * Format: "yyyy-MM-dd HH:mm:ss"   Null = draft / unpublished.
          */
         private String publishedAt;
+        private String layoutType;
+        private String heroVideoUrl;
+        private String heroPosterUrl;
+        private String navAnchorId;
+        private List<String> featureImageUrls;
+        private List<String> thumbnailUrls;
+        private List<Long> partnerIds;
         /**
          * Bilingual content list.
          * Each entry must have a languageCode ("CKB" | "KMR") and a title.
@@ -67,6 +74,13 @@ public class ServiceDTOs {
         private String location;
         private boolean active;
         private String publishedAt;
+        private String layoutType;
+        private String heroVideoUrl;
+        private String heroPosterUrl;
+        private String navAnchorId;
+        private List<String> featureImageUrls;
+        private List<String> thumbnailUrls;
+        private List<Long> partnerIds;
         private List<ServiceContentResponse> contents;
         private String createdAt;
         private String updatedAt;

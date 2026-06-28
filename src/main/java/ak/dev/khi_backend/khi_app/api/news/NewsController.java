@@ -72,12 +72,14 @@ public class NewsController {
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<NewsDto>>> globalSearch(
-            @RequestParam("q") String q,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/news/search | q={} | page={} size={}", q, page, size);
-        Page<NewsDto> result = newsService.globalSearch(q, page, size);
+        String query = keyword != null && !keyword.isBlank() ? keyword : (q == null ? "" : q);
+        log.info("GET /api/v1/news/search | keyword={} | page={} size={}", query, page, size);
+        Page<NewsDto> result = newsService.globalSearch(query, page, size);
         return ResponseEntity.ok(ApiResponse.success(result, "Global search completed"));
     }
 

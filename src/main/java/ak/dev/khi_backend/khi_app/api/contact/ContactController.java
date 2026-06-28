@@ -6,10 +6,12 @@ import ak.dev.khi_backend.khi_app.service.contact.ContactService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -45,9 +47,11 @@ public class ContactController {
 
     /** All active contact pages (public). */
     @GetMapping("/active")
-    public ResponseEntity<ApiResponse<List<ContactResponse>>> getAllActive() {
+    public ResponseEntity<ApiResponse<Page<ContactResponse>>> getAllActive(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                contactService.getAllActive(), "Active contact pages fetched"));
+                contactService.getAllActive(page, size), "Active contact pages fetched"));
     }
 
     /** Get by ID. */
@@ -75,7 +79,7 @@ public class ContactController {
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ContactResponse>> create(
-            @RequestBody ContactRequest request) {
+            @Valid @RequestBody ContactRequest request) {
 
         log.info("POST /api/v1/contact | slugCkb={}", request.getSlugCkb());
         ContactResponse response = contactService.create(request);
@@ -90,7 +94,7 @@ public class ContactController {
     @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ContactResponse>> update(
             @PathVariable Long id,
-            @RequestBody ContactRequest request) {
+            @Valid @RequestBody ContactRequest request) {
 
         log.info("PUT /api/v1/contact/{}", id);
         return ResponseEntity.ok(ApiResponse.success(

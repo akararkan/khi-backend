@@ -195,6 +195,13 @@ public class ServiceService {
                         .location(trimOrNull(request.getLocation()))
                         .active(true)
                         .publishedAt(parseDateTime(request.getPublishedAt()))
+                        .layoutType(trimOrNull(request.getLayoutType()))
+                        .heroVideoUrl(trimOrNull(request.getHeroVideoUrl()))
+                        .heroPosterUrl(trimOrNull(request.getHeroPosterUrl()))
+                        .navAnchorId(trimOrNull(request.getNavAnchorId()))
+                        .featureImageUrls(cleanStrings(request.getFeatureImageUrls()))
+                        .thumbnailUrls(cleanStrings(request.getThumbnailUrls()))
+                        .partnerIds(cleanIds(request.getPartnerIds()))
                         .build();
 
         if (request.getContents() != null) {
@@ -232,6 +239,16 @@ public class ServiceService {
         service.setServiceType(trimRequired(request.getServiceType(), "serviceType"));
         service.setLocation(trimOrNull(request.getLocation()));
         service.setPublishedAt(parseDateTime(request.getPublishedAt()));
+        service.setLayoutType(trimOrNull(request.getLayoutType()));
+        service.setHeroVideoUrl(trimOrNull(request.getHeroVideoUrl()));
+        service.setHeroPosterUrl(trimOrNull(request.getHeroPosterUrl()));
+        service.setNavAnchorId(trimOrNull(request.getNavAnchorId()));
+        service.getFeatureImageUrls().clear();
+        service.getFeatureImageUrls().addAll(cleanStrings(request.getFeatureImageUrls()));
+        service.getThumbnailUrls().clear();
+        service.getThumbnailUrls().addAll(cleanStrings(request.getThumbnailUrls()));
+        service.getPartnerIds().clear();
+        service.getPartnerIds().addAll(cleanIds(request.getPartnerIds()));
 
         // Clear first, then flush to force DELETEs before INSERTs
         // (prevents unique-constraint violations on re-insert)
@@ -430,6 +447,19 @@ public class ServiceService {
         return (value == null || value.isBlank()) ? null : value.trim();
     }
 
+    private List<String> cleanStrings(List<String> values) {
+        if (values == null) return new ArrayList<>();
+        return values.stream().filter(Objects::nonNull).map(String::trim)
+                .filter(value -> !value.isEmpty()).distinct()
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private List<Long> cleanIds(List<Long> values) {
+        if (values == null) return new ArrayList<>();
+        return values.stream().filter(Objects::nonNull).distinct()
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
     // =========================================================================
     // PRIVATE — Audit Logging
     // =========================================================================
@@ -476,6 +506,13 @@ public class ServiceService {
                 .active(service.isActive())
                 .publishedAt(service.getPublishedAt() != null
                         ? service.getPublishedAt().format(FORMATTER) : null)
+                .layoutType(service.getLayoutType())
+                .heroVideoUrl(service.getHeroVideoUrl())
+                .heroPosterUrl(service.getHeroPosterUrl())
+                .navAnchorId(service.getNavAnchorId())
+                .featureImageUrls(new ArrayList<>(service.getFeatureImageUrls()))
+                .thumbnailUrls(new ArrayList<>(service.getThumbnailUrls()))
+                .partnerIds(new ArrayList<>(service.getPartnerIds()))
                 .contents(service.getContents().stream()
                         .map(this::toContentResponse)
                         .collect(Collectors.toList()))

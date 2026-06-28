@@ -67,6 +67,8 @@ public class ImageCollectionService {
             PublishmentTopic topic = resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic());
 
             ImageCollection entity = ImageCollection.builder()
+                    .slugCkb(trimOrNull(dto.getSlugCkb()))
+                    .slugKmr(trimOrNull(dto.getSlugKmr()))
                     .collectionType(dto.getCollectionType())
                     .ckbCoverUrl(ckbCoverUrl)
                     .kmrCoverUrl(kmrCoverUrl)
@@ -127,6 +129,8 @@ public class ImageCollectionService {
                 .orElseThrow(() -> Errors.imageNotFound(id));
 
         try {
+            if (dto.getSlugCkb() != null) entity.setSlugCkb(trimOrNull(dto.getSlugCkb()));
+            if (dto.getSlugKmr() != null) entity.setSlugKmr(trimOrNull(dto.getSlugKmr()));
             if (dto.getCollectionType() != null) {
                 entity.setCollectionType(dto.getCollectionType());
             }
@@ -381,6 +385,14 @@ public class ImageCollectionService {
     public Response getById(Long id) {
         ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> Errors.imageNotFound(id));
+        return toResponse(entity);
+    }
+
+    @Transactional(readOnly = true)
+    public Response getBySlug(String slug) {
+        ImageCollection entity = imageCollectionRepository.findBySlugCkbOrSlugKmr(slug, slug)
+                .orElseThrow(() -> Errors.notFound(
+                        "imageCollection.not_found", Map.of("slug", slug)));
         return toResponse(entity);
     }
 
@@ -681,6 +693,8 @@ public class ImageCollectionService {
     private Response toResponse(ImageCollection entity) {
         Response.ResponseBuilder b = Response.builder()
                 .id(entity.getId())
+                .slugCkb(entity.getSlugCkb())
+                .slugKmr(entity.getSlugKmr())
                 .collectionType(entity.getCollectionType())
                 .ckbCoverUrl(entity.getCkbCoverUrl())
                 .kmrCoverUrl(entity.getKmrCoverUrl())

@@ -72,13 +72,21 @@ public class ServiceController {
     }
 
     @GetMapping("/all")
-    public ResponseEntity<ApiResponse<Page<ServiceResponse>>> getAllAdmin(
+    public ResponseEntity<ApiResponse<Page<ServiceResponse>>> getAllPublic(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        Page<ServiceResponse> result = serviceService.getAll(page, size);
+        Page<ServiceResponse> result = serviceService.getAllActive(page, size);
         return ResponseEntity.ok(
-                ApiResponse.success(result, "All services fetched successfully"));
+                ApiResponse.success(result, "Services fetched successfully"));
+    }
+
+    @GetMapping("/admin/all")
+    public ResponseEntity<ApiResponse<Page<ServiceResponse>>> getAllAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                serviceService.getAll(page, size), "All services fetched successfully"));
     }
 
     @GetMapping("/{id}")

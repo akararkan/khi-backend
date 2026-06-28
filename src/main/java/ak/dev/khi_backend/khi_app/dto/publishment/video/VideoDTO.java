@@ -70,6 +70,8 @@ public class VideoDTO {
 
     // ─── Clip Items (VIDEO_CLIP only) ─────────────────────────────────────────
     private List<VideoClipItemDTO> videoClipItems;
+    private List<CastMemberDTO> castMembers;
+    private List<HighlightClipDTO> highlightClips;
 
     // ─── Common Metadata ──────────────────────────────────────────────────────
     private String fileFormat;
@@ -149,5 +151,23 @@ public class VideoDTO {
         private String titleKmr;
         private String descriptionCkb;
         private String descriptionKmr;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class CastMemberDTO {
+        private String nameCkb;
+        private String nameKmr;
+        private String roleCkb;
+        private String roleKmr;
+        private String imageUrl;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class HighlightClipDTO {
+        private String titleCkb;
+        private String titleKmr;
+        private String url;
+        private String embedUrl;
+        private Integer durationSeconds;
     }
 }

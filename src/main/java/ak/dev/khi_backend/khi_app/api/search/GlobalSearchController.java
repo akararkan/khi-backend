@@ -88,6 +88,7 @@ public class GlobalSearchController {
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<GlobalSearchResponse>> search(
             @RequestParam String q,
+            @RequestParam(required = false) String locale,
             @RequestParam(defaultValue = "ALL") String type,
             @RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "10")  int size

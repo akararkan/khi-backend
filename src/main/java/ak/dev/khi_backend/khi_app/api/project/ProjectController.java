@@ -94,6 +94,12 @@ public class ProjectController {
         );
     }
 
+    @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<ProjectResponse>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                projectService.getByIdResponse(id), "Project fetched successfully"));
+    }
+
     // ============================================================
     // SEARCH
     // ============================================================

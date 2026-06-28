@@ -1,6 +1,7 @@
 package ak.dev.khi_backend.khi_app.api.publishment.video;
 
 import ak.dev.khi_backend.khi_app.dto.publishment.video.VideoDTO;
+import ak.dev.khi_backend.khi_app.model.publishment.video.VideoType;
 import ak.dev.khi_backend.khi_app.service.publishment.video.VideoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -60,10 +61,14 @@ public class VideoController {
     // 2) GET ALL (paged)
     @GetMapping
     public ResponseEntity<Page<VideoDTO>> getAllVideos(
+            @RequestParam(required = false) VideoType videoType,
+            @RequestParam(required = false, name = "memories") Boolean albumOfMemories,
+            @RequestParam(required = false) Long topicId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        return ResponseEntity.ok(videoService.getAllVideos(page, size));
+        return ResponseEntity.ok(videoService.getVideoListing(
+                videoType, albumOfMemories, topicId, page, size));
     }
 
     // 3) GET BY ID

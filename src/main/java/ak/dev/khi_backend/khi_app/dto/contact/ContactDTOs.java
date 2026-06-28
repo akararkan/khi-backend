@@ -1,5 +1,7 @@
 package ak.dev.khi_backend.khi_app.dto.contact;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 /**
@@ -36,12 +38,21 @@ public class ContactDTOs {
 
         // ─── Contact Details ─────────────────────────────────────────────────
 
+        @NotBlank
         private String phone;
         private String secondaryPhone;
+        @NotBlank
+        @Email
         private String email;
         private String mapEmbedUrl;
         private Double latitude;
         private Double longitude;
+        private String heroImageUrl;
+        private String officeType;
+        private String badgeCkb;
+        private String badgeKmr;
+        private Boolean active;
+        private Integer displayOrder;
     }
 
     // ─── Bilingual page-level text ────────────────────────────────────────────
@@ -84,6 +95,11 @@ public class ContactDTOs {
         private String mapEmbedUrl;
         private Double latitude;
         private Double longitude;
+        private String heroImageUrl;
+        private String officeType;
+        private String badgeCkb;
+        private String badgeKmr;
+        private Integer displayOrder;
 
         private boolean active;
         private String  createdAt;

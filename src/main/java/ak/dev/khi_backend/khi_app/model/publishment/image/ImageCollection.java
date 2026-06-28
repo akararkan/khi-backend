@@ -76,6 +76,12 @@ public class ImageCollection {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "slug_ckb", unique = true, length = 240)
+    private String slugCkb;
+
+    @Column(name = "slug_kmr", unique = true, length = 240)
+    private String slugKmr;
+
     // ─── Collection Type ──────────────────────────────────────────────────────
 
     @Enumerated(EnumType.STRING)

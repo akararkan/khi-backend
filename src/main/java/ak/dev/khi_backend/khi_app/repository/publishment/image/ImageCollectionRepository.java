@@ -157,5 +157,11 @@ public interface ImageCollectionRepository extends JpaRepository<ImageCollection
     @Query("SELECT ic FROM ImageCollection ic WHERE ic.id = :id")
     Optional<ImageCollection> findByIdWithGraph(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {
+            "contentLanguages", "tagsCkb", "tagsKmr", "keywordsCkb",
+            "keywordsKmr", "imageAlbum", "topic"
+    })
+    Optional<ImageCollection> findBySlugCkbOrSlugKmr(String slugCkb, String slugKmr);
+
 
 }

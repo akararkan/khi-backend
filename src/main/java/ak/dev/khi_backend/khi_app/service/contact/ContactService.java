@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -38,10 +40,10 @@ public class ContactService {
     }
 
     @Transactional(readOnly = true)
-    public List<ContactResponse> getAllActive() {
-        return contactRepository.findAllByActiveTrueOrderByDisplayOrderAsc().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public Page<ContactResponse> getAllActive(int page, int size) {
+        return contactRepository
+                .findAllByActiveTrueOrderByDisplayOrderAsc(PageRequest.of(page, size))
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -77,7 +79,12 @@ public class ContactService {
                 .mapEmbedUrl(blankToNull(request.getMapEmbedUrl()))
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
-                .active(true)
+                .heroImageUrl(blankToNull(request.getHeroImageUrl()))
+                .officeType(blankToNull(request.getOfficeType()))
+                .badgeCkb(blankToNull(request.getBadgeCkb()))
+                .badgeKmr(blankToNull(request.getBadgeKmr()))
+                .active(request.getActive() == null || request.getActive())
+                .displayOrder(request.getDisplayOrder() == null ? 0 : request.getDisplayOrder())
                 .build();
 
         Contact saved = contactRepository.save(contact);
@@ -105,6 +112,12 @@ public class ContactService {
         contact.setMapEmbedUrl(blankToNull(request.getMapEmbedUrl()));
         contact.setLatitude(request.getLatitude());
         contact.setLongitude(request.getLongitude());
+        contact.setHeroImageUrl(blankToNull(request.getHeroImageUrl()));
+        contact.setOfficeType(blankToNull(request.getOfficeType()));
+        contact.setBadgeCkb(blankToNull(request.getBadgeCkb()));
+        contact.setBadgeKmr(blankToNull(request.getBadgeKmr()));
+        if (request.getActive() != null) contact.setActive(request.getActive());
+        if (request.getDisplayOrder() != null) contact.setDisplayOrder(request.getDisplayOrder());
 
         Contact updated = contactRepository.save(contact);
         log.info("Contact page updated — id={}", updated.getId());
@@ -185,6 +198,11 @@ public class ContactService {
                 .mapEmbedUrl(c.getMapEmbedUrl())
                 .latitude(c.getLatitude())
                 .longitude(c.getLongitude())
+                .heroImageUrl(c.getHeroImageUrl())
+                .officeType(c.getOfficeType())
+                .badgeCkb(c.getBadgeCkb())
+                .badgeKmr(c.getBadgeKmr())
+                .displayOrder(c.getDisplayOrder())
                 .active(c.isActive())
                 .createdAt(c.getCreatedAt() != null ? c.getCreatedAt().format(FORMATTER) : null)
                 .updatedAt(c.getUpdatedAt() != null ? c.getUpdatedAt().format(FORMATTER) : null)

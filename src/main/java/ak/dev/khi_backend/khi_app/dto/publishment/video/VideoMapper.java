@@ -5,9 +5,13 @@ import ak.dev.khi_backend.khi_app.model.publishment.video.Video;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoClipItem;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoContent;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoLog;
+import ak.dev.khi_backend.khi_app.model.publishment.video.VideoCastMember;
+import ak.dev.khi_backend.khi_app.model.publishment.video.VideoHighlightClip;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -54,6 +58,8 @@ public final class VideoMapper {
                 .tagsKmr(safeSet(dto.getTagsKmr()))
                 .keywordsCkb(safeSet(dto.getKeywordsCkb()))
                 .keywordsKmr(safeSet(dto.getKeywordsKmr()))
+                .castMembers(toCastEntities(dto.getCastMembers()))
+                .highlightClips(toHighlightEntities(dto.getHighlightClips()))
                 .build();
     }
 
@@ -121,6 +127,12 @@ public final class VideoMapper {
         if (dto.getKeywordsKmr() != null) {
             video.setKeywordsKmr(safeSet(dto.getKeywordsKmr()));
         }
+        if (dto.getCastMembers() != null) {
+            video.setCastMembers(toCastEntities(dto.getCastMembers()));
+        }
+        if (dto.getHighlightClips() != null) {
+            video.setHighlightClips(toHighlightEntities(dto.getHighlightClips()));
+        }
     }
 
     // =========================================================================
@@ -166,6 +178,10 @@ public final class VideoMapper {
                 .tagsKmr(video.getTagsKmr() != null ? new LinkedHashSet<>(video.getTagsKmr()) : null)
                 .keywordsCkb(video.getKeywordsCkb() != null ? new LinkedHashSet<>(video.getKeywordsCkb()) : null)
                 .keywordsKmr(video.getKeywordsKmr() != null ? new LinkedHashSet<>(video.getKeywordsKmr()) : null)
+                .castMembers(video.getCastMembers() == null ? null : video.getCastMembers().stream()
+                        .map(VideoMapper::toCastDTO).toList())
+                .highlightClips(video.getHighlightClips() == null ? null : video.getHighlightClips().stream()
+                        .map(VideoMapper::toHighlightDTO).toList())
                 // timestamps
                 .createdAt(video.getCreatedAt())
                 .updatedAt(video.getUpdatedAt())
@@ -181,6 +197,43 @@ public final class VideoMapper {
         }
 
         return dto;
+    }
+
+    private static List<VideoCastMember> toCastEntities(List<VideoDTO.CastMemberDTO> values) {
+        if (values == null) return new ArrayList<>();
+        return values.stream().map(value -> VideoCastMember.builder()
+                .nameCkb(trimOrNull(value.getNameCkb()))
+                .nameKmr(trimOrNull(value.getNameKmr()))
+                .roleCkb(trimOrNull(value.getRoleCkb()))
+                .roleKmr(trimOrNull(value.getRoleKmr()))
+                .imageUrl(trimOrNull(value.getImageUrl())).build())
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private static List<VideoHighlightClip> toHighlightEntities(
+            List<VideoDTO.HighlightClipDTO> values) {
+        if (values == null) return new ArrayList<>();
+        return values.stream().map(value -> VideoHighlightClip.builder()
+                .titleCkb(trimOrNull(value.getTitleCkb()))
+                .titleKmr(trimOrNull(value.getTitleKmr()))
+                .url(trimOrNull(value.getUrl()))
+                .embedUrl(trimOrNull(value.getEmbedUrl()))
+                .durationSeconds(value.getDurationSeconds()).build())
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private static VideoDTO.CastMemberDTO toCastDTO(VideoCastMember value) {
+        return VideoDTO.CastMemberDTO.builder()
+                .nameCkb(value.getNameCkb()).nameKmr(value.getNameKmr())
+                .roleCkb(value.getRoleCkb()).roleKmr(value.getRoleKmr())
+                .imageUrl(value.getImageUrl()).build();
+    }
+
+    private static VideoDTO.HighlightClipDTO toHighlightDTO(VideoHighlightClip value) {
+        return VideoDTO.HighlightClipDTO.builder()
+                .titleCkb(value.getTitleCkb()).titleKmr(value.getTitleKmr())
+                .url(value.getUrl()).embedUrl(value.getEmbedUrl())
+                .durationSeconds(value.getDurationSeconds()).build();
     }
 
     // =========================================================================

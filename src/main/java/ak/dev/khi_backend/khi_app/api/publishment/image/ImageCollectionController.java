@@ -2,6 +2,7 @@ package ak.dev.khi_backend.khi_app.api.publishment.image;
 
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.publishment.image.ImageCollectionDTO.*;
+import ak.dev.khi_backend.khi_app.enums.publishment.ImageCollectionType;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.publishment.image.ImageCollectionService;
@@ -137,12 +138,20 @@ public class ImageCollectionController {
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<Response>>> getAll(
+            @RequestParam(required = false) ImageCollectionType type,
+            @RequestParam(required = false) Long topicId,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/image-collections | page={} size={}", page, size);
+        Page<Response> result = type != null
+                ? imageCollectionService.getByType(type, page, size)
+                : topicId != null
+                    ? imageCollectionService.getByTopic(topicId, page, size)
+                    : imageCollectionService.getAll(page, size);
+        log.info("GET /api/v1/image-collections | type={} topicId={} page={} size={}",
+                type, topicId, page, size);
         return ResponseEntity.ok(ApiResponse.success(
-                imageCollectionService.getAll(page, size),
+                result,
                 "Image collections fetched successfully"));
     }
 
@@ -151,6 +160,13 @@ public class ImageCollectionController {
         log.info("GET /api/v1/image-collections/{}", id);
         return ResponseEntity.ok(ApiResponse.success(
                 imageCollectionService.getById(id),
+                "Image collection fetched successfully"));
+    }
+
+    @GetMapping(value = "/slug/{slug}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Response>> getBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(ApiResponse.success(
+                imageCollectionService.getBySlug(slug),
                 "Image collection fetched successfully"));
     }
     // =========================================================================

@@ -39,6 +39,16 @@ public class AboutDTOs {
 
         /** Structured stats array. */
         private List<StatItemDto> stats;
+
+        private String founderNameCkb;
+        private String founderNameKmr;
+        private String founderBioCkb;
+        private String founderBioKmr;
+        private String founderImageUrl;
+        private String heroVideoUrl;
+        private String heroPosterUrl;
+        private Boolean active;
+        private Integer displayOrder;
     }
 
     // ─── Bilingual page-level text ────────────────────────────────────────────
@@ -91,6 +101,14 @@ public class AboutDTOs {
 
         private boolean active;
         private List<StatItemDto> stats;
+        private String founderNameCkb;
+        private String founderNameKmr;
+        private String founderBioCkb;
+        private String founderBioKmr;
+        private String founderImageUrl;
+        private String heroVideoUrl;
+        private String heroPosterUrl;
+        private Integer displayOrder;
 
         private String createdAt;
         private String updatedAt;

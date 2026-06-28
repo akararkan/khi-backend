@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -33,11 +35,10 @@ public class AboutService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<AboutResponse> getAllActive() {
-        return aboutRepository.findAll().stream()
-                .filter(About::isActive)
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public Page<AboutResponse> getAllActive(int page, int size) {
+        return aboutRepository
+                .findAllByActiveTrueOrderByDisplayOrderAsc(PageRequest.of(page, size))
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +49,17 @@ public class AboutService {
         return toResponse(about);
     }
 
+    @Transactional(readOnly = true)
+    public AboutResponse getByIdentifier(String identifier) {
+        try {
+            return toResponse(aboutRepository.findById(Long.valueOf(identifier))
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "About page not found: " + identifier)));
+        } catch (NumberFormatException ignored) {
+            return getBySlug(identifier);
+        }
+    }
+
     // ============================================================
     // CREATE
     // ============================================================
@@ -56,6 +68,7 @@ public class AboutService {
     public AboutResponse create(AboutRequest request) {
 
         validateSlugs(request, null);
+        validateContent(request);
 
         About about = new About();
         about.setSlugCkb(request.getSlugCkb().trim());
@@ -64,7 +77,9 @@ public class AboutService {
         about.setCkbContent(buildAboutContent(request.getCkbContent()));
         about.setKmrContent(buildAboutContent(request.getKmrContent()));
         about.setStats(buildStats(request.getStats()));
-        about.setActive(true);
+        applyInstitutionalMedia(about, request);
+        about.setActive(request.getActive() == null || request.getActive());
+        about.setDisplayOrder(request.getDisplayOrder() == null ? 0 : request.getDisplayOrder());
 
         return toResponse(aboutRepository.save(about));
     }
@@ -81,12 +96,16 @@ public class AboutService {
                         new EntityNotFoundException("About not found: " + id));
 
         validateSlugs(request, id);
+        validateContent(request);
 
         about.setSlugCkb(request.getSlugCkb().trim());
         about.setSlugKmr(blankToNull(request.getSlugKmr()));
         about.setCkbContent(buildAboutContent(request.getCkbContent()));
         about.setKmrContent(buildAboutContent(request.getKmrContent()));
         about.setStats(buildStats(request.getStats()));
+        applyInstitutionalMedia(about, request);
+        if (request.getActive() != null) about.setActive(request.getActive());
+        if (request.getDisplayOrder() != null) about.setDisplayOrder(request.getDisplayOrder());
 
         return toResponse(aboutRepository.save(about));
     }
@@ -138,6 +157,16 @@ public class AboutService {
         }
     }
 
+    private void validateContent(AboutRequest request) {
+        boolean hasCkb = request.getCkbContent() != null
+                && notBlank(request.getCkbContent().getTitle());
+        boolean hasKmr = request.getKmrContent() != null
+                && notBlank(request.getKmrContent().getTitle());
+        if (!hasCkb && !hasKmr) {
+            throw new IllegalArgumentException("At least one localized About title is required");
+        }
+    }
+
     private AboutContent buildAboutContent(AboutContentRequest req) {
         if (req == null) return new AboutContent();
         return AboutContent.builder()
@@ -172,11 +201,29 @@ public class AboutService {
                 .kmrContent(toContentResponse(about.getKmrContent()))
                 .active(about.isActive())
                 .stats(toStatsResponse(about.getStats()))
+                .founderNameCkb(about.getFounderNameCkb())
+                .founderNameKmr(about.getFounderNameKmr())
+                .founderBioCkb(about.getFounderBioCkb())
+                .founderBioKmr(about.getFounderBioKmr())
+                .founderImageUrl(about.getFounderImageUrl())
+                .heroVideoUrl(about.getHeroVideoUrl())
+                .heroPosterUrl(about.getHeroPosterUrl())
+                .displayOrder(about.getDisplayOrder())
                 .createdAt(about.getCreatedAt() != null
                         ? about.getCreatedAt().format(FORMATTER) : null)
                 .updatedAt(about.getUpdatedAt() != null
                         ? about.getUpdatedAt().format(FORMATTER) : null)
                 .build();
+    }
+
+    private void applyInstitutionalMedia(About about, AboutRequest request) {
+        about.setFounderNameCkb(blankToNull(request.getFounderNameCkb()));
+        about.setFounderNameKmr(blankToNull(request.getFounderNameKmr()));
+        about.setFounderBioCkb(blankToNull(request.getFounderBioCkb()));
+        about.setFounderBioKmr(blankToNull(request.getFounderBioKmr()));
+        about.setFounderImageUrl(blankToNull(request.getFounderImageUrl()));
+        about.setHeroVideoUrl(blankToNull(request.getHeroVideoUrl()));
+        about.setHeroPosterUrl(blankToNull(request.getHeroPosterUrl()));
     }
 
     private AboutContentResponse toContentResponse(AboutContent content) {

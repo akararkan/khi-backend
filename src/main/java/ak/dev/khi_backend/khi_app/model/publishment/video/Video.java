@@ -161,6 +161,18 @@ public class Video {
     @OrderBy("clipNumber ASC")
     private List<VideoClipItem> videoClipItems = new ArrayList<>();
 
+    @Builder.Default
+    @ElementCollection
+    @CollectionTable(name = "video_cast_members", joinColumns = @JoinColumn(name = "video_id"))
+    @OrderColumn(name = "display_order")
+    private List<VideoCastMember> castMembers = new ArrayList<>();
+
+    @Builder.Default
+    @ElementCollection
+    @CollectionTable(name = "video_highlight_clips", joinColumns = @JoinColumn(name = "video_id"))
+    @OrderColumn(name = "display_order")
+    private List<VideoHighlightClip> highlightClips = new ArrayList<>();
+
     // ─── Common Video Metadata ────────────────────────────────────────────────
 
     @Column(name = "file_format", length = 20)

@@ -181,6 +181,11 @@ public class ProjectService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public ProjectResponse getByIdResponse(Long projectId) {
+        return toResponse(findOrThrow(projectId));
+    }
+
     @Cacheable(value = "projects", key = "'tag:' + #tag.toLowerCase() + ':p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
     public Page<ProjectResponse> searchByTagResponse(String tag, int page, int size) {

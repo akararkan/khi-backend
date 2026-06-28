@@ -52,16 +52,38 @@ public enum BookGenre {
     // ─── Special Categories ───────────────────────────────────────────────────
     CHILDREN,        // منداڵان      — Children's books
     TRAVEL,          // گەشتوگوزار   — Travel & geography
-    OTHER;           // یتر          — Uncategorised / other
+    OTHER,           // یتر          — Uncategorised / other
+
+    // Legacy backend values retained for database compatibility. JSON output
+    // is normalized below to values accepted by the public-site contract.
+    ESSAY,
+    POLITICAL,
+    ACADEMIC;
 
     @JsonCreator
     public static BookGenre from(String value) {
         if (value == null) return null;
-        return BookGenre.valueOf(value.trim().toUpperCase());
+        return switch (value.trim().toUpperCase()) {
+            case "POLITICAL" -> POLITICS;
+            case "ACADEMIC" -> EDUCATIONAL;
+            case "ESSAY" -> OTHER;
+            default -> {
+                try {
+                    yield BookGenre.valueOf(value.trim().toUpperCase());
+                } catch (IllegalArgumentException ignored) {
+                    yield OTHER;
+                }
+            }
+        };
     }
 
     @JsonValue
     public String toJson() {
-        return name();
+        return switch (this) {
+            case POLITICAL -> POLITICS.name();
+            case ACADEMIC -> EDUCATIONAL.name();
+            case ESSAY -> OTHER.name();
+            default -> name();
+        };
     }
 }

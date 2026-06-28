@@ -122,6 +122,19 @@ public class Contact {
     @Column(name = "longitude")
     private Double longitude;
 
+    @Column(name = "hero_image_url", columnDefinition = "TEXT")
+    private String heroImageUrl;
+
+    /** HQ or REGIONAL; kept as text so additional office types do not require a migration. */
+    @Column(name = "office_type", length = 40)
+    private String officeType;
+
+    @Column(name = "badge_ckb", length = 200)
+    private String badgeCkb;
+
+    @Column(name = "badge_kmr", length = 200)
+    private String badgeKmr;
+
     // ─── Timestamps ───────────────────────────────────────────────────────────
 
     @CreationTimestamp

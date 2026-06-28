@@ -205,6 +205,23 @@ public class VideoService {
         return videoRepository.findAll(buildPageable(page, size)).map(VideoMapper::toDTO);
     }
 
+    @Transactional(readOnly = true)
+    public Page<VideoDTO> getVideoListing(VideoType videoType, Boolean albumOfMemories,
+                                          Long topicId, int page, int size) {
+        Pageable pageable = buildPageable(page, size);
+        if (topicId != null) {
+            return videoRepository.findAllByTopicId(topicId, pageable).map(VideoMapper::toDTO);
+        }
+        if (videoType == VideoType.VIDEO_CLIP && albumOfMemories != null) {
+            return videoRepository.findAllClipsByAlbumFlag(albumOfMemories, pageable)
+                    .map(VideoMapper::toDTO);
+        }
+        if (videoType != null) {
+            return videoRepository.findAllByType(videoType, pageable).map(VideoMapper::toDTO);
+        }
+        return videoRepository.findAllWithTopic(pageable).map(VideoMapper::toDTO);
+    }
+
     /**
      * هێنانی ڤیدیۆ بەپێی ئایدی
      *

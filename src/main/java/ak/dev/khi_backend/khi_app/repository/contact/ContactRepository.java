@@ -2,6 +2,8 @@ package ak.dev.khi_backend.khi_app.repository.contact;
 
 import ak.dev.khi_backend.khi_app.model.contact.Contact;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -22,5 +24,5 @@ public interface ContactRepository extends JpaRepository<Contact, Long> {
     Optional<Contact> findBySlugCkbOrSlugKmr(String slugCkb, String slugKmr);
 
     /** All active contact pages ordered by displayOrder. */
-    java.util.List<Contact> findAllByActiveTrueOrderByDisplayOrderAsc();
+    Page<Contact> findAllByActiveTrueOrderByDisplayOrderAsc(Pageable pageable);
 }

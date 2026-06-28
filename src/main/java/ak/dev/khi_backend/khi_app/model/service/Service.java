@@ -10,6 +10,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Service — A single institute service (Training, Event, Program, etc.).
@@ -84,6 +86,36 @@ public class Service {
      */
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
+
+    @Column(name = "layout_type", length = 80)
+    private String layoutType;
+    @Column(name = "hero_video_url", columnDefinition = "TEXT")
+    private String heroVideoUrl;
+    @Column(name = "hero_poster_url", columnDefinition = "TEXT")
+    private String heroPosterUrl;
+    @Column(name = "nav_anchor_id", length = 160)
+    private String navAnchorId;
+
+    @ElementCollection
+    @CollectionTable(name = "service_feature_images", joinColumns = @JoinColumn(name = "service_id"))
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    @OrderColumn(name = "display_order")
+    @Builder.Default
+    private List<String> featureImageUrls = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "service_thumbnail_images", joinColumns = @JoinColumn(name = "service_id"))
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    @OrderColumn(name = "display_order")
+    @Builder.Default
+    private List<String> thumbnailUrls = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "service_partners", joinColumns = @JoinColumn(name = "service_id"))
+    @Column(name = "partner_id")
+    @OrderColumn(name = "display_order")
+    @Builder.Default
+    private List<Long> partnerIds = new ArrayList<>();
 
     // ─── Bilingual Content ────────────────────────────────────────────────────
 
