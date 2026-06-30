@@ -22,6 +22,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static ak.dev.khi_backend.user.consts.SecurityConstants.*;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -31,11 +32,31 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(JWTAuthenticationFilter.class);
+    private static final Set<String> PUBLIC_AUTH_ENDPOINTS = Set.of(
+            "/api/auth/register",
+            "/api/auth/register-with-image",
+            "/api/auth/login",
+            "/api/auth/reset-token",
+            "/api/auth/reset-password"
+    );
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
     private final TokenService tokenService;
     private final JwtCookieService jwtCookieService;
+
+    @Override
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isEmpty() && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
+
+        return PUBLIC_AUTH_ENDPOINTS.contains(path)
+                || path.equals("/api/users/auth")
+                || path.startsWith("/api/users/auth/");
+    }
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
