@@ -50,8 +50,9 @@ public class GlobalExceptionHandler {
         body.setMessageEn(resolve(Locale.ENGLISH, ex.getMessageKey(), ex.getMessageArgs(), fallbackByCode(ex.getCode(), "en")));
         body.setMessageKu(resolve(LOCALE_KU,      ex.getMessageKey(), ex.getMessageArgs(), fallbackByCode(ex.getCode(), "ku")));
         body.setDetails(ex.getDetails());
-        log.warn("AppException code={} status={} path={} traceId={}",
-                ex.getCode(), ex.getHttpStatus().value(), req.getRequestURI(), body.getTraceId());
+        log.warn("AppException code={} messageKey={} status={} path={} traceId={} details={}",
+                ex.getCode(), ex.getMessageKey(), ex.getHttpStatus().value(),
+                req.getRequestURI(), body.getTraceId(), ex.getDetails());
         return ResponseEntity.status(ex.getHttpStatus()).body(body);
     }
     // ═══════════════════════════════════════════════════════════════════════════
