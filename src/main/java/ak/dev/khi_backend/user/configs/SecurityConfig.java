@@ -40,34 +40,7 @@ public class SecurityConfig {
                         // ── Preflight ──────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-
-                        .anyRequest().authenticated()
-                )
-
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
-    }
-
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(corsProperties.getAllowedOriginsList());
-        configuration.setAllowedMethods(corsProperties.getAllowedMethodsList());
-        configuration.setAllowedHeaders(corsProperties.getAllowedHeadersList());
-        configuration.setAllowCredentials(corsProperties.isAllowCredentials());
-        configuration.setMaxAge(corsProperties.getMaxAge());
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
-}
-
-
-
-/*
-*  // ── OpenAPI / Swagger UI (springdoc-openapi) ───────────────
+                        // ── OpenAPI / Swagger UI (springdoc-openapi) ───────────────
                         .requestMatchers(
                                 "/v3/api-docs",
                                 "/v3/api-docs/**",
@@ -178,9 +151,25 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/media/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-*
-*
-*
-*
-*
-* */
+                        .anyRequest().authenticated()
+                )
+
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(corsProperties.getAllowedOriginsList());
+        configuration.setAllowedMethods(corsProperties.getAllowedMethodsList());
+        configuration.setAllowedHeaders(corsProperties.getAllowedHeadersList());
+        configuration.setAllowCredentials(corsProperties.isAllowCredentials());
+        configuration.setMaxAge(corsProperties.getMaxAge());
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+}
