@@ -242,15 +242,17 @@ public class SoundTrackController {
 
     @GetMapping(value = "/by-sound-type", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<Response>>> getBySoundType(
-            @RequestParam String soundType,
+            @RequestParam(required = false) String soundType,
+            @RequestParam(name = "type", required = false) String type,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        String query = soundType != null && !soundType.isBlank() ? soundType : type;
         log.info("GET /api/v1/sound-tracks/by-sound-type | soundType={} page={} size={}",
-                soundType, page, size);
-        if (soundType == null || soundType.isBlank()) throw Errors.soundValidation("soundTrack.soundType.required", Map.of("field", "soundType"));
+                query, page, size);
+        if (query == null || query.isBlank()) throw Errors.soundValidation("soundTrack.soundType.required", Map.of("field", "soundType"));
         return ResponseEntity.ok(ApiResponse.success(
-                soundTrackService.getBySoundType(soundType, page, size),
+                soundTrackService.getBySoundType(query, page, size),
                 "SoundTracks by sound type fetched successfully"));
     }
 
@@ -293,14 +295,16 @@ public class SoundTrackController {
 
     @GetMapping(value = "/search/tag", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<Response>>> searchByTag(
-            @RequestParam String tag,
+            @RequestParam(required = false) String tag,
+            @RequestParam(name = "value", required = false) String value,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        log.info("GET /api/v1/sound-tracks/search/tag | tag={} page={} size={}", tag, page, size);
-        if (tag == null || tag.isBlank()) throw Errors.badRequest("tag.required", Map.of("field", "tag"));
+        String query = tag != null && !tag.isBlank() ? tag : value;
+        log.info("GET /api/v1/sound-tracks/search/tag | tag={} page={} size={}", query, page, size);
+        if (query == null || query.isBlank()) throw Errors.badRequest("tag.required", Map.of("field", "tag"));
         return ResponseEntity.ok(ApiResponse.success(
-                soundTrackService.searchByTag(tag, page, size),
+                soundTrackService.searchByTag(query, page, size),
                 "SoundTracks by tag fetched successfully"));
     }
 
@@ -310,15 +314,17 @@ public class SoundTrackController {
 
     @GetMapping(value = "/search/keyword", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Page<Response>>> searchByKeyword(
-            @RequestParam String keyword,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(name = "value", required = false) String value,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        String query = keyword != null && !keyword.isBlank() ? keyword : value;
         log.info("GET /api/v1/sound-tracks/search/keyword | keyword={} page={} size={}",
-                keyword, page, size);
-        if (keyword == null || keyword.isBlank()) throw Errors.badRequest("keyword.required", Map.of("field", "keyword"));
+                query, page, size);
+        if (query == null || query.isBlank()) throw Errors.badRequest("keyword.required", Map.of("field", "keyword"));
         return ResponseEntity.ok(ApiResponse.success(
-                soundTrackService.searchByKeyword(keyword, page, size),
+                soundTrackService.searchByKeyword(query, page, size),
                 "SoundTracks by keyword fetched successfully"));
     }
 

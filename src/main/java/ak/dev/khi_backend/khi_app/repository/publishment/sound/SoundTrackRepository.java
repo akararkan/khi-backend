@@ -92,12 +92,13 @@ public interface SoundTrackRepository extends JpaRepository<SoundTrack, Long> {
      *   CREATE INDEX idx_st_tag_kmr ON sound_track_tags_kmr(lower(tag_kmr));
      */
     @Query("""
-        SELECT DISTINCT s.id FROM SoundTrack s
+        SELECT s.id FROM SoundTrack s
         LEFT JOIN s.tagsCkb tckb
         LEFT JOIN s.tagsKmr tkmr
         WHERE lower(tckb) LIKE lower(concat('%', :tag, '%'))
            OR lower(tkmr) LIKE lower(concat('%', :tag, '%'))
-        ORDER BY s.createdAt DESC
+        GROUP BY s.id
+        ORDER BY max(s.createdAt) DESC
         """)
     Page<Long> findIdsByTag(
             @Param("tag") String tag,
@@ -111,12 +112,13 @@ public interface SoundTrackRepository extends JpaRepository<SoundTrack, Long> {
      *   CREATE INDEX idx_st_kw_kmr ON sound_track_keywords_kmr(lower(keyword_kmr));
      */
     @Query("""
-        SELECT DISTINCT s.id FROM SoundTrack s
+        SELECT s.id FROM SoundTrack s
         LEFT JOIN s.keywordsCkb kckb
         LEFT JOIN s.keywordsKmr kkmr
         WHERE lower(kckb) LIKE lower(concat('%', :keyword, '%'))
            OR lower(kkmr) LIKE lower(concat('%', :keyword, '%'))
-        ORDER BY s.createdAt DESC
+        GROUP BY s.id
+        ORDER BY max(s.createdAt) DESC
         """)
     Page<Long> findIdsByKeyword(
             @Param("keyword") String keyword,
@@ -131,7 +133,7 @@ public interface SoundTrackRepository extends JpaRepository<SoundTrack, Long> {
      *   album name, terms, topic names.
      */
     @Query("""
-        SELECT DISTINCT s.id FROM SoundTrack s
+        SELECT s.id FROM SoundTrack s
         LEFT JOIN s.tagsCkb     tckb
         LEFT JOIN s.tagsKmr     tkmr
         LEFT JOIN s.keywordsCkb kckb
@@ -148,7 +150,8 @@ public interface SoundTrackRepository extends JpaRepository<SoundTrack, Long> {
            OR lower(kkmr)                     LIKE lower(concat('%', :q, '%'))
            OR lower(s.topic.nameCkb)          LIKE lower(concat('%', :q, '%'))
            OR lower(s.topic.nameKmr)          LIKE lower(concat('%', :q, '%'))
-        ORDER BY s.createdAt DESC
+        GROUP BY s.id
+        ORDER BY max(s.createdAt) DESC
         """)
     Page<Long> findIdsByGlobalSearch(
             @Param("q") String q,

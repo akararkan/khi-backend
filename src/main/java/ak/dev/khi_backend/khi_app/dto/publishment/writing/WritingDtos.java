@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.dto.publishment.writing;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.BookGenre;
 import ak.dev.khi_backend.khi_app.enums.publishment.WritingFileFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -276,6 +277,28 @@ public final class WritingDtos {
         // ─── Series ───────────────────────────────────────────────────────────
 
         private SeriesInfoDto seriesInfo;
+
+        /** Public-website compatibility alias for {@link #seriesInfo}. */
+        @JsonProperty("series")
+        public SeriesInfoDto getSeries() {
+            return seriesInfo;
+        }
+
+        /** Public-website compatibility aliases for the nested topic fields. */
+        @JsonProperty("topicId")
+        public Long getTopicId() {
+            return topic != null ? topic.getId() : null;
+        }
+
+        @JsonProperty("topicNameCkb")
+        public String getTopicNameCkb() {
+            return topic != null ? topic.getNameCkb() : null;
+        }
+
+        @JsonProperty("topicNameKmr")
+        public String getTopicNameKmr() {
+            return topic != null ? topic.getNameKmr() : null;
+        }
 
         // ─── Timestamps ───────────────────────────────────────────────────────
 

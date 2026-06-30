@@ -1,5 +1,8 @@
 package ak.dev.khi_backend.khi_app.api;
 
+import ak.dev.khi_backend.khi_app.dto.publishment.writing.WritingDtos;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +25,9 @@ class PublicApiContractIntegrationTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void publicListContractsReturnExpectedEnvelopes() throws Exception {
@@ -100,5 +106,46 @@ class PublicApiContractIntegrationTests {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.status").value("PENDING"));
+    }
+
+    @Test
+    void soundtrackWebsiteQueryAliasesAreAccepted() throws Exception {
+        mockMvc.perform(get("/api/v1/sound-tracks/by-sound-type")
+                        .param("type", "POEM"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isArray());
+
+        mockMvc.perform(get("/api/v1/sound-tracks/search/tag")
+                        .param("value", "heritage"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isArray());
+
+        mockMvc.perform(get("/api/v1/sound-tracks/search/keyword")
+                        .param("value", "archive"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isArray());
+    }
+
+    @Test
+    void writingResponseExposesWebsiteCompatibilityFields() throws Exception {
+        WritingDtos.Response response = WritingDtos.Response.builder()
+                .topic(WritingDtos.TopicInfo.builder()
+                        .id(7L)
+                        .nameCkb("Topic CKB")
+                        .nameKmr("Topic KMR")
+                        .build())
+                .seriesInfo(WritingDtos.SeriesInfoDto.builder()
+                        .seriesId("series-1")
+                        .seriesName("Series")
+                        .seriesOrder(1.0)
+                        .build())
+                .build();
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(response));
+        org.assertj.core.api.Assertions.assertThat(json.path("topicId").asLong()).isEqualTo(7L);
+        org.assertj.core.api.Assertions.assertThat(json.path("topicNameCkb").asText()).isEqualTo("Topic CKB");
+        org.assertj.core.api.Assertions.assertThat(json.path("topicNameKmr").asText()).isEqualTo("Topic KMR");
+        org.assertj.core.api.Assertions.assertThat(json.path("series").path("seriesId").asText())
+                .isEqualTo("series-1");
     }
 }
