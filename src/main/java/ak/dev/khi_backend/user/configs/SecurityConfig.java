@@ -96,6 +96,12 @@ public class SecurityConfig {
                                 "/api/v1/donations/archive/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
+                        // ── Shared media pipeline: admin dashboard only ───────────
+                        // Keep this before the public GET rules so any future media
+                        // read endpoint is not accidentally exposed.
+                        .requestMatchers("/api/v1/media/**")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
+
                         // ── Public-site configuration writes are admin-only ───────
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/featured/**",
@@ -120,6 +126,14 @@ public class SecurityConfig {
                         // ── About Page: public reads, admin writes ────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/about/**").permitAll()
                         .requestMatchers("/api/v1/about/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        // ── Contact Page: public detail reads, admin writes ───────
+                        .requestMatchers(HttpMethod.POST, "/api/v1/contact")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/contact/**")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/contact/**")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         // ── Services: public reads, admin writes ──────────────────
                         .requestMatchers(HttpMethod.GET, "/api/v1/services/**").permitAll()
@@ -147,9 +161,6 @@ public class SecurityConfig {
                                 "/api/v1/image-collections/**", "/api/v1/sound-tracks/**",
                                 "/api/v1/albums/**", "/api/v1/writings/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
-
-                        .requestMatchers("/api/v1/media/**")
-                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         .anyRequest().authenticated()
                 )
