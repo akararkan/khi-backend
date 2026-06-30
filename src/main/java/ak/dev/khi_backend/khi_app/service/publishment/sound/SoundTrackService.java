@@ -57,9 +57,9 @@ public class SoundTrackService {
         validateCreate(dto);
 
         try {
-            String ckbCoverUrl   = resolveCoverUrl(null, ckbCoverImage);
-            String kmrCoverUrl   = resolveCoverUrl(null, kmrCoverImage);
-            String hoverCoverUrl = resolveCoverUrl(null, hoverCoverImage);
+            String ckbCoverUrl   = resolveCoverUrl(dto.getCkbCoverUrl(), ckbCoverImage);
+            String kmrCoverUrl   = resolveCoverUrl(dto.getKmrCoverUrl(), kmrCoverImage);
+            String hoverCoverUrl = resolveCoverUrl(dto.getHoverCoverUrl(), hoverCoverImage);
 
             PublishmentTopic topic = resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic());
 
@@ -137,9 +137,15 @@ public class SoundTrackService {
 
         try {
             // ── Cover images ──────────────────────────────────────────────
-            if (hasFile(ckbCoverImage))   entity.setCkbCoverUrl(uploadFile(ckbCoverImage));
-            if (hasFile(kmrCoverImage))   entity.setKmrCoverUrl(uploadFile(kmrCoverImage));
-            if (hasFile(hoverCoverImage)) entity.setHoverCoverUrl(uploadFile(hoverCoverImage));
+            if (hasFile(ckbCoverImage) || dto.getCkbCoverUrl() != null) {
+                entity.setCkbCoverUrl(resolveCoverUrl(dto.getCkbCoverUrl(), ckbCoverImage));
+            }
+            if (hasFile(kmrCoverImage) || dto.getKmrCoverUrl() != null) {
+                entity.setKmrCoverUrl(resolveCoverUrl(dto.getKmrCoverUrl(), kmrCoverImage));
+            }
+            if (hasFile(hoverCoverImage) || dto.getHoverCoverUrl() != null) {
+                entity.setHoverCoverUrl(resolveCoverUrl(dto.getHoverCoverUrl(), hoverCoverImage));
+            }
 
             // ── Core ──────────────────────────────────────────────────────
             if (!isBlank(dto.getSoundType()))     entity.setSoundType(dto.getSoundType().trim());

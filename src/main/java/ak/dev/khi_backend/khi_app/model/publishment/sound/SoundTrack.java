@@ -8,31 +8,9 @@ import lombok.*;
 import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
-/**
- * SoundTrack — Sound / audio publishment entity.
- *
- * ─── @BatchSize strategy ───────────────────────────────────────────────────
- *
- *  All collections use LAZY + @BatchSize(size = 50).
- *
- *  For a page of N tracks, Hibernate fires fast IN-queries instead of
- *  a Cartesian JOIN explosion or N+1 problems.
- *
- *  Approximate query plan for a page:
- *    Q1  : SELECT s    FROM sound_tracks                   WHERE id IN (...)
- *    Q2  : SELECT ...  FROM sound_track_content_languages   WHERE sound_track_id IN (...)
- *    Q3  : SELECT ...  FROM sound_track_locations           WHERE sound_track_id IN (...)
- *    Q4  : SELECT ...  FROM sound_track_directors           WHERE sound_track_id IN (...)
- *    Q5  : SELECT ...  FROM sound_track_keywords_ckb        WHERE sound_track_id IN (...)
- *    Q6  : SELECT ...  FROM sound_track_keywords_kmr        WHERE sound_track_id IN (...)
- *    Q7  : SELECT ...  FROM sound_track_tags_ckb            WHERE sound_track_id IN (...)
- *    Q8  : SELECT ...  FROM sound_track_tags_kmr            WHERE sound_track_id IN (...)
- *    Q9  : SELECT ...  FROM sound_track_files               WHERE sound_track_id IN (...)
- *    Q10 : SELECT ...  FROM sound_track_attachments         WHERE sound_track_id IN (...)
- *    Q11 : SELECT ...  FROM publishment_topics              WHERE id IN (...)   ← @BatchSize on class
- */
 @Entity
 @Table(
         name = "sound_tracks",
@@ -105,21 +83,27 @@ public class SoundTrack {
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title",
-                    column = @Column(name = "title_ckb",       length = 200)),
-            @AttributeOverride(name = "description",
-                    column = @Column(name = "description_ckb", columnDefinition = "TEXT")),
-
+            @AttributeOverride(
+                    name = "title",
+                    column = @Column(name = "title_ckb", length = 200)
+            ),
+            @AttributeOverride(
+                    name = "description",
+                    column = @Column(name = "description_ckb", columnDefinition = "TEXT")
+            )
     })
     private SoundTrackContent ckbContent;
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "title",
-                    column = @Column(name = "title_kmr",       length = 200)),
-            @AttributeOverride(name = "description",
-                    column = @Column(name = "description_kmr", columnDefinition = "TEXT")),
-
+            @AttributeOverride(
+                    name = "title",
+                    column = @Column(name = "title_kmr", length = 200)
+            ),
+            @AttributeOverride(
+                    name = "description",
+                    column = @Column(name = "description_kmr", columnDefinition = "TEXT")
+            )
     })
     private SoundTrackContent kmrContent;
 
@@ -136,8 +120,6 @@ public class SoundTrack {
     private Set<String> locations = new LinkedHashSet<>();
 
     // ─── Reader / Performer ───────────────────────────────────────────────────
-    //
-    // Single reader/performer name for the track.
 
     @Column(name = "reader_name", length = 255)
     private String reader;
@@ -154,7 +136,7 @@ public class SoundTrack {
     @Column(name = "director_name", nullable = false, length = 255)
     private Set<String> directors = new LinkedHashSet<>();
 
-    // ─── Terms (Dialect) ──────────────────────────────────────────────────────
+    // ─── Terms / Dialect ──────────────────────────────────────────────────────
 
     @Column(name = "terms", length = 200)
     private String terms;
@@ -211,6 +193,11 @@ public class SoundTrack {
     private Set<String> tagsKmr = new LinkedHashSet<>();
 
     // ─── Audio Files ──────────────────────────────────────────────────────────
+    //
+    // IMPORTANT:
+    // This is Set, not List.
+    // Hibernate cannot fetch two List bags at the same time.
+    // Using Set prevents MultipleBagFetchException.
 
     @Builder.Default
     @BatchSize(size = 50)
@@ -221,7 +208,7 @@ public class SoundTrack {
             fetch = FetchType.LAZY
     )
     @OrderBy("id ASC")
-    private List<SoundTrackFile> files = new ArrayList<>();
+    private Set<SoundTrackFile> files = new LinkedHashSet<>();
 
     // ─── Multi-Album Fields ───────────────────────────────────────────────────
 
@@ -237,7 +224,11 @@ public class SoundTrack {
     @Column(name = "total_tracks")
     private Integer totalTracks;
 
-    // ─── Attachments ─────────────────────────────────────────────────────
+    // ─── Attachments ──────────────────────────────────────────────────────────
+    //
+    // IMPORTANT:
+    // This is Set, not List.
+    // This fixes the crash when files and attachments are fetched together.
 
     @Builder.Default
     @BatchSize(size = 50)
@@ -248,7 +239,7 @@ public class SoundTrack {
             fetch = FetchType.LAZY
     )
     @OrderBy("id ASC")
-    private List<SoundTrackAttachment> attachments = new ArrayList<>();
+    private Set<SoundTrackAttachment> attachments = new LinkedHashSet<>();
 
     // ─── Timestamps ───────────────────────────────────────────────────────────
 
@@ -258,7 +249,11 @@ public class SoundTrack {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Builder.Default
+    @Column(name = "featured", nullable = false)
     private boolean featured = false;
+
+    @Column(name = "featured_order")
     private Integer featuredOrder;
 
     @PrePersist

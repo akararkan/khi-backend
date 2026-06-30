@@ -254,6 +254,16 @@ public final class SoundTrackDtos {
 
         private Boolean albumOfMemories;
 
+        // ── Cover URLs (fallback when no multipart image is supplied) ─────────
+        @Size(max = 1200)
+        private String ckbCoverUrl;
+
+        @Size(max = 1200)
+        private String kmrCoverUrl;
+
+        @Size(max = 1200)
+        private String hoverCoverUrl;
+
         // ── Topic ─────────────────────────────────────────────────────────────
         private Long topicId;
         private InlineTopicRequest newTopic;
@@ -327,6 +337,16 @@ public final class SoundTrackDtos {
 
         private TrackState trackState;
         private Boolean albumOfMemories;
+
+        // ── Cover URLs (multipart image wins when both are supplied) ──────────
+        @Size(max = 1200)
+        private String ckbCoverUrl;
+
+        @Size(max = 1200)
+        private String kmrCoverUrl;
+
+        @Size(max = 1200)
+        private String hoverCoverUrl;
 
         // ── Topic ─────────────────────────────────────────────────────────────
         private Long topicId;
