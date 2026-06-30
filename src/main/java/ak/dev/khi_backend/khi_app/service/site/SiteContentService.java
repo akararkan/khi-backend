@@ -3,14 +3,14 @@ package ak.dev.khi_backend.khi_app.service.site;
 import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos.*;
 import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.model.news.News;
-import ak.dev.khi_backend.khi_app.model.project.Project; // TODO: confirm this matches your actual package
+import ak.dev.khi_backend.khi_app.model.project.Project;
 import ak.dev.khi_backend.khi_app.model.publishment.image.ImageCollection;
 import ak.dev.khi_backend.khi_app.model.publishment.sound.SoundTrack;
 import ak.dev.khi_backend.khi_app.model.publishment.video.Video;
 import ak.dev.khi_backend.khi_app.model.publishment.writing.Writing;
 import ak.dev.khi_backend.khi_app.model.site.*;
 import ak.dev.khi_backend.khi_app.repository.news.NewsRepository;
-import ak.dev.khi_backend.khi_app.repository.project.ProjectRepository; // TODO: confirm this matches your actual package
+import ak.dev.khi_backend.khi_app.repository.project.ProjectRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.video.VideoRepository;
@@ -29,13 +29,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Consumer;
 
-/**
- * NOTE on FeaturedResponse: this class calls FeaturedResponse.toBuilder(), which requires
- * the DTO to be annotated with @Builder(toBuilder = true) instead of just @Builder.
- * See featured-entity-and-repository-patches.md for the exact DTO change.
- */
 @Service
 @RequiredArgsConstructor
 public class SiteContentService {
@@ -50,6 +44,7 @@ public class SiteContentService {
     private final DonationSettingsRepository donationSettingsRepository;
     private final FinancialDonationRepository financialDonationRepository;
     private final ArchiveDonationRepository archiveDonationRepository;
+    private final SiteSettingsRepository siteSettingsRepository;
     private final NewsRepository newsRepository;
     private final ProjectRepository projectRepository;
     private final WritingRepository writingRepository;
@@ -64,8 +59,10 @@ public class SiteContentService {
     // Project / Writing / Video / SoundTrack / ImageCollection records as featured (featured =
     // true) and optionally sets featuredOrder to control sequence. getFeatured() collects every
     // flagged record across all six types, sorts them globally by featuredOrder (ties broken by
-    // newest id first), and renumbers displayOrder 1..N on the way out. There can be zero, one,
-    // or many featured records per type — nothing here assumes "exactly one per category".
+    // newest id first), and renumbers displayOrder 1..N on the way out.
+    //
+    // The total number of featured slides across ALL entity types combined is capped by
+    // SiteSettings.maxFeaturedSlides (default 5, changeable by admin via updateSiteSettings()).
     // =========================================================================================
 
     @Transactional(readOnly = true)
@@ -100,12 +97,14 @@ public class SiteContentService {
                         collection.getFeaturedOrder(), collection.getId()));
 
         candidates.sort(Comparator
-                .comparing((FeaturedCandidate c) -> c.featuredOrder() == null ? Integer.MAX_VALUE : c.featuredOrder())
+                .comparing((FeaturedCandidate c) ->
+                        c.featuredOrder() == null ? Integer.MAX_VALUE : c.featuredOrder())
                 .thenComparing(FeaturedCandidate::id, Comparator.reverseOrder()));
 
-        List<FeaturedResponse> slides = new ArrayList<>(candidates.size());
+        int slideCount = Math.min(candidates.size(), getMaxFeaturedSlides());
+        List<FeaturedResponse> slides = new ArrayList<>(slideCount);
         int order = 1;
-        for (FeaturedCandidate candidate : candidates) {
+        for (FeaturedCandidate candidate : candidates.subList(0, slideCount)) {
             slides.add(candidate.response().toBuilder().displayOrder(order++).build());
         }
         return slides;
@@ -121,33 +120,123 @@ public class SiteContentService {
         }
     }
 
-    // --- Feature / unfeature a single record by its entity id -----------------------------
+    // --- Global featured count and limit --------------------------------------------------
+
+    // Sums featured records across all six entity types. Used by every set*Featured() method
+    // to enforce the global cap before flagging a new record as featured.
+    private long countAllFeatured() {
+        return newsRepository.countByFeaturedTrue()
+                + projectRepository.countByFeaturedTrue()
+                + writingRepository.countByFeaturedTrue()
+                + videoRepository.countByFeaturedTrue()
+                + soundTrackRepository.countByFeaturedTrue()
+                + imageCollectionRepository.countByFeaturedTrue();
+    }
+
+    // Reads the admin-configurable limit from SiteSettings. Falls back to 5 if no row exists.
+    private int getMaxFeaturedSlides() {
+        return siteSettingsRepository.findFirstByOrderByIdAsc()
+                .map(SiteSettings::getMaxFeaturedSlides)
+                .filter(limit -> limit > 0)
+                .orElse(7);
+    }
+
+    // --- Site settings (admin) -----------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public SiteSettingsResponse getSiteSettings() {
+        return siteSettingsRepository.findFirstByOrderByIdAsc()
+                .map(s -> SiteSettingsResponse.builder()
+                        .id(s.getId())
+                        .maxFeaturedSlides(s.getMaxFeaturedSlides())
+                        .build())
+                .orElseGet(() -> SiteSettingsResponse.builder()
+                        .maxFeaturedSlides(5)
+                        .build());
+    }
+
+    @Transactional
+    public SiteSettingsResponse updateSiteSettings(SiteSettingsRequest request) {
+        SiteSettings settings = siteSettingsRepository.findFirstByOrderByIdAsc()
+                .orElseGet(SiteSettings::new);
+        settings.setMaxFeaturedSlides(request.getMaxFeaturedSlides());
+        SiteSettings saved = siteSettingsRepository.save(settings);
+        return SiteSettingsResponse.builder()
+                .id(saved.getId())
+                .maxFeaturedSlides(saved.getMaxFeaturedSlides())
+                .build();
+    }
+
+    // --- Feature / unfeature a single record by its entity id ----------------------------
+    //
+    // Each method:
+    //   1. Loads the entity (404 if not found).
+    //   2. If the request is turning featured ON and the record is NOT already featured,
+    //      checks the global count against the admin-configurable limit.
+    //   3. Delegates the actual field assignment to entity.markFeatured() so the entity
+    //      owns that logic rather than the service.
+    //   4. Saves.
+    //
+    // The !entity.isFeatured() guard means updating the featuredOrder of an already-featured
+    // record skips the count check — it is already included in the current total.
 
     @Transactional
     public void setNewsFeatured(Long id, FeaturedRequest request) {
-        News news = newsRepository.findById(id).orElseThrow(() -> notFound("News", id));
-        applyFeatured(news::setFeatured, news::setFeaturedOrder, request);
+        News news = newsRepository.findById(id)
+                .orElseThrow(() -> notFound("News", id));
+        boolean turningOn = request.getFeatured() == null || request.getFeatured();
+        if (turningOn && !news.isFeatured() && countAllFeatured() >= getMaxFeaturedSlides()) {
+            throw new IllegalStateException(
+                    "Maximum of " + getMaxFeaturedSlides()
+                            + " featured slides allowed across all content. Unfeature one first.");
+        }
+        news.setFeatured(turningOn);
+        news.setFeaturedOrder(turningOn ? request.getFeaturedOrder() : null);
         newsRepository.save(news);
     }
 
     @Transactional
     public void setProjectFeatured(Long id, FeaturedRequest request) {
-        Project project = projectRepository.findById(id).orElseThrow(() -> notFound("Project", id));
-        applyFeatured(project::setFeatured, project::setFeaturedOrder, request);
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> notFound("Project", id));
+        boolean turningOn = request.getFeatured() == null || request.getFeatured();
+        if (turningOn && !project.isFeatured() && countAllFeatured() >= getMaxFeaturedSlides()) {
+            throw new IllegalStateException(
+                    "Maximum of " + getMaxFeaturedSlides()
+                            + " featured slides allowed across all content. Unfeature one first.");
+        }
+        project.setFeatured(turningOn);
+        project.setFeaturedOrder(turningOn ? request.getFeaturedOrder() : null);
         projectRepository.save(project);
     }
 
     @Transactional
     public void setWritingFeatured(Long id, FeaturedRequest request) {
-        Writing writing = writingRepository.findById(id).orElseThrow(() -> notFound("Writing", id));
-        applyFeatured(writing::setFeatured, writing::setFeaturedOrder, request);
+        Writing writing = writingRepository.findById(id)
+                .orElseThrow(() -> notFound("Writing", id));
+        boolean turningOn = request.getFeatured() == null || request.getFeatured();
+        if (turningOn && !writing.isFeatured() && countAllFeatured() >= getMaxFeaturedSlides()) {
+            throw new IllegalStateException(
+                    "Maximum of " + getMaxFeaturedSlides()
+                            + " featured slides allowed across all content. Unfeature one first.");
+        }
+        writing.setFeatured(turningOn);
+        writing.setFeaturedOrder(turningOn ? request.getFeaturedOrder() : null);
         writingRepository.save(writing);
     }
 
     @Transactional
     public void setVideoFeatured(Long id, FeaturedRequest request) {
-        Video video = videoRepository.findById(id).orElseThrow(() -> notFound("Video", id));
-        applyFeatured(video::setFeatured, video::setFeaturedOrder, request);
+        Video video = videoRepository.findById(id)
+                .orElseThrow(() -> notFound("Video", id));
+        boolean turningOn = request.getFeatured() == null || request.getFeatured();
+        if (turningOn && !video.isFeatured() && countAllFeatured() >= getMaxFeaturedSlides()) {
+            throw new IllegalStateException(
+                    "Maximum of " + getMaxFeaturedSlides()
+                            + " featured slides allowed across all content. Unfeature one first.");
+        }
+        video.setFeatured(turningOn);
+        video.setFeaturedOrder(turningOn ? request.getFeaturedOrder() : null);
         videoRepository.save(video);
     }
 
@@ -155,7 +244,14 @@ public class SiteContentService {
     public void setSoundTrackFeatured(Long id, FeaturedRequest request) {
         SoundTrack sound = soundTrackRepository.findById(id)
                 .orElseThrow(() -> notFound("Sound track", id));
-        applyFeatured(sound::setFeatured, sound::setFeaturedOrder, request);
+        boolean turningOn = request.getFeatured() == null || request.getFeatured();
+        if (turningOn && !sound.isFeatured() && countAllFeatured() >= getMaxFeaturedSlides()) {
+            throw new IllegalStateException(
+                    "Maximum of " + getMaxFeaturedSlides()
+                            + " featured slides allowed across all content. Unfeature one first.");
+        }
+        sound.setFeatured(turningOn);
+        sound.setFeaturedOrder(turningOn ? request.getFeaturedOrder() : null);
         soundTrackRepository.save(sound);
     }
 
@@ -163,17 +259,18 @@ public class SiteContentService {
     public void setImageCollectionFeatured(Long id, FeaturedRequest request) {
         ImageCollection collection = imageCollectionRepository.findById(id)
                 .orElseThrow(() -> notFound("Image collection", id));
-        applyFeatured(collection::setFeatured, collection::setFeaturedOrder, request);
+        boolean turningOn = request.getFeatured() == null || request.getFeatured();
+        if (turningOn && !collection.isFeatured() && countAllFeatured() >= getMaxFeaturedSlides()) {
+            throw new IllegalStateException(
+                    "Maximum of " + getMaxFeaturedSlides()
+                            + " featured slides allowed across all content. Unfeature one first.");
+        }
+        collection.setFeatured(turningOn);
+        collection.setFeaturedOrder(turningOn ? request.getFeaturedOrder() : null);
         imageCollectionRepository.save(collection);
     }
 
-    private void applyFeatured(
-            Consumer<Boolean> setFeatured, Consumer<Integer> setOrder, FeaturedRequest request) {
-        setFeatured.accept(request.getFeatured() == null || request.getFeatured());
-        setOrder.accept(request.getFeaturedOrder());
-    }
-
-    // --- Per-type mappers (entity -> FeaturedResponse) -------------------------------------
+    // --- Per-type mappers (entity -> FeaturedResponse) ------------------------------------
 
     private FeaturedResponse newsFeatured(News news, String locale, boolean kmr) {
         String title = localized(
@@ -190,11 +287,10 @@ public class SiteContentService {
                 : news.getCoverThumbnailUrl();
         return featuredSlide(
                 "news", news.getId(), "article", String.valueOf(news.getId()),
-                title, description, imageUrl, locale, news.isFeatured(), news.getFeaturedOrder());
+                title, description, imageUrl, locale,
+                news.isFeatured(), news.getFeaturedOrder());
     }
 
-    // Field names mirror the public API contract (ckbContent.title / ckbContent.description,
-    // coverUrl, coverMediaType) — confirm against your actual Project.java getters.
     private FeaturedResponse projectFeatured(Project project, String locale, boolean kmr) {
         String title = localized(
                 project.getCkbContent() == null ? null : project.getCkbContent().getTitle(),
@@ -210,7 +306,8 @@ public class SiteContentService {
                 : firstNonBlank(project.getCoverThumbnailUrl(), project.getCoverUrl());
         return featuredSlide(
                 "project", project.getId(), "archive", String.valueOf(project.getId()),
-                title, description, imageUrl, locale, project.isFeatured(), project.getFeaturedOrder());
+                title, description, imageUrl, locale,
+                project.isFeatured(), project.getFeaturedOrder());
     }
 
     private FeaturedResponse writingFeatured(Writing writing, String locale, boolean kmr) {
@@ -302,7 +399,7 @@ public class SiteContentService {
                 .locale(locale)
                 .featured(featured)
                 .featuredOrder(featuredOrder)
-                .displayOrder(0) // reassigned to 1..N once global sort order is known, see getFeatured()
+                .displayOrder(0)
                 .active(true)
                 .build();
     }
@@ -430,7 +527,8 @@ public class SiteContentService {
 
     @Transactional(readOnly = true)
     public Page<ContactMessageResponse> getContactMessages(int page, int size) {
-        return contactMessageRepository.findAll(newest(page, size)).map(this::contactMessageResponse);
+        return contactMessageRepository.findAll(newest(page, size))
+                .map(this::contactMessageResponse);
     }
 
     @Transactional
@@ -527,9 +625,11 @@ public class SiteContentService {
         settings.setPaymentInstructionsCkb(trimToNull(request.getPaymentInstructionsCkb()));
         settings.setPaymentInstructionsKmr(trimToNull(request.getPaymentInstructionsKmr()));
         settings.setFinancialDonationsEnabled(
-                request.getFinancialDonationsEnabled() == null || request.getFinancialDonationsEnabled());
+                request.getFinancialDonationsEnabled() == null
+                        || request.getFinancialDonationsEnabled());
         settings.setArchiveDonationsEnabled(
-                request.getArchiveDonationsEnabled() == null || request.getArchiveDonationsEnabled());
+                request.getArchiveDonationsEnabled() == null
+                        || request.getArchiveDonationsEnabled());
         return donationSettingsResponse(donationSettingsRepository.save(settings));
     }
 
@@ -569,12 +669,14 @@ public class SiteContentService {
 
     @Transactional(readOnly = true)
     public Page<FinancialDonationResponse> getFinancialDonations(int page, int size) {
-        return financialDonationRepository.findAll(newest(page, size)).map(this::financialResponse);
+        return financialDonationRepository.findAll(newest(page, size))
+                .map(this::financialResponse);
     }
 
     @Transactional(readOnly = true)
     public Page<ArchiveDonationResponse> getArchiveDonations(int page, int size) {
-        return archiveDonationRepository.findAll(newest(page, size)).map(this::archiveResponse);
+        return archiveDonationRepository.findAll(newest(page, size))
+                .map(this::archiveResponse);
     }
 
     @Transactional
@@ -596,13 +698,17 @@ public class SiteContentService {
     private void ensureFinancialDonationsEnabled() {
         donationSettingsRepository.findAll().stream().findFirst()
                 .filter(settings -> !settings.isFinancialDonationsEnabled())
-                .ifPresent(settings -> { throw new IllegalStateException("Financial donations are disabled"); });
+                .ifPresent(settings -> {
+                    throw new IllegalStateException("Financial donations are disabled");
+                });
     }
 
     private void ensureArchiveDonationsEnabled() {
         donationSettingsRepository.findAll().stream().findFirst()
                 .filter(settings -> !settings.isArchiveDonationsEnabled())
-                .ifPresent(settings -> { throw new IllegalStateException("Archive donations are disabled"); });
+                .ifPresent(settings -> {
+                    throw new IllegalStateException("Archive donations are disabled");
+                });
     }
 
     // Mappers
@@ -619,7 +725,8 @@ public class SiteContentService {
     private PartnerResponse partnerResponse(Partner partner) {
         return PartnerResponse.builder()
                 .id(partner.getId()).nameCkb(partner.getNameCkb()).nameKmr(partner.getNameKmr())
-                .descriptionCkb(partner.getDescriptionCkb()).descriptionKmr(partner.getDescriptionKmr())
+                .descriptionCkb(partner.getDescriptionCkb())
+                .descriptionKmr(partner.getDescriptionKmr())
                 .logoUrl(partner.getLogoUrl()).websiteUrl(partner.getWebsiteUrl())
                 .displayOrder(partner.getDisplayOrder()).active(partner.isActive()).build();
     }
@@ -627,8 +734,9 @@ public class SiteContentService {
     private ContactMessageResponse contactMessageResponse(ContactMessage message) {
         return ContactMessageResponse.builder()
                 .id(message.getId()).name(message.getName()).email(message.getEmail())
-                .phone(message.getPhone()).subject(message.getSubject()).message(message.getMessage())
-                .locale(message.getLocale()).status(message.getStatus()).createdAt(message.getCreatedAt()).build();
+                .phone(message.getPhone()).subject(message.getSubject())
+                .message(message.getMessage()).locale(message.getLocale())
+                .status(message.getStatus()).createdAt(message.getCreatedAt()).build();
     }
 
     private SocialLinkResponse socialResponse(SocialLink link) {
@@ -640,8 +748,10 @@ public class SiteContentService {
 
     private DonationSettingsResponse donationSettingsResponse(DonationSettings settings) {
         return DonationSettingsResponse.builder()
-                .id(settings.getId()).titleCkb(settings.getTitleCkb()).titleKmr(settings.getTitleKmr())
-                .descriptionCkb(settings.getDescriptionCkb()).descriptionKmr(settings.getDescriptionKmr())
+                .id(settings.getId()).titleCkb(settings.getTitleCkb())
+                .titleKmr(settings.getTitleKmr())
+                .descriptionCkb(settings.getDescriptionCkb())
+                .descriptionKmr(settings.getDescriptionKmr())
                 .heroImageUrl(settings.getHeroImageUrl()).bankName(settings.getBankName())
                 .accountName(settings.getAccountName()).accountNumber(settings.getAccountNumber())
                 .iban(settings.getIban()).swiftCode(settings.getSwiftCode())
@@ -653,19 +763,23 @@ public class SiteContentService {
 
     private FinancialDonationResponse financialResponse(FinancialDonation donation) {
         return FinancialDonationResponse.builder()
-                .id(donation.getId()).donorName(donation.getDonorName()).email(donation.getEmail())
-                .phone(donation.getPhone()).amount(donation.getAmount()).currency(donation.getCurrency())
+                .id(donation.getId()).donorName(donation.getDonorName())
+                .email(donation.getEmail()).phone(donation.getPhone())
+                .amount(donation.getAmount()).currency(donation.getCurrency())
                 .paymentMethod(donation.getPaymentMethod())
-                .transactionReference(donation.getTransactionReference()).message(donation.getMessage())
+                .transactionReference(donation.getTransactionReference())
+                .message(donation.getMessage())
                 .status(donation.getStatus()).createdAt(donation.getCreatedAt()).build();
     }
 
     private ArchiveDonationResponse archiveResponse(ArchiveDonation donation) {
         return ArchiveDonationResponse.builder()
-                .id(donation.getId()).donorName(donation.getDonorName()).email(donation.getEmail())
-                .phone(donation.getPhone()).materialType(donation.getMaterialType())
-                .title(donation.getTitle()).description(donation.getDescription())
-                .estimatedDate(donation.getEstimatedDate()).attachmentUrl(donation.getAttachmentUrl())
+                .id(donation.getId()).donorName(donation.getDonorName())
+                .email(donation.getEmail()).phone(donation.getPhone())
+                .materialType(donation.getMaterialType()).title(donation.getTitle())
+                .description(donation.getDescription())
+                .estimatedDate(donation.getEstimatedDate())
+                .attachmentUrl(donation.getAttachmentUrl())
                 .status(donation.getStatus()).createdAt(donation.getCreatedAt()).build();
     }
 

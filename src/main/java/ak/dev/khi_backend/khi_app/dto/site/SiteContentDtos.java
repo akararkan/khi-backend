@@ -2,6 +2,8 @@ package ak.dev.khi_backend.khi_app.dto.site;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -65,6 +67,20 @@ public final class SiteContentDtos {
         private Integer featuredOrder; // NEW
         private Integer displayOrder;
         private Boolean active;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class SiteSettingsRequest {
+        @NotNull
+        @Min(1)
+        @Max(20)
+        private Integer maxFeaturedSlides;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class SiteSettingsResponse {
+        private Long id;
+        private Integer maxFeaturedSlides;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

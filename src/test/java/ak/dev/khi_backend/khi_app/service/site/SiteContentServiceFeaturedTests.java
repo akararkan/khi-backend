@@ -3,6 +3,7 @@ package ak.dev.khi_backend.khi_app.service.site;
 import ak.dev.khi_backend.khi_app.enums.MediaKind;
 import ak.dev.khi_backend.khi_app.model.news.News;
 import ak.dev.khi_backend.khi_app.model.news.NewsContent;
+import ak.dev.khi_backend.khi_app.model.site.SiteSettings;
 import ak.dev.khi_backend.khi_app.model.publishment.image.ImageCollection;
 import ak.dev.khi_backend.khi_app.model.publishment.image.ImageContent;
 import ak.dev.khi_backend.khi_app.model.publishment.sound.SoundTrack;
@@ -12,6 +13,7 @@ import ak.dev.khi_backend.khi_app.model.publishment.video.VideoContent;
 import ak.dev.khi_backend.khi_app.model.publishment.writing.Writing;
 import ak.dev.khi_backend.khi_app.model.publishment.writing.WritingContent;
 import ak.dev.khi_backend.khi_app.repository.news.NewsRepository;
+import ak.dev.khi_backend.khi_app.repository.project.ProjectRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.video.VideoRepository;
@@ -22,20 +24,18 @@ import ak.dev.khi_backend.khi_app.repository.site.DonationSettingsRepository;
 import ak.dev.khi_backend.khi_app.repository.site.FinancialDonationRepository;
 import ak.dev.khi_backend.khi_app.repository.site.PartnerRepository;
 import ak.dev.khi_backend.khi_app.repository.site.SocialLinkRepository;
+import ak.dev.khi_backend.khi_app.repository.site.SiteSettingsRepository;
 import ak.dev.khi_backend.khi_app.repository.site.TeamMemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,7 +48,9 @@ class SiteContentServiceFeaturedTests {
     @Mock private DonationSettingsRepository donationSettingsRepository;
     @Mock private FinancialDonationRepository financialDonationRepository;
     @Mock private ArchiveDonationRepository archiveDonationRepository;
+    @Mock private SiteSettingsRepository siteSettingsRepository;
     @Mock private NewsRepository newsRepository;
+    @Mock private ProjectRepository projectRepository;
     @Mock private WritingRepository writingRepository;
     @Mock private VideoRepository videoRepository;
     @Mock private SoundTrackRepository soundTrackRepository;
@@ -58,11 +60,20 @@ class SiteContentServiceFeaturedTests {
     private SiteContentService siteContentService;
 
     @Test
-    void composesLocalizedFeaturedSlidesFromNewestContentEntities() {
+    void defaultsToSevenFeaturedSlidesWhenSettingsDoNotExist() {
+        when(siteSettingsRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.empty());
+
+        assertThat(siteContentService.getSiteSettings().getMaxFeaturedSlides()).isEqualTo(7);
+    }
+
+    @Test
+    void composesLocalizedFeaturedSlidesFromFlaggedContentEntities() {
         News news = News.builder()
                 .id(42L)
                 .coverUrl("https://cdn.example.com/news.jpg")
                 .coverMediaType(MediaKind.IMAGE)
+                .featured(true)
+                .featuredOrder(1)
                 .ckbContent(content("News CKB", "News description CKB"))
                 .kmrContent(content("News KMR", "News description KMR"))
                 .build();
@@ -70,6 +81,8 @@ class SiteContentServiceFeaturedTests {
                 .id(9L)
                 .ckbCoverUrl("https://cdn.example.com/writing-ckb.jpg")
                 .kmrCoverUrl("https://cdn.example.com/writing-kmr.jpg")
+                .featured(true)
+                .featuredOrder(2)
                 .ckbContent(writingContent("Writing CKB", "Writing description CKB"))
                 .kmrContent(writingContent("Writing KMR", "Writing description KMR"))
                 .build();
@@ -77,6 +90,8 @@ class SiteContentServiceFeaturedTests {
                 .id(15L)
                 .ckbCoverUrl("https://cdn.example.com/video-ckb.jpg")
                 .kmrCoverUrl("https://cdn.example.com/video-kmr.jpg")
+                .featured(true)
+                .featuredOrder(3)
                 .ckbContent(videoContent("Video CKB", "Video description CKB"))
                 .kmrContent(videoContent("Video KMR", "Video description KMR"))
                 .build();
@@ -84,6 +99,8 @@ class SiteContentServiceFeaturedTests {
                 .id(21L)
                 .ckbCoverUrl("https://cdn.example.com/sound-ckb.jpg")
                 .kmrCoverUrl("https://cdn.example.com/sound-kmr.jpg")
+                .featured(true)
+                .featuredOrder(4)
                 .ckbContent(soundContent("Sound CKB", "Sound description CKB"))
                 .kmrContent(soundContent("Sound KMR", "Sound description KMR"))
                 .build();
@@ -93,23 +110,25 @@ class SiteContentServiceFeaturedTests {
                 .slugKmr("images-kmr")
                 .ckbCoverUrl("https://cdn.example.com/images-ckb.jpg")
                 .kmrCoverUrl("https://cdn.example.com/images-kmr.jpg")
+                .featured(true)
+                .featuredOrder(5)
                 .ckbContent(imageContent("Images CKB", "Images description CKB"))
                 .kmrContent(imageContent("Images KMR", "Images description KMR"))
                 .build();
 
-        when(newsRepository.findAllIds(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(42L)));
-        when(newsRepository.findById(42L)).thenReturn(Optional.of(news));
-        when(writingRepository.findAllWithTopic(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(writing)));
-        when(videoRepository.findAllWithTopic(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(video)));
-        when(soundTrackRepository.findAllIds(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(21L)));
-        when(soundTrackRepository.findById(21L)).thenReturn(Optional.of(sound));
-        when(imageCollectionRepository.findAllIds(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(7L)));
-        when(imageCollectionRepository.findById(7L)).thenReturn(Optional.of(images));
+        when(newsRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc())
+                .thenReturn(List.of(news));
+        when(projectRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc())
+                .thenReturn(List.of());
+        when(writingRepository.findFeaturedWithTopic()).thenReturn(List.of(writing));
+        when(videoRepository.findFeaturedWithTopic()).thenReturn(List.of(video));
+        when(soundTrackRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc())
+                .thenReturn(List.of(sound));
+        when(imageCollectionRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc())
+                .thenReturn(List.of(images));
+        when(siteSettingsRepository.findFirstByOrderByIdAsc())
+                .thenReturn(Optional.of(
+                        SiteSettings.builder().maxFeaturedSlides(5).build()));
 
         var result = siteContentService.getFeatured("kmr");
 

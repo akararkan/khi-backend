@@ -3,7 +3,9 @@ package ak.dev.khi_backend.khi_app.api.project;
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectCreateRequest;
 import ak.dev.khi_backend.khi_app.dto.project.ProjectResponse;
+import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos;
 import ak.dev.khi_backend.khi_app.service.project.ProjectService;
+import ak.dev.khi_backend.khi_app.service.site.SiteContentService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -29,6 +32,19 @@ import org.springframework.web.bind.annotation.*;
 public class ProjectController {
 
     private final ProjectService projectService;
+
+
+    private final SiteContentService siteContentService;
+
+    // Featured Patch
+    @PatchMapping("/{id}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> setFeatured(
+            @PathVariable Long id,
+            @RequestBody SiteContentDtos.FeaturedRequest request) {
+        siteContentService.setProjectFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
 
     // ============================================================
     // CREATE

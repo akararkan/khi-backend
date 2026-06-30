@@ -33,64 +33,6 @@ public class PublicSiteController {
         return ResponseEntity.ok(siteContentService.getFeatured(locale));
     }
 
-    // Admin — consumed by khi-dashboard to feature/unfeature a single record and set its order.
-    // Body example: { "featured": true, "featuredOrder": 1 }
-    // To unfeature: { "featured": false }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/api/v1/admin/news/{id}/featured")
-    public ResponseEntity<Void> setNewsFeatured(
-            @PathVariable Long id, @RequestBody FeaturedRequest request) {
-        siteContentService.setNewsFeatured(id, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/api/v1/admin/projects/{id}/featured")
-    public ResponseEntity<Void> setProjectFeatured(
-            @PathVariable Long id, @RequestBody FeaturedRequest request) {
-        siteContentService.setProjectFeatured(id, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/api/v1/admin/writings/{id}/featured")
-    public ResponseEntity<Void> setWritingFeatured(
-            @PathVariable Long id, @RequestBody FeaturedRequest request) {
-        siteContentService.setWritingFeatured(id, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/api/v1/admin/videos/{id}/featured")
-    public ResponseEntity<Void> setVideoFeatured(
-            @PathVariable Long id, @RequestBody FeaturedRequest request) {
-        siteContentService.setVideoFeatured(id, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/api/v1/admin/sound-tracks/{id}/featured")
-    public ResponseEntity<Void> setSoundTrackFeatured(
-            @PathVariable Long id, @RequestBody FeaturedRequest request) {
-        siteContentService.setSoundTrackFeatured(id, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/api/v1/admin/image-collections/{id}/featured")
-    public ResponseEntity<Void> setImageCollectionFeatured(
-            @PathVariable Long id, @RequestBody FeaturedRequest request) {
-        siteContentService.setImageCollectionFeatured(id, request);
-        return ResponseEntity.noContent().build();
-    }
-
-
-
-
-
-
-
 
 
     // About team and partners

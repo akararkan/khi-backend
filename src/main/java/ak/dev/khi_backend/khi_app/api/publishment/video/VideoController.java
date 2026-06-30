@@ -1,8 +1,10 @@
 package ak.dev.khi_backend.khi_app.api.publishment.video;
 
 import ak.dev.khi_backend.khi_app.dto.publishment.video.VideoDTO;
+import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoType;
 import ak.dev.khi_backend.khi_app.service.publishment.video.VideoService;
+import ak.dev.khi_backend.khi_app.service.site.SiteContentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +26,18 @@ public class VideoController {
 
     private final VideoService videoService;
     private final ObjectMapper objectMapper;
+
+    private final SiteContentService siteContentService;
+
+    // Featured Patch
+    @PatchMapping("/{id}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> setFeatured(
+            @PathVariable Long id,
+            @RequestBody SiteContentDtos.FeaturedRequest request) {
+        siteContentService.setVideoFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
 
     // 1) ADD
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -166,6 +166,7 @@ public interface ImageCollectionRepository extends JpaRepository<ImageCollection
 
     // NEW — used by SiteContentService.getFeatured()
     List<ImageCollection> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
+    long countByFeaturedTrue();
 
 
 

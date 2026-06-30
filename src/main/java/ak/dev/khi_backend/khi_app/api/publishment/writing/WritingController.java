@@ -2,9 +2,11 @@ package ak.dev.khi_backend.khi_app.api.publishment.writing;
 
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.publishment.writing.WritingDtos.*;
+import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.publishment.writing.WritingService;
+import ak.dev.khi_backend.khi_app.service.site.SiteContentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -14,6 +16,7 @@ import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,6 +38,18 @@ public class WritingController {
     private final WritingService writingService;
     private final ObjectMapper objectMapper;
     private final PublishmentTopicRepository topicRepository;
+
+    private final SiteContentService siteContentService;
+
+    // Featured Patch
+    @PatchMapping("/{id}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> setFeatured(
+            @PathVariable Long id,
+            @RequestBody SiteContentDtos.FeaturedRequest request) {
+        siteContentService.setWritingFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
 
     // ============================================================
     // CREATE

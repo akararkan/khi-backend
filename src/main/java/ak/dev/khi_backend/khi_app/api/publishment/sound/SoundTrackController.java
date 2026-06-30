@@ -2,11 +2,13 @@ package ak.dev.khi_backend.khi_app.api.publishment.sound;
 
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.publishment.sound.SoundTrackDtos.*;
+import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos;
 import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.service.publishment.sound.SoundTrackService;
 import ak.dev.khi_backend.khi_app.exceptions.Errors;
+import ak.dev.khi_backend.khi_app.service.site.SiteContentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -72,6 +75,18 @@ public class SoundTrackController {
     private final SoundTrackService          soundTrackService;
     private final PublishmentTopicRepository topicRepository;
     private final ObjectMapper               objectMapper;
+
+    private final SiteContentService siteContentService;
+
+    // Featured Patch
+    @PatchMapping("/{id}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> setFeatured(
+            @PathVariable Long id,
+            @RequestBody SiteContentDtos.FeaturedRequest request) {
+        siteContentService.setSoundTrackFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
 
     // =========================================================================
     // CREATE — multipart/form-data

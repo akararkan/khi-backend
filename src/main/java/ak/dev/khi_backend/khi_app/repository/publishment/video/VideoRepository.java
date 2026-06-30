@@ -261,6 +261,7 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("select w from Writing w left join fetch w.topic where w.featured = true order by w.featuredOrder asc, w.id desc")
     List<Video> findFeaturedWithTopic();
 
+    long countByFeaturedTrue();
 
 
 }

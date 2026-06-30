@@ -206,4 +206,6 @@ public interface SoundTrackRepository extends JpaRepository<SoundTrack, Long> {
     // NEW — used by SiteContentService.getFeatured()
     List<SoundTrack> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
 
+    long countByFeaturedTrue();
+
 }

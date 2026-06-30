@@ -78,4 +78,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     Optional<Project> findByIdWithGraph(@Param("id") Long id);
 
     List<Project> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
+
+    long countByFeaturedTrue();
 }
