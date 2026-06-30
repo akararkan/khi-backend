@@ -27,7 +27,7 @@ public class PublicSiteController {
     // Featured homepage hero
 
     // Public — consumed by khi-website's homepage hero. No auth required.
-    @GetMapping("/api/v1/featured")
+    @GetMapping("/featured")
     public ResponseEntity<List<FeaturedResponse>> getFeatured(
             @RequestParam(required = false) String locale) {
         return ResponseEntity.ok(siteContentService.getFeatured(locale));
