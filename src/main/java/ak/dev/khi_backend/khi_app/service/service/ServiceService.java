@@ -429,9 +429,14 @@ public class ServiceService {
         if (raw == null || raw.isBlank()) return null;
         try {
             return LocalDateTime.parse(raw, FORMATTER);
-        } catch (Exception e) {
-            throw new BadRequestException("service.publishedAt.invalid",
-                    Map.of("expected", "yyyy-MM-dd HH:mm:ss", "got", raw));
+        } catch (Exception e1) {
+            try {
+                // Accept ISO 8601 (e.g. "2026-06-30T21:01:42.260Z")
+                return java.time.OffsetDateTime.parse(raw).toLocalDateTime();
+            } catch (Exception e2) {
+                throw new BadRequestException("service.publishedAt.invalid",
+                        Map.of("expected", "yyyy-MM-dd HH:mm:ss or ISO-8601", "got", raw));
+            }
         }
     }
 
