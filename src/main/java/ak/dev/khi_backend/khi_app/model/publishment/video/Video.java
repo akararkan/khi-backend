@@ -244,6 +244,9 @@ public class Video {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    private boolean featured = false;
+    private Integer featuredOrder;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

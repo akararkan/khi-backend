@@ -189,4 +189,10 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     })
     @Query("SELECT n FROM News n WHERE n.id = :id")
     Optional<News> findByIdWithGraph(@Param("id") Long id);
+
+
+
+
+    List<News> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
+
 }

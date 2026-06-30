@@ -164,4 +164,9 @@ public interface ImageCollectionRepository extends JpaRepository<ImageCollection
     Optional<ImageCollection> findBySlugCkbOrSlugKmr(String slugCkb, String slugKmr);
 
 
+    // NEW — used by SiteContentService.getFeatured()
+    List<ImageCollection> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
+
+
+
 }

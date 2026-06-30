@@ -221,6 +221,9 @@ public class Writing {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    private boolean featured = false;
+    private Integer featuredOrder;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

@@ -26,4 +26,5 @@ public class FeaturedItem {
     @Column(name = "display_order") @Builder.Default private Integer displayOrder = 0;
     @CreationTimestamp @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at") private LocalDateTime updatedAt;
+
 }

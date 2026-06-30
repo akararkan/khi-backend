@@ -76,4 +76,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     })
     @Query("SELECT p FROM Project p WHERE p.id = :id")
     Optional<Project> findByIdWithGraph(@Param("id") Long id);
+
+    List<Project> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
 }

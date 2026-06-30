@@ -256,5 +256,11 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v WHERE v.id IN :ids")
     List<Video> findAllByIds(@Param("ids") List<Long> ids);
 
+    // NEW — used by SiteContentService.getFeatured(). Same join as above, scoped to featured
+    // records and ordered by featuredOrder instead of recency.
+    @Query("select w from Writing w left join fetch w.topic where w.featured = true order by w.featuredOrder asc, w.id desc")
+    List<Video> findFeaturedWithTopic();
+
+
 
 }

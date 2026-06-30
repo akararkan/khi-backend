@@ -2,7 +2,9 @@ package ak.dev.khi_backend.khi_app.api.news;
 
 import ak.dev.khi_backend.khi_app.dto.ApiResponse;
 import ak.dev.khi_backend.khi_app.dto.news.NewsDto;
+import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos;
 import ak.dev.khi_backend.khi_app.service.news.NewsService;
+import ak.dev.khi_backend.khi_app.service.site.SiteContentService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +33,19 @@ import java.util.List;
 public class NewsController {
 
     private final NewsService newsService;
+    private final SiteContentService siteContentService;
+
+    // Featured Patch
+    @PatchMapping("/{id}/featured")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> setFeatured(
+            @PathVariable Long id,
+            @RequestBody SiteContentDtos.FeaturedRequest request) {
+        siteContentService.setNewsFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+
 
     // ============================================================
     // CREATE

@@ -163,9 +163,15 @@ public class News {
     @JoinColumn(name = "sub_category_id", nullable = false)
     private NewsSubCategory subCategory;
 
+
+    private boolean featured = false;
+    private Integer featuredOrder;
+
     // Media table dropped — inline images / audio / video / documents now
     // live inside the Tiptap HTML stored in ckbContent.description and
     // kmrContent.description. Uploads go through POST /api/v1/media/upload.
+
+
 
     @PrePersist
     public void prePersist() {

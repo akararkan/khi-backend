@@ -201,4 +201,9 @@ public interface SoundTrackRepository extends JpaRepository<SoundTrack, Long> {
     })
     @Query("SELECT s FROM SoundTrack s WHERE s.id = :id")
     Optional<SoundTrack> findByIdWithGraph(@Param("id") Long id);
+
+
+    // NEW — used by SiteContentService.getFeatured()
+    List<SoundTrack> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
+
 }

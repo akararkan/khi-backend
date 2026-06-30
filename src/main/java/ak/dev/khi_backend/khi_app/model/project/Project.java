@@ -159,6 +159,9 @@ public class Project extends AuditableEntity {
     @Column(name = "project_date")
     private LocalDate projectDate;
 
+    private boolean featured = false;
+    private Integer featuredOrder;
+
     // project_media table dropped — inline images / audio / video now live
     // inside the Tiptap HTML stored in ckbContent.description and
     // kmrContent.description. Uploads go through POST /api/v1/media/upload.

@@ -1,7 +1,20 @@
 package ak.dev.khi_backend.khi_app.service.site;
 
 import ak.dev.khi_backend.khi_app.dto.site.SiteContentDtos.*;
+import ak.dev.khi_backend.khi_app.enums.MediaKind;
+import ak.dev.khi_backend.khi_app.model.news.News;
+import ak.dev.khi_backend.khi_app.model.project.Project; // TODO: confirm this matches your actual package
+import ak.dev.khi_backend.khi_app.model.publishment.image.ImageCollection;
+import ak.dev.khi_backend.khi_app.model.publishment.sound.SoundTrack;
+import ak.dev.khi_backend.khi_app.model.publishment.video.Video;
+import ak.dev.khi_backend.khi_app.model.publishment.writing.Writing;
 import ak.dev.khi_backend.khi_app.model.site.*;
+import ak.dev.khi_backend.khi_app.repository.news.NewsRepository;
+import ak.dev.khi_backend.khi_app.repository.project.ProjectRepository; // TODO: confirm this matches your actual package
+import ak.dev.khi_backend.khi_app.repository.publishment.image.ImageCollectionRepository;
+import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackRepository;
+import ak.dev.khi_backend.khi_app.repository.publishment.video.VideoRepository;
+import ak.dev.khi_backend.khi_app.repository.publishment.writing.WritingRepository;
 import ak.dev.khi_backend.khi_app.repository.site.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -16,17 +29,20 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
 
+/**
+ * NOTE on FeaturedResponse: this class calls FeaturedResponse.toBuilder(), which requires
+ * the DTO to be annotated with @Builder(toBuilder = true) instead of just @Builder.
+ * See featured-entity-and-repository-patches.md for the exact DTO change.
+ */
 @Service
 @RequiredArgsConstructor
 public class SiteContentService {
 
-    private static final Set<String> FEATURED_TYPES =
-            Set.of("book", "audio", "video", "article", "gallery", "archive");
     private static final Set<String> SUBMISSION_STATUSES =
             Set.of("NEW", "PENDING", "IN_REVIEW", "APPROVED", "COMPLETED", "REJECTED", "CLOSED");
 
-    private final FeaturedItemRepository featuredRepository;
     private final TeamMemberRepository teamRepository;
     private final PartnerRepository partnerRepository;
     private final ContactMessageRepository contactMessageRepository;
@@ -34,58 +50,286 @@ public class SiteContentService {
     private final DonationSettingsRepository donationSettingsRepository;
     private final FinancialDonationRepository financialDonationRepository;
     private final ArchiveDonationRepository archiveDonationRepository;
+    private final NewsRepository newsRepository;
+    private final ProjectRepository projectRepository;
+    private final WritingRepository writingRepository;
+    private final VideoRepository videoRepository;
+    private final SoundTrackRepository soundTrackRepository;
+    private final ImageCollectionRepository imageCollectionRepository;
 
+    // =========================================================================================
     // Featured
+    //
+    // Featured slides are curated, not automatic. An admin explicitly flags individual News /
+    // Project / Writing / Video / SoundTrack / ImageCollection records as featured (featured =
+    // true) and optionally sets featuredOrder to control sequence. getFeatured() collects every
+    // flagged record across all six types, sorts them globally by featuredOrder (ties broken by
+    // newest id first), and renumbers displayOrder 1..N on the way out. There can be zero, one,
+    // or many featured records per type — nothing here assumes "exactly one per category".
+    // =========================================================================================
 
     @Transactional(readOnly = true)
     public List<FeaturedResponse> getFeatured(String locale) {
-        List<FeaturedItem> items;
+        String resolvedLocale = resolveFeaturedLocale(locale);
+        boolean kmr = "kmr".equals(resolvedLocale);
+
+        List<FeaturedCandidate> candidates = new ArrayList<>();
+
+        newsRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc().forEach(news ->
+                addCandidate(candidates, newsFeatured(news, resolvedLocale, kmr),
+                        news.getFeaturedOrder(), news.getId()));
+
+        projectRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc().forEach(project ->
+                addCandidate(candidates, projectFeatured(project, resolvedLocale, kmr),
+                        project.getFeaturedOrder(), project.getId()));
+
+        writingRepository.findFeaturedWithTopic().forEach(writing ->
+                addCandidate(candidates, writingFeatured(writing, resolvedLocale, kmr),
+                        writing.getFeaturedOrder(), writing.getId()));
+
+        videoRepository.findFeaturedWithTopic().forEach(video ->
+                addCandidate(candidates, videoFeatured(video, resolvedLocale, kmr),
+                        video.getFeaturedOrder(), video.getId()));
+
+        soundTrackRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc().forEach(sound ->
+                addCandidate(candidates, soundFeatured(sound, resolvedLocale, kmr),
+                        sound.getFeaturedOrder(), sound.getId()));
+
+        imageCollectionRepository.findByFeaturedTrueOrderByFeaturedOrderAscIdDesc().forEach(collection ->
+                addCandidate(candidates, imageFeatured(collection, resolvedLocale, kmr),
+                        collection.getFeaturedOrder(), collection.getId()));
+
+        candidates.sort(Comparator
+                .comparing((FeaturedCandidate c) -> c.featuredOrder() == null ? Integer.MAX_VALUE : c.featuredOrder())
+                .thenComparing(FeaturedCandidate::id, Comparator.reverseOrder()));
+
+        List<FeaturedResponse> slides = new ArrayList<>(candidates.size());
+        int order = 1;
+        for (FeaturedCandidate candidate : candidates) {
+            slides.add(candidate.response().toBuilder().displayOrder(order++).build());
+        }
+        return slides;
+    }
+
+    private record FeaturedCandidate(FeaturedResponse response, Integer featuredOrder, Long id) {}
+
+    private void addCandidate(
+            List<FeaturedCandidate> candidates, FeaturedResponse response,
+            Integer featuredOrder, Long id) {
+        if (response != null) {
+            candidates.add(new FeaturedCandidate(response, featuredOrder, id));
+        }
+    }
+
+    // --- Feature / unfeature a single record by its entity id -----------------------------
+
+    @Transactional
+    public void setNewsFeatured(Long id, FeaturedRequest request) {
+        News news = newsRepository.findById(id).orElseThrow(() -> notFound("News", id));
+        applyFeatured(news::setFeatured, news::setFeaturedOrder, request);
+        newsRepository.save(news);
+    }
+
+    @Transactional
+    public void setProjectFeatured(Long id, FeaturedRequest request) {
+        Project project = projectRepository.findById(id).orElseThrow(() -> notFound("Project", id));
+        applyFeatured(project::setFeatured, project::setFeaturedOrder, request);
+        projectRepository.save(project);
+    }
+
+    @Transactional
+    public void setWritingFeatured(Long id, FeaturedRequest request) {
+        Writing writing = writingRepository.findById(id).orElseThrow(() -> notFound("Writing", id));
+        applyFeatured(writing::setFeatured, writing::setFeaturedOrder, request);
+        writingRepository.save(writing);
+    }
+
+    @Transactional
+    public void setVideoFeatured(Long id, FeaturedRequest request) {
+        Video video = videoRepository.findById(id).orElseThrow(() -> notFound("Video", id));
+        applyFeatured(video::setFeatured, video::setFeaturedOrder, request);
+        videoRepository.save(video);
+    }
+
+    @Transactional
+    public void setSoundTrackFeatured(Long id, FeaturedRequest request) {
+        SoundTrack sound = soundTrackRepository.findById(id)
+                .orElseThrow(() -> notFound("Sound track", id));
+        applyFeatured(sound::setFeatured, sound::setFeaturedOrder, request);
+        soundTrackRepository.save(sound);
+    }
+
+    @Transactional
+    public void setImageCollectionFeatured(Long id, FeaturedRequest request) {
+        ImageCollection collection = imageCollectionRepository.findById(id)
+                .orElseThrow(() -> notFound("Image collection", id));
+        applyFeatured(collection::setFeatured, collection::setFeaturedOrder, request);
+        imageCollectionRepository.save(collection);
+    }
+
+    private void applyFeatured(
+            Consumer<Boolean> setFeatured, Consumer<Integer> setOrder, FeaturedRequest request) {
+        setFeatured.accept(request.getFeatured() == null || request.getFeatured());
+        setOrder.accept(request.getFeaturedOrder());
+    }
+
+    // --- Per-type mappers (entity -> FeaturedResponse) -------------------------------------
+
+    private FeaturedResponse newsFeatured(News news, String locale, boolean kmr) {
+        String title = localized(
+                news.getCkbContent() == null ? null : news.getCkbContent().getTitle(),
+                news.getKmrContent() == null ? null : news.getKmrContent().getTitle(),
+                kmr);
+        String description = localized(
+                news.getCkbContent() == null ? null : news.getCkbContent().getDescription(),
+                news.getKmrContent() == null ? null : news.getKmrContent().getDescription(),
+                kmr);
+        String imageUrl = news.getCoverMediaType() == null
+                || news.getCoverMediaType() == MediaKind.IMAGE
+                ? firstNonBlank(news.getCoverUrl(), news.getCoverThumbnailUrl())
+                : news.getCoverThumbnailUrl();
+        return featuredSlide(
+                "news", news.getId(), "article", String.valueOf(news.getId()),
+                title, description, imageUrl, locale, news.isFeatured(), news.getFeaturedOrder());
+    }
+
+    // Field names mirror the public API contract (ckbContent.title / ckbContent.description,
+    // coverUrl, coverMediaType) — confirm against your actual Project.java getters.
+    private FeaturedResponse projectFeatured(Project project, String locale, boolean kmr) {
+        String title = localized(
+                project.getCkbContent() == null ? null : project.getCkbContent().getTitle(),
+                project.getKmrContent() == null ? null : project.getKmrContent().getTitle(),
+                kmr);
+        String description = localized(
+                project.getCkbContent() == null ? null : project.getCkbContent().getDescription(),
+                project.getKmrContent() == null ? null : project.getKmrContent().getDescription(),
+                kmr);
+        String imageUrl = project.getCoverMediaType() == null
+                || project.getCoverMediaType() == MediaKind.IMAGE
+                ? project.getCoverUrl()
+                : firstNonBlank(project.getCoverThumbnailUrl(), project.getCoverUrl());
+        return featuredSlide(
+                "project", project.getId(), "archive", String.valueOf(project.getId()),
+                title, description, imageUrl, locale, project.isFeatured(), project.getFeaturedOrder());
+    }
+
+    private FeaturedResponse writingFeatured(Writing writing, String locale, boolean kmr) {
+        String title = localized(
+                writing.getCkbContent() == null ? null : writing.getCkbContent().getTitle(),
+                writing.getKmrContent() == null ? null : writing.getKmrContent().getTitle(),
+                kmr);
+        String description = localized(
+                writing.getCkbContent() == null ? null : writing.getCkbContent().getDescription(),
+                writing.getKmrContent() == null ? null : writing.getKmrContent().getDescription(),
+                kmr);
+        String imageUrl = localized(writing.getCkbCoverUrl(), writing.getKmrCoverUrl(), kmr);
+        return featuredSlide(
+                "writing", writing.getId(), "book", String.valueOf(writing.getId()),
+                title, description, firstNonBlank(imageUrl, writing.getHoverCoverUrl()),
+                locale, writing.isFeatured(), writing.getFeaturedOrder());
+    }
+
+    private FeaturedResponse videoFeatured(Video video, String locale, boolean kmr) {
+        String title = localized(
+                video.getCkbContent() == null ? null : video.getCkbContent().getTitle(),
+                video.getKmrContent() == null ? null : video.getKmrContent().getTitle(),
+                kmr);
+        String description = localized(
+                video.getCkbContent() == null ? null : video.getCkbContent().getDescription(),
+                video.getKmrContent() == null ? null : video.getKmrContent().getDescription(),
+                kmr);
+        String imageUrl = localized(video.getCkbCoverUrl(), video.getKmrCoverUrl(), kmr);
+        return featuredSlide(
+                "video", video.getId(), "video", String.valueOf(video.getId()),
+                title, description, firstNonBlank(imageUrl, video.getHoverCoverUrl()),
+                locale, video.isFeatured(), video.getFeaturedOrder());
+    }
+
+    private FeaturedResponse soundFeatured(SoundTrack sound, String locale, boolean kmr) {
+        String title = localized(
+                sound.getCkbContent() == null ? null : sound.getCkbContent().getTitle(),
+                sound.getKmrContent() == null ? null : sound.getKmrContent().getTitle(),
+                kmr);
+        String description = localized(
+                sound.getCkbContent() == null ? null : sound.getCkbContent().getDescription(),
+                sound.getKmrContent() == null ? null : sound.getKmrContent().getDescription(),
+                kmr);
+        String imageUrl = localized(sound.getCkbCoverUrl(), sound.getKmrCoverUrl(), kmr);
+        return featuredSlide(
+                "sound-track", sound.getId(), "audio", String.valueOf(sound.getId()),
+                title, description, firstNonBlank(imageUrl, sound.getHoverCoverUrl()),
+                locale, sound.isFeatured(), sound.getFeaturedOrder());
+    }
+
+    private FeaturedResponse imageFeatured(ImageCollection collection, String locale, boolean kmr) {
+        String title = localized(
+                collection.getCkbContent() == null ? null : collection.getCkbContent().getTitle(),
+                collection.getKmrContent() == null ? null : collection.getKmrContent().getTitle(),
+                kmr);
+        String description = localized(
+                collection.getCkbContent() == null
+                        ? null : collection.getCkbContent().getDescription(),
+                collection.getKmrContent() == null
+                        ? null : collection.getKmrContent().getDescription(),
+                kmr);
+        String imageUrl = localized(
+                collection.getCkbCoverUrl(), collection.getKmrCoverUrl(), kmr);
+        String slug = localized(collection.getSlugCkb(), collection.getSlugKmr(), kmr);
+        return featuredSlide(
+                "image-collection", collection.getId(), "gallery",
+                firstNonBlank(slug, String.valueOf(collection.getId())),
+                title, description, firstNonBlank(imageUrl, collection.getHoverCoverUrl()),
+                locale, collection.isFeatured(), collection.getFeaturedOrder());
+    }
+
+    private FeaturedResponse featuredSlide(
+            String source, Long entityId, String type, String slug,
+            String title, String description, String imageUrl,
+            String locale, boolean featured, Integer featuredOrder) {
+        if (entityId == null || isBlank(imageUrl)) {
+            return null;
+        }
+        String resolvedTitle = firstNonBlank(title, type + " " + entityId);
+        return FeaturedResponse.builder()
+                .id(source + "-" + entityId)
+                .source(source)
+                .entityId(entityId)
+                .type(type)
+                .slug(slug)
+                .title(resolvedTitle)
+                .description(description)
+                .image(ImageDto.builder().url(imageUrl).alt(resolvedTitle).build())
+                .locale(locale)
+                .featured(featured)
+                .featuredOrder(featuredOrder)
+                .displayOrder(0) // reassigned to 1..N once global sort order is known, see getFeatured()
+                .active(true)
+                .build();
+    }
+
+    private String resolveFeaturedLocale(String locale) {
         if (locale == null || locale.isBlank()) {
-            items = featuredRepository.findAllByActiveTrueOrderByDisplayOrderAsc();
-        } else {
-            items = new ArrayList<>(featuredRepository
-                    .findAllByActiveTrueAndLocaleIgnoreCaseOrderByDisplayOrderAsc(locale.trim()));
-            items.addAll(featuredRepository.findAllByActiveTrueAndLocaleIsNullOrderByDisplayOrderAsc());
-            items.sort(Comparator.comparing(FeaturedItem::getDisplayOrder));
+            return "ckb";
         }
-        return items.stream().map(this::featuredResponse).toList();
+        String normalized = locale.trim().toLowerCase(Locale.ROOT);
+        return "kmr".equals(normalized) || "ku".equals(normalized) ? "kmr" : "ckb";
     }
 
-    @Transactional
-    public FeaturedResponse createFeatured(FeaturedRequest request) {
-        FeaturedItem item = new FeaturedItem();
-        applyFeatured(item, request);
-        return featuredResponse(featuredRepository.save(item));
+    private String localized(String ckb, String kmr, boolean useKmr) {
+        return useKmr ? firstNonBlank(kmr, ckb) : firstNonBlank(ckb, kmr);
     }
 
-    @Transactional
-    public FeaturedResponse updateFeatured(Long id, FeaturedRequest request) {
-        FeaturedItem item = featuredRepository.findById(id)
-                .orElseThrow(() -> notFound("Featured item", id));
-        applyFeatured(item, request);
-        return featuredResponse(featuredRepository.save(item));
-    }
-
-    @Transactional
-    public void deleteFeatured(Long id) {
-        if (!featuredRepository.existsById(id)) throw notFound("Featured item", id);
-        featuredRepository.deleteById(id);
-    }
-
-    private void applyFeatured(FeaturedItem item, FeaturedRequest request) {
-        String type = request.getType().trim().toLowerCase(Locale.ROOT);
-        if (!FEATURED_TYPES.contains(type)) {
-            throw new IllegalArgumentException("Unsupported featured type: " + request.getType());
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value;
+            }
         }
-        item.setType(type);
-        item.setSlug(request.getSlug().trim());
-        item.setTitle(request.getTitle().trim());
-        item.setDescription(request.getDescription());
-        item.setImageUrl(request.getImageUrl().trim());
-        item.setImageAlt(trimToNull(request.getImageAlt()));
-        item.setLocale(trimToNull(request.getLocale()));
-        item.setDisplayOrder(defaultOrder(request.getDisplayOrder()));
-        item.setActive(request.getActive() == null || request.getActive());
+        return null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     // Team and partners
@@ -362,14 +606,6 @@ public class SiteContentService {
     }
 
     // Mappers
-
-    private FeaturedResponse featuredResponse(FeaturedItem item) {
-        return FeaturedResponse.builder()
-                .id(String.valueOf(item.getId())).type(item.getType()).slug(item.getSlug())
-                .title(item.getTitle()).description(item.getDescription())
-                .image(ImageDto.builder().url(item.getImageUrl()).alt(item.getImageAlt()).build())
-                .locale(item.getLocale()).displayOrder(item.getDisplayOrder()).active(item.isActive()).build();
-    }
 
     private TeamMemberResponse teamResponse(TeamMember member) {
         return TeamMemberResponse.builder()

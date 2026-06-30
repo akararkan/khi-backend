@@ -35,17 +35,34 @@ public final class SiteContentDtos {
         private String locale;
         private Integer displayOrder;
         private Boolean active;
+
+        // NEW — used by SiteContentService.setNewsFeatured() / setProjectFeatured() / etc.
+        private Boolean featured;      // null/omitted -> treated as true
+        private Integer featuredOrder; // lower shows first; null sorts last
     }
 
+    // NEW — used by the six setXFeatured() methods in SiteContentService and the matching
+    // admin PATCH endpoints in FeaturedController. Named FeatureToggleRequest (not
+    // FeaturedRequest) since that name was already taken by the class above.
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FeatureToggleRequest {
+        private Boolean featured;      // null/omitted -> treated as true
+        private Integer featuredOrder; // lower shows first; null sorts last
+    }
+
+    @Data @Builder(toBuilder = true) @NoArgsConstructor @AllArgsConstructor
     public static class FeaturedResponse {
         private String id;
+        private String source;         // NEW: news | project | writing | video | sound-track | image-collection
+        private Long entityId;         // NEW: raw id of the record in its source table
         private String type;
         private String slug;
         private String title;
         private String description;
         private ImageDto image;
         private String locale;
+        private Boolean featured;      // NEW
+        private Integer featuredOrder; // NEW
         private Integer displayOrder;
         private Boolean active;
     }

@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,29 +26,72 @@ public class PublicSiteController {
 
     // Featured homepage hero
 
-    @GetMapping("/featured")
-    public ApiResponse<List<FeaturedResponse>> getFeatured(
+    // Public — consumed by khi-website's homepage hero. No auth required.
+    @GetMapping("/api/v1/featured")
+    public ResponseEntity<List<FeaturedResponse>> getFeatured(
             @RequestParam(required = false) String locale) {
-        return ApiResponse.success(siteContentService.getFeatured(locale), "Featured items fetched");
+        return ResponseEntity.ok(siteContentService.getFeatured(locale));
     }
 
-    @PostMapping("/featured")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<FeaturedResponse> createFeatured(@Valid @RequestBody FeaturedRequest request) {
-        return ApiResponse.success(siteContentService.createFeatured(request), "Featured item created");
+    // Admin — consumed by khi-dashboard to feature/unfeature a single record and set its order.
+    // Body example: { "featured": true, "featuredOrder": 1 }
+    // To unfeature: { "featured": false }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/api/v1/admin/news/{id}/featured")
+    public ResponseEntity<Void> setNewsFeatured(
+            @PathVariable Long id, @RequestBody FeaturedRequest request) {
+        siteContentService.setNewsFeatured(id, request);
+        return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/featured/{id}")
-    public ApiResponse<FeaturedResponse> updateFeatured(
-            @PathVariable Long id, @Valid @RequestBody FeaturedRequest request) {
-        return ApiResponse.success(siteContentService.updateFeatured(id, request), "Featured item updated");
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/api/v1/admin/projects/{id}/featured")
+    public ResponseEntity<Void> setProjectFeatured(
+            @PathVariable Long id, @RequestBody FeaturedRequest request) {
+        siteContentService.setProjectFeatured(id, request);
+        return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/featured/{id}")
-    public ApiResponse<Void> deleteFeatured(@PathVariable Long id) {
-        siteContentService.deleteFeatured(id);
-        return ApiResponse.success(null, "Featured item deleted");
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/api/v1/admin/writings/{id}/featured")
+    public ResponseEntity<Void> setWritingFeatured(
+            @PathVariable Long id, @RequestBody FeaturedRequest request) {
+        siteContentService.setWritingFeatured(id, request);
+        return ResponseEntity.noContent().build();
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/api/v1/admin/videos/{id}/featured")
+    public ResponseEntity<Void> setVideoFeatured(
+            @PathVariable Long id, @RequestBody FeaturedRequest request) {
+        siteContentService.setVideoFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/api/v1/admin/sound-tracks/{id}/featured")
+    public ResponseEntity<Void> setSoundTrackFeatured(
+            @PathVariable Long id, @RequestBody FeaturedRequest request) {
+        siteContentService.setSoundTrackFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/api/v1/admin/image-collections/{id}/featured")
+    public ResponseEntity<Void> setImageCollectionFeatured(
+            @PathVariable Long id, @RequestBody FeaturedRequest request) {
+        siteContentService.setImageCollectionFeatured(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+
+
+
+
+
+
+
 
     // About team and partners
 
