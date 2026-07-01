@@ -2,6 +2,7 @@ package ak.dev.khi_backend.khi_app.exceptions;
 import ak.dev.khi_backend.khi_app.config.TraceIdFilter;
 import ak.dev.khi_backend.user.consts.SecurityConstants;
 import ak.dev.khi_backend.user.exceptions.UserAlreadyExistsException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
@@ -323,6 +324,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(
             HttpMessageNotReadableException ex, HttpServletRequest req, Locale locale) {
+        UnrecognizedPropertyException unknownProperty =
+                findCause(ex, UnrecognizedPropertyException.class);
+        if (unknownProperty != null) {
+            return unknownPropertyResponse(unknownProperty, req, locale);
+        }
+
         ApiErrorResponse body = base(req, 400, ErrorCode.BAD_REQUEST);
         body.setMessage  (resolve(locale,         "error.http.unreadable_body", null,
                 "The request body is missing or contains invalid JSON."));
@@ -337,6 +344,18 @@ public class GlobalExceptionHandler {
         ));
         log.warn("UnreadableBody path={} traceId={}", req.getRequestURI(), body.getTraceId());
         return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
+     * 400 BAD_REQUEST — A JSON field is not accepted by the request DTO.
+     *
+     * This handler is needed for multipart controllers that deserialize their
+     * JSON "data" part directly through ObjectMapper.
+     */
+    @ExceptionHandler(UnrecognizedPropertyException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnrecognizedProperty(
+            UnrecognizedPropertyException ex, HttpServletRequest req, Locale locale) {
+        return unknownPropertyResponse(ex, req, locale);
     }
     /**
      * 400 BAD_REQUEST — A required @RequestParam is absent from the request URL.
@@ -478,6 +497,40 @@ public class GlobalExceptionHandler {
                 .traceId(org.slf4j.MDC.get(TraceIdFilter.TRACE_ID))
                 .build();
     }
+
+    private ResponseEntity<ApiErrorResponse> unknownPropertyResponse(
+            UnrecognizedPropertyException ex, HttpServletRequest req, Locale locale) {
+        String propertyName = ex.getPropertyName();
+        String fallback = "Unknown field in request body: " + propertyName;
+
+        ApiErrorResponse body = base(req, 400, ErrorCode.BAD_REQUEST);
+        body.setMessage(resolve(locale, "error.http.unknown_field",
+                new Object[]{propertyName}, fallback));
+        body.setMessageEn(resolve(Locale.ENGLISH, "error.http.unknown_field",
+                new Object[]{propertyName}, fallback));
+        body.setMessageKu(resolve(LOCALE_KU, "error.http.unknown_field",
+                new Object[]{propertyName}, fallback));
+        body.setDetails(Map.of(
+                "unknownField", propertyName,
+                "hint", "Remove this field or check its spelling against the API request schema."
+        ));
+
+        log.warn("UnknownJsonField field={} path={} traceId={}",
+                propertyName, req.getRequestURI(), body.getTraceId());
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    private <T extends Throwable> T findCause(Throwable throwable, Class<T> causeType) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (causeType.isInstance(current)) {
+                return causeType.cast(current);
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
     private String resolve(Locale locale, String key, Object[] args, String defaultMessage) {
         if (key == null || key.isBlank()) return defaultMessage;
         try {
