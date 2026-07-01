@@ -128,6 +128,27 @@ public class ImageCollectionService {
         ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> Errors.imageNotFound(id));
 
+        boolean hasUploads = hasUploads(images);
+        boolean updatesAlbum = dto.getImageAlbum() != null || hasUploads;
+        ImageCollectionType targetType = dto.getCollectionType() != null
+                ? dto.getCollectionType()
+                : entity.getCollectionType();
+
+        // Validate the complete album plan before processing Tiptap content or
+        // uploading any cover/album files. S3 writes cannot be rolled back with
+        // the database transaction.
+        if (updatesAlbum) {
+            validateAlbumUpdate(entity, targetType, dto.getImageAlbum(), images);
+        } else if (dto.getCollectionType() != null) {
+            validateAlbumItemCount(targetType, entity.getImageAlbum().size());
+        }
+
+        boolean updatesTopic = !dto.isClearTopic()
+                && (dto.getTopicId() != null || dto.getNewTopic() != null);
+        PublishmentTopic resolvedTopic = updatesTopic
+                ? resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic())
+                : null;
+
         try {
             if (dto.getSlugCkb() != null) entity.setSlugCkb(trimOrNull(dto.getSlugCkb()));
             if (dto.getSlugKmr() != null) entity.setSlugKmr(trimOrNull(dto.getSlugKmr()));
@@ -155,8 +176,8 @@ public class ImageCollectionService {
 
             if (dto.isClearTopic()) {
                 entity.setTopic(null);
-            } else if (dto.getTopicId() != null || dto.getNewTopic() != null) {
-                entity.setTopic(resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic()));
+            } else if (updatesTopic) {
+                entity.setTopic(resolvedTopic);
             }
 
             if (dto.getPublishmentDate() != null) {
@@ -168,7 +189,7 @@ public class ImageCollectionService {
                 entity.getContentLanguages().addAll(safeLangs(dto.getContentLanguages()));
             }
 
-            applyContentByLanguages(entity, entity.getContentLanguages(),
+            applyContentForUpdate(entity, entity.getContentLanguages(),
                     dto.getCkbContent(), dto.getKmrContent());
 
             if (dto.getTags() != null) {
@@ -193,13 +214,11 @@ public class ImageCollectionService {
                 }
             }
 
-            boolean hasUploads = images != null
-                    && images.stream().anyMatch(f -> f != null && !f.isEmpty());
-            if (dto.getImageAlbum() != null || hasUploads) {
+            if (updatesAlbum) {
+                List<ImageAlbumItem> mergedItems = mergeAlbumItems(
+                        entity, targetType, dto.getImageAlbum(), images);
                 entity.getImageAlbum().clear();
-                entity.getImageAlbum().addAll(
-                        buildAlbumItems(entity, entity.getCollectionType(),
-                                dto.getImageAlbum(), images));
+                entity.getImageAlbum().addAll(mergedItems);
             }
 
             ImageCollection saved = imageCollectionRepository.save(entity);
@@ -568,6 +587,195 @@ public class ImageCollectionService {
     }
 
     /**
+     * Validates an update album without uploading anything.
+     *
+     * Existing item IDs must belong to this collection. Existing items may omit
+     * all source fields and retain their persisted source. New items still
+     * require either a multipart file or a URL source.
+     */
+    private void validateAlbumUpdate(
+            ImageCollection owner,
+            ImageCollectionType type,
+            List<ImageItemDto> dtos,
+            List<MultipartFile> files
+    ) {
+        Map<Long, ImageAlbumItem> existingById = albumItemsById(owner);
+        Set<Long> requestedIds = new HashSet<>();
+
+        int fileCount = nonEmptyFileCount(files);
+        int dtoCount = dtos == null ? 0 : dtos.size();
+        int max = Math.max(fileCount, dtoCount);
+
+        validateAlbumItemCount(type, max);
+
+        int fileIndex = 0;
+        for (int i = 0; i < max; i++) {
+            MultipartFile file = nextNonEmpty(files, fileIndex);
+            if (file != null) fileIndex = advanceFileIndex(files, fileIndex);
+
+            ImageItemDto dto = dtos != null && i < dtos.size() ? dtos.get(i) : null;
+            ImageAlbumItem existing = resolveExistingAlbumItem(
+                    existingById, requestedIds, dto, i);
+
+            if (!hasFile(file) && !hasImageSource(dto)
+                    && (existing == null || !hasImageSource(existing))) {
+                throw imageSourceRequired(i);
+            }
+        }
+    }
+
+    /**
+     * Builds the final replacement list while reusing managed album entities by
+     * ID. Omitting source fields for an existing item preserves its source and
+     * extracted metadata.
+     */
+    private List<ImageAlbumItem> mergeAlbumItems(
+            ImageCollection owner,
+            ImageCollectionType type,
+            List<ImageItemDto> dtos,
+            List<MultipartFile> files
+    ) throws IOException {
+        Map<Long, ImageAlbumItem> existingById = albumItemsById(owner);
+        Set<Long> requestedIds = new HashSet<>();
+
+        int fileCount = nonEmptyFileCount(files);
+        int dtoCount = dtos == null ? 0 : dtos.size();
+        int max = Math.max(fileCount, dtoCount);
+
+        validateAlbumItemCount(type, max);
+
+        List<ImageAlbumItem> out = new ArrayList<>(max);
+        int fileIndex = 0;
+
+        for (int i = 0; i < max; i++) {
+            MultipartFile file = nextNonEmpty(files, fileIndex);
+            if (file != null) fileIndex = advanceFileIndex(files, fileIndex);
+
+            ImageItemDto dto = dtos != null && i < dtos.size() ? dtos.get(i) : null;
+            ImageAlbumItem item = resolveExistingAlbumItem(
+                    existingById, requestedIds, dto, i);
+
+            if (item == null) {
+                item = new ImageAlbumItem();
+                item.setImageCollection(owner);
+            }
+
+            item.setSortOrder(dto != null && dto.getSortOrder() != null
+                    ? dto.getSortOrder()
+                    : i);
+            item.setCaptionCkb(dto != null ? trimOrNull(dto.getCaptionCkb()) : null);
+            item.setCaptionKmr(dto != null ? trimOrNull(dto.getCaptionKmr()) : null);
+            item.setDescriptionCkb(dto != null
+                    ? tiptapHtmlProcessor.process(trimOrNull(dto.getDescriptionCkb()))
+                    : null);
+            item.setDescriptionKmr(dto != null
+                    ? tiptapHtmlProcessor.process(trimOrNull(dto.getDescriptionKmr()))
+                    : null);
+
+            applyImageSourceForUpdate(item, file, dto);
+            out.add(item);
+        }
+
+        return out;
+    }
+
+    private void applyImageSourceForUpdate(
+            ImageAlbumItem item,
+            MultipartFile file,
+            ImageItemDto dto
+    ) throws IOException {
+        if (hasFile(file)) {
+            applyImageSource(item, file, dto);
+            return;
+        }
+
+        // No source fields means "keep the existing source" for a persisted row.
+        if (!hasImageSource(dto)) {
+            return;
+        }
+
+        String imageUrl = trimOrNull(dto.getImageUrl());
+        String externalUrl = trimOrNull(dto.getExternalUrl());
+        String embedUrl = trimOrNull(dto.getEmbedUrl());
+
+        // A response-shaped update often repeats the unchanged source. Preserve
+        // metadata in that case instead of clearing it unnecessarily.
+        if (Objects.equals(imageUrl, item.getImageUrl())
+                && Objects.equals(externalUrl, item.getExternalUrl())
+                && Objects.equals(embedUrl, item.getEmbedUrl())) {
+            return;
+        }
+
+        item.setImageUrl(imageUrl);
+        item.setExternalUrl(externalUrl);
+        item.setEmbedUrl(embedUrl);
+        clearImageMetadata(item);
+    }
+
+    private Map<Long, ImageAlbumItem> albumItemsById(ImageCollection owner) {
+        Map<Long, ImageAlbumItem> items = new LinkedHashMap<>();
+        for (ImageAlbumItem item : owner.getImageAlbum()) {
+            if (item.getId() != null) {
+                items.put(item.getId(), item);
+            }
+        }
+        return items;
+    }
+
+    private ImageAlbumItem resolveExistingAlbumItem(
+            Map<Long, ImageAlbumItem> existingById,
+            Set<Long> requestedIds,
+            ImageItemDto dto,
+            int index
+    ) {
+        if (dto == null || dto.getId() == null) {
+            return null;
+        }
+
+        Long itemId = dto.getId();
+        ImageAlbumItem existing = existingById.get(itemId);
+        if (existing == null) {
+            throw Errors.imageValidation("error.validation", Map.of(
+                    "field", "imageAlbum[" + index + "].id",
+                    "id", itemId,
+                    "message", "وێنەکە لەم کۆمەڵەیەدا نەدۆزرایەوە"));
+        }
+        if (!requestedIds.add(itemId)) {
+            throw Errors.imageValidation("error.validation", Map.of(
+                    "field", "imageAlbum[" + index + "].id",
+                    "id", itemId,
+                    "message", "ئایدی وێنە نابێت دووبارە بێتەوە"));
+        }
+        return existing;
+    }
+
+    private boolean hasImageSource(ImageItemDto dto) {
+        return dto != null && (!isBlank(dto.getImageUrl())
+                || !isBlank(dto.getExternalUrl())
+                || !isBlank(dto.getEmbedUrl()));
+    }
+
+    private boolean hasImageSource(ImageAlbumItem item) {
+        return item != null && (!isBlank(item.getImageUrl())
+                || !isBlank(item.getExternalUrl())
+                || !isBlank(item.getEmbedUrl()));
+    }
+
+    private RuntimeException imageSourceRequired(int index) {
+        return Errors.imageValidation("image.source.required", Map.of(
+                "field", "imageAlbum[" + index + "]",
+                "message",
+                "هەر وێنەیەک پێویستی بە فایل یان لینکی ڕاستەقینە یان لینکی دەرەکی یان ئێمبێد هەیە"));
+    }
+
+    private void clearImageMetadata(ImageAlbumItem item) {
+        item.setFileSizeBytes(null);
+        item.setWidthPx(null);
+        item.setHeightPx(null);
+        item.setMimeType(null);
+    }
+
+    /**
      * Updated to automatically extract metadata when file is uploaded
      */
     private void applyImageSource(ImageAlbumItem item, MultipartFile file, ImageItemDto dto)
@@ -603,10 +811,7 @@ public class ImageCollectionService {
         item.setEmbedUrl(emb);
 
         // Clear metadata fields for external/embed URLs (we can't extract from remote URLs)
-        item.setFileSizeBytes(null);
-        item.setWidthPx(null);
-        item.setHeightPx(null);
-        item.setMimeType(null);
+        clearImageMetadata(item);
     }
 
     // =========================================================================
@@ -660,6 +865,46 @@ public class ImageCollectionService {
                 .location(trimOrNull(dto.getLocation()))
                 .collectedBy(trimOrNull(dto.getCollectedBy()))
                 .build();
+    }
+
+    private void applyContentForUpdate(
+            ImageCollection entity,
+            Set<Language> languages,
+            LanguageContentDto ckb,
+            LanguageContentDto kmr
+    ) {
+        Set<Language> safe = safeLangs(languages);
+        if (safe.contains(Language.CKB)) {
+            if (ckb != null) {
+                entity.setCkbContent(mergeContent(entity.getCkbContent(), ckb));
+            }
+        } else {
+            entity.setCkbContent(null);
+        }
+
+        if (safe.contains(Language.KMR)) {
+            if (kmr != null) {
+                entity.setKmrContent(mergeContent(entity.getKmrContent(), kmr));
+            }
+        } else {
+            entity.setKmrContent(null);
+        }
+    }
+
+    private ImageContent mergeContent(ImageContent existing, LanguageContentDto dto) {
+        if (existing == null) return buildContent(dto);
+        if (dto.getTitle() != null) existing.setTitle(trimOrNull(dto.getTitle()));
+        if (dto.getDescription() != null) {
+            existing.setDescription(
+                    tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())));
+        }
+        if (dto.getLocation() != null) {
+            existing.setLocation(trimOrNull(dto.getLocation()));
+        }
+        if (dto.getCollectedBy() != null) {
+            existing.setCollectedBy(trimOrNull(dto.getCollectedBy()));
+        }
+        return existing;
     }
 
     // =========================================================================
@@ -823,6 +1068,15 @@ public class ImageCollectionService {
             if (t != null) out.add(t);
         }
         return out;
+    }
+
+    private boolean hasUploads(List<MultipartFile> files) {
+        return nonEmptyFileCount(files) > 0;
+    }
+
+    private int nonEmptyFileCount(List<MultipartFile> files) {
+        return files == null ? 0
+                : (int) files.stream().filter(this::hasFile).count();
     }
 
     private MultipartFile nextNonEmpty(List<MultipartFile> files, int start) {

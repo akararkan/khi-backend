@@ -279,6 +279,22 @@ public class VideoService {
         requireDto(dto);
 
         Video video = findOrThrow(id);
+        VideoType targetType = dto.getVideoType() != null
+                ? dto.getVideoType()
+                : video.getVideoType();
+
+        // Validate nested clip identities and sources before any cover/video or
+        // Tiptap upload. Existing clips may retain their persisted source.
+        if (targetType == VideoType.VIDEO_CLIP && dto.getVideoClipItems() != null) {
+            validateClipUpdate(video, dto.getVideoClipItems());
+        }
+
+        boolean updatesTopic = !dto.isClearTopic()
+                && (dto.getTopicId() != null || dto.getNewTopic() != null);
+        PublishmentTopic resolvedTopic = updatesTopic
+                ? resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic())
+                : null;
+
         VideoMapper.updateEntity(video, dto);
 
         // ✅ نوێکردنەوەی ٣ وێنەی بەرگ بە سەربەخۆیی (تەنها ئەگەن نێردرابن)
@@ -287,8 +303,8 @@ public class VideoService {
         // بابەت: clearTopic > topicId > newTopic
         if (dto.isClearTopic()) {
             video.setTopic(null);
-        } else if (dto.getTopicId() != null || dto.getNewTopic() != null) {
-            video.setTopic(resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic()));
+        } else if (updatesTopic) {
+            video.setTopic(resolvedTopic);
         }
 
         enforceAlbumRule(video, dto);
@@ -299,8 +315,10 @@ public class VideoService {
         } else {
             clearFilmSourceFields(video);
             if (dto.getVideoClipItems() != null) {
+                List<VideoClipItem> mergedClips = mergeClipItems(
+                        video, dto.getVideoClipItems());
                 clearClipItems(video);
-                buildAndAttachClipItems(video, dto);
+                video.getVideoClipItems().addAll(mergedClips);
             }
         }
 
@@ -447,6 +465,126 @@ public class VideoService {
 
             video.addClipItem(item);
         }
+    }
+
+    private void validateClipUpdate(
+            Video video,
+            List<VideoDTO.VideoClipItemDTO> clipDtos
+    ) {
+        Map<Long, VideoClipItem> existingById = video.getVideoClipItems().stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(
+                        VideoClipItem::getId,
+                        item -> item,
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new
+                ));
+        java.util.Set<Long> requestedIds = new java.util.HashSet<>();
+
+        for (int i = 0; i < clipDtos.size(); i++) {
+            VideoDTO.VideoClipItemDTO dto = clipDtos.get(i);
+            if (dto == null) continue;
+
+            VideoClipItem existing = resolveExistingClip(
+                    existingById, requestedIds, dto, i);
+            if (!hasClipSource(dto)
+                    && (existing == null || !hasClipSource(existing))) {
+                throw clipSourceRequired(i);
+            }
+        }
+    }
+
+    private List<VideoClipItem> mergeClipItems(
+            Video video,
+            List<VideoDTO.VideoClipItemDTO> clipDtos
+    ) {
+        Map<Long, VideoClipItem> existingById = video.getVideoClipItems().stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(
+                        VideoClipItem::getId,
+                        item -> item,
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new
+                ));
+        java.util.Set<Long> requestedIds = new java.util.HashSet<>();
+        List<VideoClipItem> merged = new java.util.ArrayList<>(clipDtos.size());
+
+        for (int i = 0; i < clipDtos.size(); i++) {
+            VideoDTO.VideoClipItemDTO dto = clipDtos.get(i);
+            if (dto == null) continue;
+
+            VideoClipItem item = resolveExistingClip(
+                    existingById, requestedIds, dto, i);
+            if (item == null) {
+                item = new VideoClipItem();
+                item.setVideo(video);
+            }
+
+            if (hasClipSource(dto)) {
+                item.setUrl(trimOrNull(dto.getUrl()));
+                item.setExternalUrl(trimOrNull(dto.getExternalUrl()));
+                item.setEmbedUrl(trimOrNull(dto.getEmbedUrl()));
+            }
+            if (dto.getClipNumber() != null) item.setClipNumber(dto.getClipNumber());
+            if (dto.getDurationSeconds() != null) item.setDurationSeconds(dto.getDurationSeconds());
+            if (dto.getResolution() != null) item.setResolution(trimOrNull(dto.getResolution()));
+            if (dto.getFileFormat() != null) item.setFileFormat(trimOrNull(dto.getFileFormat()));
+            if (dto.getFileSizeMb() != null) item.setFileSizeMb(dto.getFileSizeMb());
+            if (dto.getTitleCkb() != null) item.setTitleCkb(trimOrNull(dto.getTitleCkb()));
+            if (dto.getTitleKmr() != null) item.setTitleKmr(trimOrNull(dto.getTitleKmr()));
+            if (dto.getDescriptionCkb() != null) {
+                item.setDescriptionCkb(trimOrNull(dto.getDescriptionCkb()));
+            }
+            if (dto.getDescriptionKmr() != null) {
+                item.setDescriptionKmr(trimOrNull(dto.getDescriptionKmr()));
+            }
+            merged.add(item);
+        }
+
+        return merged;
+    }
+
+    private VideoClipItem resolveExistingClip(
+            Map<Long, VideoClipItem> existingById,
+            java.util.Set<Long> requestedIds,
+            VideoDTO.VideoClipItemDTO dto,
+            int index
+    ) {
+        if (dto.getId() == null) return null;
+
+        VideoClipItem existing = existingById.get(dto.getId());
+        if (existing == null) {
+            throw new BadRequestException("video.clip.id.invalid", Map.of(
+                    "field", "videoClipItems[" + index + "].id",
+                    "id", dto.getId()));
+        }
+        if (!requestedIds.add(dto.getId())) {
+            throw new BadRequestException("video.clip.id.duplicate", Map.of(
+                    "field", "videoClipItems[" + index + "].id",
+                    "id", dto.getId()));
+        }
+        return existing;
+    }
+
+    private boolean hasClipSource(VideoDTO.VideoClipItemDTO dto) {
+        return dto != null && (!isBlank(dto.getUrl())
+                || !isBlank(dto.getExternalUrl())
+                || !isBlank(dto.getEmbedUrl()));
+    }
+
+    private boolean hasClipSource(VideoClipItem item) {
+        return item != null && (!isBlank(item.getUrl())
+                || !isBlank(item.getExternalUrl())
+                || !isBlank(item.getEmbedUrl()));
+    }
+
+    private BadRequestException clipSourceRequired(int index) {
+        return new BadRequestException("video.clip.source.required", Map.of(
+                "field", "videoClipItems[" + index + "]",
+                "message",
+                "هەر کلیپێک پێویستی بە لینکی ڕاستەقینە یان دەرەکی یان ئێمبێد هەیە"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -135,6 +135,20 @@ public class SoundTrackService {
         SoundTrack entity = soundTrackRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> Errors.soundNotFound(id));
 
+        boolean updatesFiles = dto.getFiles() != null || hasUploads(audioFiles);
+        if (updatesFiles) {
+            validateFileUpdate(entity, dto.getFiles(), audioFiles);
+        }
+        boolean updatesAttachments = dto.getAttachments() != null || hasUploads(attachmentFiles);
+        if (updatesAttachments) {
+            validateAttachmentUpdate(entity, dto.getAttachments());
+        }
+        boolean updatesTopic = !dto.isClearTopic()
+                && (dto.getTopicId() != null || dto.getNewTopic() != null);
+        PublishmentTopic resolvedTopic = updatesTopic
+                ? resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic())
+                : null;
+
         try {
             // ── Cover images ──────────────────────────────────────────────
             if (hasFile(ckbCoverImage) || dto.getCkbCoverUrl() != null) {
@@ -155,8 +169,8 @@ public class SoundTrackService {
             // ── Topic ─────────────────────────────────────────────────────
             if (dto.isClearTopic()) {
                 entity.setTopic(null);
-            } else if (dto.getTopicId() != null || dto.getNewTopic() != null) {
-                entity.setTopic(resolveOrCreateTopic(dto.getTopicId(), dto.getNewTopic()));
+            } else if (updatesTopic) {
+                entity.setTopic(resolvedTopic);
             }
 
             // ── Languages ─────────────────────────────────────────────────
@@ -164,7 +178,7 @@ public class SoundTrackService {
                 entity.getContentLanguages().clear();
                 entity.getContentLanguages().addAll(safeLangs(dto.getContentLanguages()));
             }
-            applyContentByLanguages(entity,
+            applyContentForUpdate(entity,
                     entity.getContentLanguages(), dto.getCkbContent(), dto.getKmrContent());
 
             // ── Locations ─────────────────────────────────────────────────
@@ -223,10 +237,13 @@ public class SoundTrackService {
                     && audioFiles.stream().anyMatch(f -> f != null && !f.isEmpty());
 
             if (hasFileDtos || hasAudioUploads) {
-                if (entity.getFiles() != null) {
-                    entity.getFiles().clear();
+                if (entity.getFiles() == null) {
+                    entity.setFiles(new LinkedHashSet<>());
                 }
-                buildAndAttachFiles(entity, dto.getFiles(), audioFiles, brochureFiles);
+                Set<SoundTrackFile> mergedFiles = mergeFiles(
+                        entity, dto.getFiles(), audioFiles, brochureFiles);
+                entity.getFiles().clear();
+                entity.getFiles().addAll(mergedFiles);
             }
 
             // ── Multi-Album Fields ────────────────────────────────────────
@@ -242,10 +259,13 @@ public class SoundTrackService {
                     && attachmentFiles.stream().anyMatch(f -> f != null && !f.isEmpty());
 
             if (hasAttachDtos || hasAttachUploads) {
-                if (entity.getAttachments() != null) {
-                    entity.getAttachments().clear();
+                if (entity.getAttachments() == null) {
+                    entity.setAttachments(new LinkedHashSet<>());
                 }
-                buildAndAttachAttachments(entity, dto.getAttachments(), attachmentFiles);
+                Set<SoundTrackAttachment> mergedAttachments = mergeAttachments(
+                        entity, dto.getAttachments(), attachmentFiles);
+                entity.getAttachments().clear();
+                entity.getAttachments().addAll(mergedAttachments);
             }
 
             SoundTrack saved = soundTrackRepository.save(entity);
@@ -454,6 +474,379 @@ public class SoundTrackService {
         }
     }
 
+    private void validateFileUpdate(
+            SoundTrack owner,
+            List<FileCreateRequest> fileDtos,
+            List<MultipartFile> audioFiles
+    ) {
+        Set<SoundTrackFile> existingFiles = owner.getFiles() == null
+                ? Set.of()
+                : owner.getFiles();
+        Map<Long, SoundTrackFile> existingById = existingFiles.stream()
+                .filter(Objects::nonNull)
+                .filter(file -> file.getId() != null)
+                .collect(Collectors.toMap(
+                        SoundTrackFile::getId,
+                        file -> file,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+        Set<Long> requestedIds = new HashSet<>();
+        int dtoCount = fileDtos == null ? 0 : fileDtos.size();
+        int fileCount = nonEmptyFileCount(audioFiles);
+        int total = Math.max(dtoCount, fileCount);
+        int audioIndex = 0;
+
+        for (int i = 0; i < total; i++) {
+            FileCreateRequest dto = fileDtos != null && i < fileDtos.size()
+                    ? fileDtos.get(i)
+                    : null;
+            MultipartFile upload = nextNonEmpty(audioFiles, audioIndex);
+            if (upload != null) audioIndex = advanceIndex(audioFiles, audioIndex);
+
+            SoundTrackFile existing = resolveExistingFile(
+                    existingById, requestedIds, dto, i);
+            validateBrochureIds(existing, dto, i);
+            if (!hasFile(upload) && !hasSoundSource(dto)
+                    && (existing == null || !hasSoundSource(existing))) {
+                throw Errors.soundValidation("soundTrack.file.source.required", Map.of(
+                        "field", "files[" + i + "]",
+                        "message",
+                        "هەر فایلێک پێویستی بە لانیکەم fileUrl، externalUrl، یان embedUrl هەیە"));
+            }
+        }
+    }
+
+    private Set<SoundTrackFile> mergeFiles(
+            SoundTrack owner,
+            List<FileCreateRequest> fileDtos,
+            List<MultipartFile> audioFiles,
+            List<MultipartFile> brochureFiles
+    ) throws IOException {
+        Set<SoundTrackFile> existingFiles = owner.getFiles() == null
+                ? Set.of()
+                : owner.getFiles();
+        Map<Long, SoundTrackFile> existingById = existingFiles.stream()
+                .filter(Objects::nonNull)
+                .filter(file -> file.getId() != null)
+                .collect(Collectors.toMap(
+                        SoundTrackFile::getId,
+                        file -> file,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+        Set<Long> requestedIds = new HashSet<>();
+        LinkedHashSet<SoundTrackFile> merged = new LinkedHashSet<>();
+        int dtoCount = fileDtos == null ? 0 : fileDtos.size();
+        int fileCount = nonEmptyFileCount(audioFiles);
+        int total = Math.max(dtoCount, fileCount);
+        int audioIndex = 0;
+        int[] brochureIndex = {0};
+
+        for (int i = 0; i < total; i++) {
+            FileCreateRequest dto = fileDtos != null && i < fileDtos.size()
+                    ? fileDtos.get(i)
+                    : null;
+            MultipartFile upload = nextNonEmpty(audioFiles, audioIndex);
+            if (upload != null) audioIndex = advanceIndex(audioFiles, audioIndex);
+
+            SoundTrackFile file = resolveExistingFile(
+                    existingById, requestedIds, dto, i);
+            boolean isNew = file == null;
+            if (isNew) {
+                file = new SoundTrackFile();
+                file.setSoundTrack(owner);
+            }
+
+            if (hasFile(upload)) {
+                file.setFileUrl(uploadFile(upload));
+                file.setExternalUrl(null);
+                file.setEmbedUrl(null);
+                file.setSizeBytes(upload.getSize());
+            } else if (hasSoundSource(dto)) {
+                file.setFileUrl(trimOrNull(dto.getFileUrl()));
+                file.setExternalUrl(trimOrNull(dto.getExternalUrl()));
+                file.setEmbedUrl(trimOrNull(dto.getEmbedUrl()));
+            }
+
+            applyFileMetadata(file, dto, isNew, hasFile(upload));
+            if (dto != null && dto.getBrochures() != null) {
+                List<SoundTrackBrochure> brochures = mergeBrochures(
+                        file, dto.getBrochures(), brochureFiles, brochureIndex);
+                file.getBrochures().clear();
+                file.getBrochures().addAll(brochures);
+            }
+            merged.add(file);
+        }
+
+        return merged;
+    }
+
+    private void applyFileMetadata(
+            SoundTrackFile file,
+            FileCreateRequest dto,
+            boolean isNew,
+            boolean hasUpload
+    ) {
+        if (dto == null) return;
+        if (dto.getTitle() != null) file.setTitle(trimOrNull(dto.getTitle()));
+        if (dto.getFileType() != null) file.setFileType(dto.getFileType());
+        if (dto.getPublishmentYear() != null) file.setPublishmentYear(dto.getPublishmentYear());
+        if (!hasUpload && (isNew || dto.getSizeBytes() != 0)) {
+            file.setSizeBytes(dto.getSizeBytes());
+        }
+        if (isNew || dto.getDurationSeconds() != 0) {
+            file.setDurationSeconds(dto.getDurationSeconds());
+        }
+        if (dto.getBitRate() != null) file.setBitRate(trimOrNull(dto.getBitRate()));
+        if (dto.getSampleRate() != null) file.setSampleRate(trimOrNull(dto.getSampleRate()));
+        if (dto.getAudioChannel() != null) file.setAudioChannel(dto.getAudioChannel());
+        if (dto.getForm() != null) file.setForm(trimOrNull(dto.getForm()));
+        if (dto.getGenre() != null) file.setGenre(trimOrNull(dto.getGenre()));
+        if (dto.getRecordingVenue() != null) {
+            file.setRecordingVenue(trimOrNull(dto.getRecordingVenue()));
+        }
+    }
+
+    private List<SoundTrackBrochure> mergeBrochures(
+            SoundTrackFile owner,
+            List<BrochureRequest> dtos,
+            List<MultipartFile> uploads,
+            int[] uploadIndex
+    ) throws IOException {
+        Map<Long, SoundTrackBrochure> existingById = owner.getBrochures().stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(
+                        SoundTrackBrochure::getId,
+                        item -> item,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+        Set<Long> requestedIds = new HashSet<>();
+        List<SoundTrackBrochure> merged = new ArrayList<>();
+
+        for (int i = 0; i < dtos.size(); i++) {
+            BrochureRequest dto = dtos.get(i);
+            if (dto == null) continue;
+
+            MultipartFile upload = nextNonEmpty(uploads, uploadIndex[0]);
+            if (upload != null) uploadIndex[0] = advanceIndex(uploads, uploadIndex[0]);
+
+            SoundTrackBrochure brochure = resolveExistingBrochure(
+                    existingById, requestedIds, dto, i);
+            if (brochure == null) {
+                if (!hasFile(upload) && isBlank(dto.getImageUrl())) continue;
+                brochure = new SoundTrackBrochure();
+                brochure.setSoundTrackFile(owner);
+            }
+
+            if (hasFile(upload)) {
+                brochure.setImageUrl(uploadFile(upload));
+            } else if (!isBlank(dto.getImageUrl())) {
+                brochure.setImageUrl(dto.getImageUrl().trim());
+            }
+            if (dto.getCaption() != null) {
+                brochure.setCaption(trimOrNull(dto.getCaption()));
+            }
+            brochure.setBrochureOrder(i);
+            merged.add(brochure);
+        }
+        return merged;
+    }
+
+    private Set<SoundTrackAttachment> mergeAttachments(
+            SoundTrack owner,
+            List<AttachmentRequest> dtos,
+            List<MultipartFile> uploads
+    ) throws IOException {
+        Set<SoundTrackAttachment> existingAttachments = owner.getAttachments() == null
+                ? Set.of()
+                : owner.getAttachments();
+        Map<Long, SoundTrackAttachment> existingById = existingAttachments.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(
+                        SoundTrackAttachment::getId,
+                        item -> item,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+        Set<Long> requestedIds = new HashSet<>();
+        LinkedHashSet<SoundTrackAttachment> merged = new LinkedHashSet<>();
+        int dtoCount = dtos == null ? 0 : dtos.size();
+        int fileCount = nonEmptyFileCount(uploads);
+        int total = Math.max(dtoCount, fileCount);
+        int uploadIndex = 0;
+
+        for (int i = 0; i < total; i++) {
+            AttachmentRequest dto = dtos != null && i < dtos.size() ? dtos.get(i) : null;
+            MultipartFile upload = nextNonEmpty(uploads, uploadIndex);
+            if (upload != null) uploadIndex = advanceIndex(uploads, uploadIndex);
+
+            SoundTrackAttachment attachment = resolveExistingAttachment(
+                    existingById, requestedIds, dto, i);
+            boolean isNew = attachment == null;
+            if (isNew) {
+                if (!hasFile(upload) && (dto == null || isBlank(dto.getFileUrl()))) continue;
+                attachment = new SoundTrackAttachment();
+                attachment.setSoundTrack(owner);
+            }
+
+            if (hasFile(upload)) {
+                attachment.setFileUrl(uploadFile(upload));
+                attachment.setSizeBytes(upload.getSize());
+            } else if (dto != null && !isBlank(dto.getFileUrl())) {
+                attachment.setFileUrl(dto.getFileUrl().trim());
+            }
+            if (dto != null) {
+                if (dto.getTitle() != null) attachment.setTitle(trimOrNull(dto.getTitle()));
+                if (dto.getAttachmentType() != null) {
+                    attachment.setAttachmentType(dto.getAttachmentType());
+                } else if (isNew) {
+                    attachment.setAttachmentType(AttachmentType.OTHER);
+                }
+                if (!hasFile(upload) && (isNew || dto.getSizeBytes() != 0)) {
+                    attachment.setSizeBytes(dto.getSizeBytes());
+                }
+                if (dto.getMimeType() != null) {
+                    attachment.setMimeType(trimOrNull(dto.getMimeType()));
+                }
+            }
+            attachment.setAttachmentOrder(i);
+            merged.add(attachment);
+        }
+        return merged;
+    }
+
+    private void validateBrochureIds(
+            SoundTrackFile existingFile,
+            FileCreateRequest fileDto,
+            int fileIndex
+    ) {
+        if (fileDto == null || fileDto.getBrochures() == null) return;
+
+        Map<Long, SoundTrackBrochure> existingById = existingFile == null
+                ? Map.of()
+                : existingFile.getBrochures().stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(
+                        SoundTrackBrochure::getId,
+                        item -> item,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+        Set<Long> requestedIds = new HashSet<>();
+
+        for (int i = 0; i < fileDto.getBrochures().size(); i++) {
+            BrochureRequest brochure = fileDto.getBrochures().get(i);
+            if (brochure == null || brochure.getId() == null) continue;
+            if (!existingById.containsKey(brochure.getId())
+                    || !requestedIds.add(brochure.getId())) {
+                throw Errors.soundValidation("error.validation", Map.of(
+                        "field", "files[" + fileIndex + "].brochures[" + i + "].id",
+                        "id", brochure.getId(),
+                        "message", "ئایدی بڕۆشور لەم فایلەدا نەدۆزرایەوە یان دووبارەیە"));
+            }
+        }
+    }
+
+    private void validateAttachmentUpdate(
+            SoundTrack owner,
+            List<AttachmentRequest> dtos
+    ) {
+        if (dtos == null) return;
+
+        Set<SoundTrackAttachment> existingAttachments = owner.getAttachments() == null
+                ? Set.of()
+                : owner.getAttachments();
+        Map<Long, SoundTrackAttachment> existingById = existingAttachments.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(
+                        SoundTrackAttachment::getId,
+                        item -> item,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+        Set<Long> requestedIds = new HashSet<>();
+
+        for (int i = 0; i < dtos.size(); i++) {
+            AttachmentRequest dto = dtos.get(i);
+            if (dto == null || dto.getId() == null) continue;
+            if (!existingById.containsKey(dto.getId())
+                    || !requestedIds.add(dto.getId())) {
+                throw invalidNestedId("attachments", i, dto.getId());
+            }
+        }
+    }
+
+    private SoundTrackFile resolveExistingFile(
+            Map<Long, SoundTrackFile> existingById,
+            Set<Long> requestedIds,
+            FileCreateRequest dto,
+            int index
+    ) {
+        if (dto == null || dto.getId() == null) return null;
+        SoundTrackFile existing = existingById.get(dto.getId());
+        if (existing == null || !requestedIds.add(dto.getId())) {
+            throw invalidNestedId("files", index, dto.getId());
+        }
+        return existing;
+    }
+
+    private SoundTrackBrochure resolveExistingBrochure(
+            Map<Long, SoundTrackBrochure> existingById,
+            Set<Long> requestedIds,
+            BrochureRequest dto,
+            int index
+    ) {
+        if (dto.getId() == null) return null;
+        SoundTrackBrochure existing = existingById.get(dto.getId());
+        if (existing == null || !requestedIds.add(dto.getId())) {
+            throw invalidNestedId("brochures", index, dto.getId());
+        }
+        return existing;
+    }
+
+    private SoundTrackAttachment resolveExistingAttachment(
+            Map<Long, SoundTrackAttachment> existingById,
+            Set<Long> requestedIds,
+            AttachmentRequest dto,
+            int index
+    ) {
+        if (dto == null || dto.getId() == null) return null;
+        SoundTrackAttachment existing = existingById.get(dto.getId());
+        if (existing == null || !requestedIds.add(dto.getId())) {
+            throw invalidNestedId("attachments", index, dto.getId());
+        }
+        return existing;
+    }
+
+    private RuntimeException invalidNestedId(
+            String field,
+            int index,
+            Long id
+    ) {
+        return Errors.soundValidation("error.validation", Map.of(
+                "field", field + "[" + index + "].id",
+                "id", id,
+                "message", "ئایدی فایل لەم سەدايەدا نەدۆزرایەوە یان دووبارەیە"));
+    }
+
+    private boolean hasSoundSource(FileCreateRequest dto) {
+        return dto != null && (!isBlank(dto.getFileUrl())
+                || !isBlank(dto.getExternalUrl())
+                || !isBlank(dto.getEmbedUrl()));
+    }
+
+    private boolean hasSoundSource(SoundTrackFile file) {
+        return file != null && (!isBlank(file.getFileUrl())
+                || !isBlank(file.getExternalUrl())
+                || !isBlank(file.getEmbedUrl()));
+    }
+
     // =========================================================================
     // BROCHURE BUILDER
     // =========================================================================
@@ -613,6 +1006,43 @@ public class SoundTrackService {
                 .build();
     }
 
+    private void applyContentForUpdate(
+            SoundTrack entity,
+            Set<Language> languages,
+            LanguageContentDto ckb,
+            LanguageContentDto kmr
+    ) {
+        Set<Language> safe = safeLangs(languages);
+        if (safe.contains(Language.CKB)) {
+            if (ckb != null) {
+                entity.setCkbContent(mergeContent(entity.getCkbContent(), ckb));
+            }
+        } else {
+            entity.setCkbContent(null);
+        }
+
+        if (safe.contains(Language.KMR)) {
+            if (kmr != null) {
+                entity.setKmrContent(mergeContent(entity.getKmrContent(), kmr));
+            }
+        } else {
+            entity.setKmrContent(null);
+        }
+    }
+
+    private SoundTrackContent mergeContent(
+            SoundTrackContent existing,
+            LanguageContentDto dto
+    ) {
+        if (existing == null) return buildContent(dto);
+        if (dto.getTitle() != null) existing.setTitle(trimOrNull(dto.getTitle()));
+        if (dto.getDescription() != null) {
+            existing.setDescription(
+                    tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())));
+        }
+        return existing;
+    }
+
     // =========================================================================
     // VALIDATION
     // =========================================================================
@@ -744,6 +1174,15 @@ public class SoundTrackService {
     }
 
     private boolean hasFile(MultipartFile f)   { return f != null && !f.isEmpty(); }
+
+    private boolean hasUploads(List<MultipartFile> files) {
+        return nonEmptyFileCount(files) > 0;
+    }
+
+    private int nonEmptyFileCount(List<MultipartFile> files) {
+        return files == null ? 0
+                : (int) files.stream().filter(this::hasFile).count();
+    }
 
     private String uploadFile(MultipartFile f) throws IOException {
         return s3Service.upload(f.getBytes(), f.getOriginalFilename(), f.getContentType());

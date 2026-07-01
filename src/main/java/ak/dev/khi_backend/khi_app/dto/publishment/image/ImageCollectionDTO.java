@@ -65,7 +65,10 @@ public final class ImageCollectionDTO {
     @Builder
     public static class ImageItemDto {
 
-        /** Only present on Response (not sent by frontend on create/update). */
+        /**
+         * Existing album item ID. On update, this keeps the persisted item and
+         * its current source when no replacement file or URL is supplied.
+         */
         private Long id;
 
         /** Direct S3 / CDN URL — used when no upload file is attached. */

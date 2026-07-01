@@ -128,6 +128,17 @@ public class WritingService {
 
         validate(request);
 
+        // Resolve references before any S3 or Tiptap upload. A failed topic or
+        // parent lookup must not leave an orphaned object in S3.
+        PublishmentTopic resolvedTopic = null;
+        if (!Boolean.TRUE.equals(request.getClearTopic())
+                && (request.getTopicId() != null || request.getNewTopic() != null)) {
+            resolvedTopic = resolveTopic(request.getTopicId(), request.getNewTopic());
+        }
+        Writing resolvedParent = request.getParentBookId() != null
+                ? findOrThrow(request.getParentBookId(), "parent_book.not_found")
+                : null;
+
         writing.setCkbCoverUrl(resolveUpdate(ckbCoverImage,   request.getCkbCoverUrl(),   writing.getCkbCoverUrl()));
         writing.setKmrCoverUrl(resolveUpdate(kmrCoverImage,   request.getKmrCoverUrl(),   writing.getKmrCoverUrl()));
         writing.setHoverCoverUrl(resolveUpdate(hoverCoverImage, request.getHoverCoverUrl(), writing.getHoverCoverUrl()));
@@ -137,9 +148,8 @@ public class WritingService {
 
         if (Boolean.TRUE.equals(request.getClearTopic())) {
             writing.setTopic(null);
-        } else {
-            PublishmentTopic topic = resolveTopic(request.getTopicId(), request.getNewTopic());
-            if (topic != null) writing.setTopic(topic);
+        } else if (resolvedTopic != null) {
+            writing.setTopic(resolvedTopic);
         }
 
         // ─── Book Genres ─────────────────────────────────────────────────────
@@ -160,10 +170,9 @@ public class WritingService {
         String oldSeriesId = writing.getSeriesId();
         if (request.getSeriesName()  != null) writing.setSeriesName(request.getSeriesName());
         if (request.getSeriesOrder() != null) writing.setSeriesOrder(request.getSeriesOrder());
-        if (request.getParentBookId() != null) {
-            Writing newParent = findOrThrow(request.getParentBookId(), "parent_book.not_found");
-            writing.setParentBook(newParent);
-            writing.setSeriesId(newParent.getSeriesId());
+        if (resolvedParent != null) {
+            writing.setParentBook(resolvedParent);
+            writing.setSeriesId(resolvedParent.getSeriesId());
         }
 
         Writing updated = writingRepository.save(writing);
@@ -419,6 +428,8 @@ public class WritingService {
         if (dto.getTitle()         != null) existing.setTitle(trimOrNull(dto.getTitle()));
         if (dto.getDescription()   != null) existing.setDescription(tiptapHtmlProcessor.process(trimOrNull(dto.getDescription())));
         if (dto.getWriter()        != null) existing.setWriter(trimOrNull(dto.getWriter()));
+        // No new multipart file and no fileUrl in the DTO means retain the
+        // persisted book source during metadata-only updates.
         if (fileUrl                != null) existing.setFileUrl(fileUrl);
         else if (dto.getFileUrl()  != null) existing.setFileUrl(trimOrNull(dto.getFileUrl()));
         if (dto.getFileFormat()    != null) existing.setFileFormat(dto.getFileFormat());

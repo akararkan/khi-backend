@@ -1,6 +1,7 @@
 package ak.dev.khi_backend.khi_app.config;
 
 import ak.dev.khi_backend.khi_app.dto.publishment.image.ImageCollectionDTO;
+import ak.dev.khi_backend.khi_app.dto.publishment.sound.SoundTrackDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.Test;
@@ -41,5 +42,25 @@ class JacksonConfigTest {
                         ImageCollectionDTO.UpdateRequest.class
                 )
         );
+    }
+
+    @Test
+    void bindsNestedSoundFileIdFromResponseShapedUpdatePayload() throws Exception {
+        SoundTrackDtos.UpdateRequest request = objectMapper.readValue(
+                """
+                {
+                  "files": [
+                    {
+                      "id": 17,
+                      "fileUrl": "https://cdn.example.com/original.mp3",
+                      "durationMinutes": 3.0
+                    }
+                  ]
+                }
+                """,
+                SoundTrackDtos.UpdateRequest.class
+        );
+
+        assertEquals(17L, request.getFiles().getFirst().getId());
     }
 }

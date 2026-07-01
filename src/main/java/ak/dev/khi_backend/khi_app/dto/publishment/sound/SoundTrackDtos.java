@@ -6,6 +6,7 @@ import ak.dev.khi_backend.khi_app.enums.publishment.AudioChannel;
 import ak.dev.khi_backend.khi_app.enums.publishment.FileType;
 import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -79,7 +80,11 @@ public final class SoundTrackDtos {
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
+    @JsonIgnoreProperties(value = "brochureOrder")
     public static class BrochureRequest {
+
+        /** Existing brochure ID used to preserve its source during update. */
+        private Long id;
 
         // FIX: Removed @NotBlank — imageUrl may be null when the binary is
         // supplied via the brochureFiles multipart part instead of a URL.
@@ -112,7 +117,11 @@ public final class SoundTrackDtos {
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
+    @JsonIgnoreProperties(value = "attachmentOrder")
     public static class AttachmentRequest {
+
+        /** Existing attachment ID used to preserve its source during update. */
+        private Long id;
 
         // FIX: Removed @NotBlank — fileUrl may be null when binary is
         // supplied via the attachmentFiles multipart part.
@@ -155,7 +164,11 @@ public final class SoundTrackDtos {
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor
     @Builder
+    @JsonIgnoreProperties(value = "durationMinutes")
     public static class FileCreateRequest {
+
+        /** Existing soundtrack-file ID used for ID-aware update merging. */
+        private Long id;
 
         // ── Locations ─────────────────────────────────────────────────────────
         @Size(max = 1200)
