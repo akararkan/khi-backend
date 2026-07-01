@@ -83,14 +83,12 @@ public class ProjectController {
     // DELETE
     // ============================================================
     @DeleteMapping(value = "/delete/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         log.info("DELETE /api/v1/projects/delete/{}", id);
 
         projectService.delete(id);
 
-        return ResponseEntity.ok(
-                ApiResponse.success(null, "Project deleted successfully")
-        );
+        return ResponseEntity.noContent().build();
     }
 
     // ============================================================

@@ -163,23 +163,23 @@ public class NewsController {
     // ============================================================
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteNews(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteNews(@PathVariable Long id) {
         log.info("DELETE /api/v1/news/{}", id);
         newsService.deleteNews(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully"));
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteNewsAlt(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteNewsAlt(@PathVariable Long id) {
         log.info("DELETE /api/v1/news/delete/{}", id);
         newsService.deleteNews(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully"));
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping(value = "/bulk", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<Void>> deleteNewsBulk(@RequestBody List<Long> newsIds) {
+    public ResponseEntity<Void> deleteNewsBulk(@RequestBody List<Long> newsIds) {
         log.info("DELETE /api/v1/news/bulk | count={}", newsIds != null ? newsIds.size() : 0);
         newsService.deleteNewsBulk(newsIds);
-        return ResponseEntity.ok(ApiResponse.success(null, "News deleted successfully (bulk)"));
+        return ResponseEntity.noContent().build();
     }
 }

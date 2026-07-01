@@ -311,14 +311,14 @@ public class NewsService {
 
     @CacheEvict(value = "news", allEntries = true)
     public void deleteNews(Long newsId) {
-        if (newsId == null) {
-            throw Errors.newsValidation("error.validation",
-                    Map.of("field", "id", "message", "News id is required for delete"));
-        }
+        if (newsId == null) return;
+
         transactionTemplate.executeWithoutResult(status -> {
-            News news = newsRepository.findByIdWithGraph(newsId)
-                    .orElseThrow(() -> new BadRequestException(
-                            "news.not_found", Map.of("id", newsId)));
+            News news = newsRepository.findByIdWithGraph(newsId).orElse(null);
+            if (news == null) {
+                log.debug("News delete ignored; id={} does not exist", newsId);
+                return;
+            }
             createAuditLog(news, "DELETE", "News deleted");
             newsRepository.delete(news);
         });
@@ -326,16 +326,11 @@ public class NewsService {
 
     @CacheEvict(value = "news", allEntries = true)
     public void deleteNewsBulk(List<Long> newsIds) {
-        if (newsIds == null || newsIds.isEmpty()) {
-            throw new BadRequestException("error.validation",
-                    Map.of("field", "newsIds", "message", "News id list is empty"));
-        }
+        if (newsIds == null || newsIds.isEmpty()) return;
+
         transactionTemplate.executeWithoutResult(status -> {
             List<News> list = newsRepository.findAllById(newsIds);
-            if (list.isEmpty()) {
-                throw new BadRequestException("news.not_found",
-                        Map.of("ids", newsIds));
-            }
+            if (list.isEmpty()) return;
             newsAuditLogRepository.saveAll(
                     list.stream()
                             .map(n -> buildAuditLog(n, "DELETE", "News bulk deleted"))

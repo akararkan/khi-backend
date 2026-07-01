@@ -333,15 +333,16 @@ public class VideoService {
     // سڕینەوە
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * سڕینەوەی ڤیدیۆ بە تەواوی
-     *
-     * @throws BadRequestException - "ئایدیی ڤیدیۆ پێویستە"
-     * @throws NotFoundException   - "ڤیدیۆکە نەدۆزرایەوە"
-     */
+    /** Idempotent delete: missing/mock/already-deleted IDs are successful no-ops. */
     @Transactional
     public void deleteVideo(Long id) {
-        Video video = findOrThrow(id);
+        if (id == null) return;
+
+        Video video = videoRepository.findById(id).orElse(null);
+        if (video == null) {
+            log.debug("Video delete ignored; id={} does not exist", id);
+            return;
+        }
         String title = getTitle(video);
         videoRepository.delete(video);
         logAction(id, title, "DELETED", "ڤیدیۆ بە تەواوی سڕایەوە");

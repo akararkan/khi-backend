@@ -256,10 +256,7 @@
 |-----------|------|----------|-------------|
 | `id` | long | **Yes** | ID of the collection to delete |
 
-**Response `200 OK`:**
-```json
-{ "success": true, "message": "Image collection deleted successfully", "data": null }
-```
+**Response `204 No Content`:** Empty body. The operation also succeeds when the ID does not exist or was already deleted.
 
 ---
 

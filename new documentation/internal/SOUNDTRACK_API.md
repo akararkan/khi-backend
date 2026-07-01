@@ -372,10 +372,7 @@
 |-----------|------|----------|-------------|
 | `id` | long | **Yes** | ID of the soundtrack to delete |
 
-**Response `200 OK`:**
-```json
-{ "success": true, "message": "SoundTrack deleted successfully", "data": null }
-```
+**Response `204 No Content`:** Empty body. The operation also succeeds when the ID does not exist or was already deleted.
 
 ---
 

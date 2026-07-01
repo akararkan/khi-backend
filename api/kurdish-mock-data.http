@@ -41,126 +41,78 @@ Content-Type: application/json
   client.global.set("auth_token", response.body.token);
 %}
 
+
 ###############################################################################
-# SOUND TRACKS — 10 records: five SINGLE and five MULTI
+# IMAGE COLLECTIONS — 10 URL-only records
 ###############################################################################
 
-### Sound 11 — SINGLE — Halparke (mountain dance song)
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 01 — Erbil Citadel
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"گۆرانی هەڵپەڕکێ","trackState":"SINGLE","albumOfMemories":false,"ckbCoverUrl":"{{imgRawanduz}}","kmrCoverUrl":"{{imgRawanduz}}","hoverCoverUrl":"{{imgHawraman}}","newTopic":{"nameCkb":"هەڵپەڕکێی شاخاوی","nameKmr":"Govenda çiyayî"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"هەڵپەڕکێی شاخی پیرەمەگرون","description":"<p>گۆرانییەکی هەڵپەڕکێ کە لە شادییە کۆمەڵایەتییەکانی ناوچە شاخاوییەکان دەژەنرێت.</p>"},"kmrContent":{"title":"Govenda çiyayî ya Pîremegrûn","description":"<p>Straneke govendê ku di şahiyên civakî yên herêmên çiyayî de tê lêdan.</p>"},"locations":["پیرەمەگرون"],"reader":"کۆمەڵی هەڵپەڕکێ","directors":["ئەرشیفی فۆلکلۆری شاخاوی"],"terms":"سۆرانی","thisProjectOfInstitute":true,"tags":{"ckb":["هەڵپەڕکێ","شادی"],"kmr":["govend","şahî"]},"keywords":{"ckb":["هەڵپەڕکێ","شاخ"],"kmr":["govend","çiya"]},"files":[{"externalUrl":"{{audioKurdistan}}","title":"هەڵپەڕکێی شاخی","fileType":"OGG","publishmentYear":1978,"audioChannel":"STEREO","genre":"هەڵپەڕکێ","sortOrder":0,"brochures":[{"imageUrl":"{{imgRawanduz}}","caption":"شاخی پیرەمەگرون"}]}]}
---KHISeed--
+{"slugCkb":"qelay-hewler","slugKmr":"kela-hewlere","collectionType":"GALLERY","ckbCoverUrl":"{{imgErbil}}","kmrCoverUrl":"{{imgErbil}}","hoverCoverUrl":"{{imgErbil}}","newTopic":{"nameCkb":"شوێنەوار","nameKmr":"Şûnwar"},"publishmentDate":"2026-01-10","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"قەڵای هەولێر","description":"<p>کۆمەڵە وێنەیەک لە قەڵای مێژوویی هەولێر و دەوروبەری.</p>","topic":"میراتی شارستانی","location":"هەولێر","collectedBy":"ئەرشیفی وێنەی کوردستان"},"kmrContent":{"title":"Kela Hewlêrê","description":"<p>Koleksiyona wêneyên kelaya dîrokî ya Hewlêrê û derdora wê.</p>","topic":"Mîrata bajarî","location":"Hewlêr","collectedBy":"Arşîva Wêneyên Kurdistanê"},"tags":{"ckb":["هەولێر","قەڵا"],"kmr":["Hewlêr","kela"]},"keywords":{"ckb":["شوێنەوار","مێژوو"],"kmr":["şûnwar","dîrok"]},"imageAlbum":[{"imageUrl":"{{imgErbil}}","captionCkb":"دیمەنی قەڵای هەولێر","captionKmr":"Dîmena Kela Hewlêrê","descriptionCkb":"قەڵا لە ناوەندی شاری هەولێر.","descriptionKmr":"Kela li navenda bajarê Hewlêrê ye.","sortOrder":0}]}
 
-### Sound 12 — SINGLE — Religious chant
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 02 — Rawanduz
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"مەولوود و ئایینی","trackState":"SINGLE","albumOfMemories":false,"ckbCoverUrl":"{{imgKhani}}","kmrCoverUrl":"{{imgKhani}}","newTopic":{"nameCkb":"مۆسیقای ئایینی","nameKmr":"Muzîka olî"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"مەولوودی نەبی بە دەنگی کوردی","description":"<p>گوتاری ئایینی نەریتی کە لە بۆنە پیرۆزەکاندا دەخوێنرێتەوە.</p>"},"kmrContent":{"title":"Mewlûdê pêxember bi dengê kurdî","description":"<p>Vegotina olî ya kevneşopî ku di bûyerên pîroz de tê xwendin.</p>"},"locations":["هەولێر"],"reader":"شێخ کەریم","terms":"سۆرانی و کورمانجی","tags":{"ckb":["مەولوود","ئایین"],"kmr":["mewlûd","olî"]},"keywords":{"ckb":["دواعا","ئایین"],"kmr":["dua","olî"]},"files":[{"externalUrl":"{{audioEyReqib}}","title":"مەولوودی نەبی","fileType":"OGG","audioChannel":"MONO","genre":"ئایینی","sortOrder":0}]}
---KHISeed--
+{"slugCkb":"rewandiz-u-srusht","slugKmr":"rewandiz-u-xweza","collectionType":"GALLERY","ckbCoverUrl":"{{imgRawanduz}}","kmrCoverUrl":"{{imgRawanduz}}","newTopic":{"nameCkb":"سروشتی کوردستان","nameKmr":"Xwezaya Kurdistanê"},"publishmentDate":"2026-02-12","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"ڕەواندز و سروشتی دەوروبەری","description":"<p>دیمەنی شاخ و دۆڵەکانی ڕەواندز لە هەرێمی کوردستان.</p>","topic":"سروشت","location":"ڕەواندز","collectedBy":"ئەرشیفی ژینگە"},"kmrContent":{"title":"Rewandiz û xwezaya derdorê","description":"<p>Dîmenên çiya û geliyên Rewandizê li Herêma Kurdistanê.</p>","topic":"Xweza","location":"Rewandiz","collectedBy":"Arşîva Jîngehê"},"tags":{"ckb":["ڕەواندز","شاخ"],"kmr":["Rewandiz","çiya"]},"keywords":{"ckb":["سروشت","گەشت"],"kmr":["xweza","geşt"]},"imageAlbum":[{"imageUrl":"{{imgRawanduz}}","captionCkb":"ڕەواندز","captionKmr":"Rewandiz","descriptionCkb":"دیمەنی سروشتی ڕەواندز.","descriptionKmr":"Dîmena xwezayî ya Rewandizê.","sortOrder":0}]}
 
-### Sound 13 — SINGLE — Children's nursery song
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 03 — Hawraman clothing
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"گۆرانی منداڵان","trackState":"SINGLE","albumOfMemories":false,"ckbCoverUrl":"{{imgClothing}}","kmrCoverUrl":"{{imgClothing}}","newTopic":{"nameCkb":"گۆرانی منداڵانی کوردی","nameKmr":"Stranên zarokên kurdî"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"کۆتر کۆتر","description":"<p>گۆرانییەکی نەریتی منداڵان کە لە یارییە کۆمەڵایەتییەکاندا دەگوترێت.</p>"},"kmrContent":{"title":"Kotir kotir","description":"<p>Straneke kevneşopî ya zarokan ku di lîstikên civakî de tê gotin.</p>"},"locations":["کوردستان"],"reader":"کۆمەڵی منداڵان","terms":"زاراوە جیاوازەکان","tags":{"ckb":["منداڵ","یاری"],"kmr":["zarok","lîstik"]},"keywords":{"ckb":["گۆرانی منداڵان","فۆلکلۆر"],"kmr":["strana zarokan","folklor"]},"files":[{"externalUrl":"{{audioShaw}}","title":"کۆتر کۆتر","fileType":"OGG","audioChannel":"MONO","genre":"منداڵان","sortOrder":0}]}
---KHISeed--
+{"slugCkb":"jli-nawcheyi-hewraman","slugKmr":"cilen-heremi-hewraman","collectionType":"PHOTO_STORY","ckbCoverUrl":"{{imgHawraman}}","kmrCoverUrl":"{{imgHawraman}}","newTopic":{"nameCkb":"جلوبەرگی کوردی","nameKmr":"Cilên kurdî"},"publishmentDate":"2026-03-05","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"جلوبەرگی ناوچەیی لە هەورامان","description":"<p>چیرۆکی وێنەیی جلوبەرگ و شێوازی ژیانی خەڵکی هەورامان.</p>","topic":"کەلتووری ماددی","location":"هەورامان","collectedBy":"تیمی توێژینەوەی کەلتوور"},"kmrContent":{"title":"Cilên herêmî li Hewramanê","description":"<p>Çîroka wêneyî ya cil û awayê jiyana gelê Hewramanê.</p>","topic":"Çanda maddî","location":"Hewraman","collectedBy":"Tîma Lêkolîna Çandê"},"tags":{"ckb":["هەورامان","جلوبەرگ"],"kmr":["Hewraman","cil"]},"keywords":{"ckb":["نەریت","کەلتوور"],"kmr":["kevneşopî","çand"]},"imageAlbum":[{"imageUrl":"{{imgHawraman}}","captionCkb":"پیاوانی هەورامی","captionKmr":"Mêrên Hewramî","sortOrder":0},{"imageUrl":"{{imgClothing}}","captionCkb":"کچانی هەورامی","captionKmr":"Keçên Hewramî","sortOrder":1}]}
 
-### Sound 14 — SINGLE — Solo tembûr instrumental
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 04 — Newroz
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"مۆسیقای تەمبوور","trackState":"SINGLE","albumOfMemories":true,"ckbCoverUrl":"{{imgDaf}}","kmrCoverUrl":"{{imgDaf}}","newTopic":{"nameCkb":"تەمبووری یارسانی","nameKmr":"Tembûra yarsanî"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"مەقامی تەمبووری هەورامی","description":"<p>پارچەیەکی بێ وشە بە تەمبوور کە لە نەریتی یارسانیدا جێگەی تایبەتی هەیە.</p>"},"kmrContent":{"title":"Meqama tembûra hewramî","description":"<p>Parçeyeke instrumental a tembûrê ku di kevneşopiya yarsanî de cihekî taybet heye.</p>"},"locations":["هەورامان"],"reader":"مامۆستا تەمبوورژەن","terms":"هەورامی","tags":{"ckb":["تەمبوور","یارسان"],"kmr":["tembûr","yarsan"]},"keywords":{"ckb":["مەقام","ئامێر"],"kmr":["meqam","amûr"]},"files":[{"externalUrl":"{{audioHesen1}}","title":"مەقامی هەورامی","fileType":"OGG","audioChannel":"STEREO","genre":"Instrumental","sortOrder":0,"brochures":[{"imageUrl":"{{imgDaf}}","caption":"تەمبووری دەستکرد"}]}]}
---KHISeed--
+{"slugCkb":"newroz-le-palangan","slugKmr":"newroz-li-palangan","collectionType":"PHOTO_STORY","ckbCoverUrl":"{{imgNewroz}}","kmrCoverUrl":"{{imgNewroz}}","newTopic":{"nameCkb":"جەژن و بۆنە","nameKmr":"Cejn û bûyer"},"publishmentDate":"2026-03-21","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"نەورۆز لە پاڵەنگان","description":"<p>ڕۆشنکردنەوەی ئاگر و کۆبوونەوەی خەڵک لە جەژنی نەورۆز.</p>","topic":"نەورۆز","location":"پاڵەنگان","collectedBy":"ئەرشیفی نەورۆز"},"kmrContent":{"title":"Newroz li Palanganê","description":"<p>Vêxistina agir û civîna gel di cejna Newrozê de.</p>","topic":"Newroz","location":"Palangan","collectedBy":"Arşîva Newrozê"},"tags":{"ckb":["نەورۆز","ئاگر"],"kmr":["Newroz","agir"]},"keywords":{"ckb":["بەهار","جەژن"],"kmr":["bihar","cejn"]},"imageAlbum":[{"imageUrl":"{{imgNewroz}}","captionCkb":"ئاگری نەورۆز","captionKmr":"Agirê Newrozê","sortOrder":0}]}
 
-### Sound 15 — SINGLE — Resistance anthem
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 05 — Kurdish wedding
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"گۆرانی بەرخۆدان","trackState":"SINGLE","albumOfMemories":false,"ckbCoverUrl":"{{imgErbil}}","kmrCoverUrl":"{{imgErbil}}","newTopic":{"nameCkb":"گۆرانی خەباتی","nameKmr":"Stranên têkoşînê"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"بەرخۆدانی شاخەکان","description":"<p>گۆرانییەکی خەباتی کە چیرۆکی بەرگری و خۆڕاگری گەلی کورد دەگێڕێتەوە.</p>"},"kmrContent":{"title":"Berxwedana çiyayan","description":"<p>Straneke têkoşînê ku çîroka berxwedan û xweragiriya gelê kurd vedibêje.</p>"},"locations":["کوردستان"],"directors":["ئەرشیفی خەباتی کوردی"],"terms":"سۆرانی و کورمانجی","tags":{"ckb":["خەبات","بەرگری"],"kmr":["têkoşîn","berxwedan"]},"keywords":{"ckb":["شاخ","ئازادی"],"kmr":["çiya","azadî"]},"files":[{"externalUrl":"{{audioEyReqib}}","title":"بەرخۆدانی شاخەکان","fileType":"OGG","audioChannel":"MONO","genre":"خەباتی","sortOrder":0}]}
---KHISeed--
+{"slugCkb":"zewaji-kurdi-urmia","slugKmr":"daweta-kurdi-urmiyeye","collectionType":"GALLERY","ckbCoverUrl":"{{imgWedding}}","kmrCoverUrl":"{{imgWedding}}","newTopic":{"nameCkb":"ڕێوڕەسمی کۆمەڵایەتی","nameKmr":"Rêûresmên civakî"},"publishmentDate":"2026-04-02","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"زەماوەندی کوردی لە ورمێ","description":"<p>جلوبەرگ، هەڵپەڕکێ و ڕێوڕەسمەکانی زەماوەندی کوردی.</p>","topic":"زەماوەند","location":"ورمێ","collectedBy":"ئەرشیفی ژیانی کۆمەڵایەتی"},"kmrContent":{"title":"Daweta kurdî li Urmiyê","description":"<p>Cil, govend û rêûresmên daweta kurdî.</p>","topic":"Dawet","location":"Urmiye","collectedBy":"Arşîva Jiyana Civakî"},"tags":{"ckb":["زەماوەند","هەڵپەڕکێ"],"kmr":["dawet","govend"]},"keywords":{"ckb":["جلوبەرگ","نەریت"],"kmr":["cil","kevneşopî"]},"imageAlbum":[{"imageUrl":"{{imgWedding}}","captionCkb":"زەماوەندی نەریتی","captionKmr":"Daweta kevneşopî","sortOrder":0}]}
 
-### Sound 16 — MULTI — Sulaymaniyah café music nights
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 06 — Kurdish music
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"مۆسیقای شەوانی قاوەخانە","trackState":"MULTI","albumOfMemories":true,"ckbCoverUrl":"{{imgMahwi}}","kmrCoverUrl":"{{imgMahwi}}","newTopic":{"nameCkb":"بیرەوەرییەکانی قاوەخانە","nameKmr":"Bîranînên qehwexaneyan"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"شەوانی مۆسیقا لە قاوەخانەکانی سلێمانی","description":"<p>کۆمەڵە تۆمارێک لە ژینگەی گەرمی مۆسیقای زیندوو لە قاوەخانە کۆنەکانی سلێمانی.</p>"},"kmrContent":{"title":"Şevên muzîkê li qehwexaneyên Silêmaniyê","description":"<p>Koleksiyonek ji tomarên hawîrdora germ a muzîka zindî li qehwexaneyên kevn ên Silêmaniyê.</p>"},"locations":["سلێمانی"],"terms":"سۆرانی","tags":{"ckb":["سلێمانی","قاوەخانە"],"kmr":["Silêmanî","qehwexane"]},"keywords":{"ckb":["مۆسیقای زیندوو","شار"],"kmr":["muzîka zindî","bajar"]},"albumName":"شەوانی سلێمانی","publishmentYear":2026,"cdNumber":1,"totalTracks":2,"files":[{"externalUrl":"{{audioHesen2}}","title":"یەکەم گۆرانی شەو","fileType":"OGG","audioChannel":"STEREO","genre":"کلاسیک","sortOrder":0},{"externalUrl":"{{audioKurdistan}}","title":"کۆتایی شەو","fileType":"OGG","audioChannel":"STEREO","genre":"Instrumental","sortOrder":1,"brochures":[{"imageUrl":"{{imgMahwi}}","caption":"قاوەخانەی سلێمانی"}]}]}
---KHISeed--
+{"slugCkb":"amire-musiqiyekan","slugKmr":"amuren-muzike","collectionType":"GALLERY","ckbCoverUrl":"{{imgMusic}}","kmrCoverUrl":"{{imgMusic}}","newTopic":{"nameCkb":"مۆسیقا","nameKmr":"Muzîk"},"publishmentDate":"2026-04-18","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"ئامێر و مۆسیقای کوردی","description":"<p>وێنەی مۆسیقاژەن و ئامێرە نەریتییەکانی کوردستان.</p>","topic":"هونەری دەنگ","location":"کوردستان","collectedBy":"ئەرشیفی مۆسیقا"},"kmrContent":{"title":"Amûr û muzîka kurdî","description":"<p>Wêneyên muzîkvan û amûrên kevneşopî yên Kurdistanê.</p>","topic":"Hunera dengî","location":"Kurdistan","collectedBy":"Arşîva Muzîkê"},"tags":{"ckb":["مۆسیقا","ئامێر"],"kmr":["muzîk","amûr"]},"keywords":{"ckb":["دەف","تەمبوور"],"kmr":["def","tembûr"]},"imageAlbum":[{"imageUrl":"{{imgMusic}}","captionCkb":"مۆسیقاژەنی کورد","captionKmr":"Muzîkvanê kurd","sortOrder":0},{"imageUrl":"{{imgDaf}}","captionCkb":"دەفژەن","captionKmr":"Defjen","sortOrder":1}]}
 
-### Sound 17 — MULTI — Harvest and farming songs
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 07 — Ahmad Khani
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"گۆرانی کشتوکاڵ","trackState":"MULTI","albumOfMemories":true,"ckbCoverUrl":"{{imgRawanduz}}","kmrCoverUrl":"{{imgRawanduz}}","newTopic":{"nameCkb":"گۆرانی کۆکردنەوەی دروێنە","nameKmr":"Stranên dirûnê"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"گۆرانییەکانی دروێنە و کشتوکاڵ","description":"<p>گۆرانییە کارییەکان کە جوتیاران لە کاتی دروێنە و کشتوکاڵدا دەیانڵێن.</p>"},"kmrContent":{"title":"Stranên dirûn û çandiniyê","description":"<p>Stranên kar ku cotkar di dema dirûn û çandiniyê de digotin.</p>"},"locations":["موکریان"],"terms":"سۆرانی","tags":{"ckb":["کشتوکاڵ","جوتیار"],"kmr":["çandinî","cotkar"]},"keywords":{"ckb":["دروێنە","کار"],"kmr":["dirûn","kar"]},"albumName":"گۆرانی کاری کوردستان","publishmentYear":2025,"cdNumber":1,"totalTracks":2,"files":[{"externalUrl":"{{audioShaw}}","title":"گۆرانی دروێنە","fileType":"OGG","audioChannel":"MONO","genre":"کاری","sortOrder":0},{"externalUrl":"{{audioHesen1}}","title":"گۆرانی جوتیاران","fileType":"OGG","audioChannel":"MONO","genre":"کاری","sortOrder":1,"brochures":[{"imageUrl":"{{imgRawanduz}}","caption":"کێڵگەکانی موکریان"}]}]}
---KHISeed--
+{"slugCkb":"ehmedi-xani","slugKmr":"ehmede-xani","collectionType":"SINGLE","ckbCoverUrl":"{{imgKhani}}","kmrCoverUrl":"{{imgKhani}}","newTopic":{"nameCkb":"کەسایەتییە ئەدەبییەکان","nameKmr":"Kesayetiyên edebî"},"publishmentDate":"2026-05-01","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"ئەحمەدی خانی","description":"<p>وێنەی پەیکەری شاعیر و بیرمەندی کورد، ئەحمەدی خانی.</p>","topic":"ئەدەبیاتی کلاسیک","location":"سلێمانی","collectedBy":"ئەرشیفی ئەدەب"},"kmrContent":{"title":"Ehmedê Xanî","description":"<p>Wêneyê peykerê helbestvan û ramangerê kurd Ehmedê Xanî.</p>","topic":"Edebiyata klasîk","location":"Silêmanî","collectedBy":"Arşîva Edebiyatê"},"tags":{"ckb":["ئەحمەدی خانی","شاعیر"],"kmr":["Ehmedê Xanî","helbestvan"]},"keywords":{"ckb":["مەم و زین","ئەدەب"],"kmr":["Mem û Zîn","edebiyat"]},"imageAlbum":[{"imageUrl":"{{imgKhani}}","captionCkb":"پەیکەری ئەحمەدی خانی","captionKmr":"Peykerê Ehmedê Xanî","sortOrder":0}]}
 
-### Sound 18 — MULTI — Modern Kurdish fusion
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 08 — Dildar
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"موزیکی هاوچەرخی کوردی","trackState":"MULTI","albumOfMemories":false,"ckbCoverUrl":"{{imgErbil}}","kmrCoverUrl":"{{imgErbil}}","newTopic":{"nameCkb":"تێکەڵاوی هاوچەرخ","nameKmr":"Tevliheviya nûjen"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"تێکەڵاوی نوێی مۆسیقای کوردی","description":"<p>ئالبوومێک کە مۆسیقای نەریتی کوردی لەگەڵ ئامێرە هاوچەرخەکان تێکەڵ دەکات.</p>"},"kmrContent":{"title":"Tevliheviya nû ya muzîka kurdî","description":"<p>Albûmek ku muzîka kevneşopî ya kurdî bi amûrên nûjen re tevlihev dike.</p>"},"locations":["هەولێر"],"terms":"سۆرانی و کورمانجی","tags":{"ckb":["هاوچەرخ","تێکەڵاو"],"kmr":["nûjen","tevlihev"]},"keywords":{"ckb":["مۆسیقای نوێ","فیوژن"],"kmr":["muzîka nû","fuzyon"]},"albumName":"دەنگی نوێی کوردستان","publishmentYear":2026,"cdNumber":1,"totalTracks":2,"files":[{"externalUrl":"{{audioKurdistan}}","title":"یەکەم پارچە","fileType":"OGG","audioChannel":"STEREO","genre":"فیوژن","sortOrder":0},{"externalUrl":"{{audioEyReqib}}","title":"دووەم پارچە","fileType":"OGG","audioChannel":"STEREO","genre":"فیوژن","sortOrder":1,"brochures":[{"imageUrl":"{{imgErbil}}","caption":"ستۆدیۆی تۆمارکردن"}]}]}
---KHISeed--
+{"slugCkb":"dildar-shair","slugKmr":"dildar-helbestvan","collectionType":"SINGLE","ckbCoverUrl":"{{imgDildar}}","kmrCoverUrl":"{{imgDildar}}","newTopic":{"nameCkb":"شاعیرانی کورد","nameKmr":"Helbestvanên kurd"},"publishmentDate":"2026-05-12","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"دڵدار، شاعیری ئەی ڕەقیب","description":"<p>وێنەی مێژوویی یونس ڕەئووف ناسراو بە دڵدار.</p>","topic":"ژیاننامە","location":"ڕانیە","collectedBy":"ئەرشیفی شاعیران"},"kmrContent":{"title":"Dildar, helbestvanê Ey Reqîb","description":"<p>Wêneyeke dîrokî ya Yûnis Reûf ku bi navê Dildar tê naskirin.</p>","topic":"Jînenîgarî","location":"Ranya","collectedBy":"Arşîva Helbestvanan"},"tags":{"ckb":["دڵدار","ئەی ڕەقیب"],"kmr":["Dildar","Ey Reqîb"]},"keywords":{"ckb":["شاعیر","نیشتمان"],"kmr":["helbestvan","welat"]},"imageAlbum":[{"imageUrl":"{{imgDildar}}","captionCkb":"دڵدار لە ڕانیە","captionKmr":"Dildar li Ranyayê","sortOrder":0}]}
 
-### Sound 19 — MULTI — Mountain herders' calls
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 09 — Mahwi
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"بانگەوازی شوانان","trackState":"MULTI","albumOfMemories":true,"ckbCoverUrl":"{{imgHawraman}}","kmrCoverUrl":"{{imgHawraman}}","newTopic":{"nameCkb":"دەنگی شوانانی هەورامان","nameKmr":"Dengê şivanên Hewramanê"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"بانگەواز و کالی شوانان","description":"<p>تۆمارێکی نایاب لە دەنگی بانگەوازی شوانان لە شاخەکانی هەورامان.</p>"},"kmrContent":{"title":"Bang û kala şivanan","description":"<p>Tomareke kêmnemûn a dengê bangên şivanan li çiyayên Hewramanê.</p>"},"locations":["هەورامان"],"terms":"هەورامی","tags":{"ckb":["شوان","شاخ"],"kmr":["şivan","çiya"]},"keywords":{"ckb":["بانگەواز","کۆڵبەری"],"kmr":["bang","gulebaran"]},"albumName":"دەنگی شاخەکانی هەورامان","publishmentYear":2024,"cdNumber":1,"totalTracks":2,"files":[{"externalUrl":"{{audioHesen2}}","title":"بانگەوازی بەرەبەیان","fileType":"OGG","audioChannel":"MONO","genre":"فۆلکلۆر","sortOrder":0},{"externalUrl":"{{audioShaw}}","title":"کالی شوان","fileType":"OGG","audioChannel":"MONO","genre":"فۆلکلۆر","sortOrder":1,"brochures":[{"imageUrl":"{{imgHawraman}}","caption":"شاخەکانی هەورامان"}]}]}
---KHISeed--
+{"slugCkb":"mahwi-shair","slugKmr":"mehwi-helbestvan","collectionType":"SINGLE","ckbCoverUrl":"{{imgMahwi}}","kmrCoverUrl":"{{imgMahwi}}","newTopic":{"nameCkb":"شیعری کلاسیک","nameKmr":"Helbesta klasîk"},"publishmentDate":"2026-06-03","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"مەحوی، شاعیری کلاسیکی کورد","description":"<p>پەیکەری مەحوی لە شاری سلێمانی، یەکێک لە شاعیرانی کلاسیکی کورد.</p>","topic":"شیعر","location":"سلێمانی","collectedBy":"ئەرشیفی شاعیران"},"kmrContent":{"title":"Mehwî, helbestvanê klasîk ê kurd","description":"<p>Peykerê Mehwî li Silêmaniyê, yek ji helbestvanên klasîk ên kurd.</p>","topic":"Helbest","location":"Silêmanî","collectedBy":"Arşîva Helbestvanan"},"tags":{"ckb":["مەحوی","شیعر"],"kmr":["Mehwî","helbest"]},"keywords":{"ckb":["کلاسیک","سلێمانی"],"kmr":["klasîk","Silêmanî"]},"imageAlbum":[{"imageUrl":"{{imgMahwi}}","captionCkb":"پەیکەری مەحوی","captionKmr":"Peykerê Mehwî","sortOrder":0}]}
 
-### Sound 20 — MULTI — Poetry recitation with music
-POST {{baseUrl}}/api/v1/sound-tracks
+### Images 10 — Kurdish clothing
+POST {{baseUrl}}/api/v1/image-collections/json
 Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=KHISeed
-
---KHISeed
-Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
-{"soundType":"شیعرخوێنی بە مۆسیقا","trackState":"MULTI","albumOfMemories":true,"ckbCoverUrl":"{{imgMahwi}}","kmrCoverUrl":"{{imgMahwi}}","newTopic":{"nameCkb":"شیعر و ئاوازی کلاسیک","nameKmr":"Helbest û awaza klasîk"},"contentLanguages":["CKB","KMR"],"ckbContent":{"title":"شیعرخوێنیی دیوانی مەحوی بە ئاواز","description":"<p>کۆمەڵە تۆمارێک لە شیعرخوێنی دیوانی مەحوی بە هاوڕێیەتی مۆسیقای کلاسیک.</p>"},"kmrContent":{"title":"Xwendina helbestên Mehwî bi awaz","description":"<p>Koleksiyona xwendina helbestên Dîwana Mehwî bi hevrêtiya muzîka klasîk.</p>"},"locations":["سلێمانی"],"reader":"مامۆستا شاکر","terms":"سۆرانی","tags":{"ckb":["مەحوی","شیعرخوێنی"],"kmr":["Mehwî","xwendina helbestan"]},"keywords":{"ckb":["دیوان","کلاسیک"],"kmr":["dîwan","klasîk"]},"albumName":"شیعری مەحوی بە ئاواز","publishmentYear":2026,"cdNumber":1,"totalTracks":2,"files":[{"externalUrl":"{{audioHesen1}}","title":"یەکەم شیعر","fileType":"OGG","audioChannel":"MONO","genre":"کلاسیک","sortOrder":0},{"externalUrl":"{{audioHesen2}}","title":"دووەم شیعر","fileType":"OGG","audioChannel":"MONO","genre":"کلاسیک","sortOrder":1,"brochures":[{"imageUrl":"{{imgMahwi}}","caption":"پەیکەری مەحوی"}]}]}
---KHISeed--
+{"slugCkb":"rang-u-naxshi-jli-kurdi","slugKmr":"reng-u-nexsen-cilen-kurdi","collectionType":"GALLERY","ckbCoverUrl":"{{imgClothing}}","kmrCoverUrl":"{{imgClothing}}","newTopic":{"nameCkb":"پۆشاکی کوردی","nameKmr":"Cilên kurdî"},"publishmentDate":"2026-06-20","contentLanguages":["CKB","KMR"],"ckbContent":{"title":"ڕەنگ و نەخشی جلوبەرگی کوردی","description":"<p>کۆمەڵە وێنەیەک لە جلوبەرگ و ڕەنگە جیاوازەکانی ناوچەکانی کوردستان.</p>","topic":"پۆشاک","location":"هەورامان","collectedBy":"ئەرشیفی کەلتووری ماددی"},"kmrContent":{"title":"Reng û nexşên cilên kurdî","description":"<p>Koleksiyona cil û rengên cuda yên herêmên Kurdistanê.</p>","topic":"Cil","location":"Hewraman","collectedBy":"Arşîva Çanda Maddî"},"tags":{"ckb":["جلوبەرگ","ڕەنگ"],"kmr":["cil","reng"]},"keywords":{"ckb":["پۆشاک","دەستکرد"],"kmr":["kinc","destçêkirî"]},"imageAlbum":[{"imageUrl":"{{imgClothing}}","captionCkb":"جلوبەرگی کچانی هەورامی","captionKmr":"Cilên keçên Hewramî","sortOrder":0},{"imageUrl":"{{imgHawraman}}","captionCkb":"جلوبەرگی پیاوانی هەورامی","captionKmr":"Cilên mêrên Hewramî","sortOrder":1}]}
+

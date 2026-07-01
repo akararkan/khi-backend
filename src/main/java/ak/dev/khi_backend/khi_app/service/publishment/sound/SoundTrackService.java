@@ -370,8 +370,13 @@ public class SoundTrackService {
     @CacheEvict(value = "soundTracks", allEntries = true)
     @Transactional
     public void delete(Long id) {
-        SoundTrack entity = soundTrackRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> Errors.soundNotFound(id));
+        if (id == null) return;
+
+        SoundTrack entity = soundTrackRepository.findByIdWithGraph(id).orElse(null);
+        if (entity == null) {
+            log.debug("SoundTrack delete ignored; id={} does not exist", id);
+            return;
+        }
         createLog(entity.getId(), titleOf(entity), "DELETED",
                 "سەدا سڕایەوە — جۆر=" + entity.getSoundType()
                         + " دۆخ=" + entity.getTrackState());

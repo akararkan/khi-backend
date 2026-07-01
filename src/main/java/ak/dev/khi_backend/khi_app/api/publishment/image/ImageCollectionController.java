@@ -189,10 +189,10 @@ public class ImageCollectionController {
     // =========================================================================
 
     @DeleteMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         log.info("DELETE /api/v1/image-collections/{}", id);
         imageCollectionService.delete(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Image collection deleted successfully"));
+        return ResponseEntity.noContent().build();
     }
 
     // =========================================================================

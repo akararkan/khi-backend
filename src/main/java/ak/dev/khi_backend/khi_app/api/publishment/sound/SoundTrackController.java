@@ -228,10 +228,10 @@ public class SoundTrackController {
     // =========================================================================
 
     @DeleteMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         log.info("DELETE /api/v1/sound-tracks/{}", id);
         soundTrackService.delete(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "SoundTrack deleted successfully"));
+        return ResponseEntity.noContent().build();
     }
 
     // =========================================================================

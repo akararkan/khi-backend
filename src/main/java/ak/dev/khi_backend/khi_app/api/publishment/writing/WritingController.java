@@ -138,10 +138,10 @@ public class WritingController {
     // ============================================================
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         log.info("DELETE /api/v1/writings/{}", id);
         writingService.deleteWriting(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Writing deleted successfully"));
+        return ResponseEntity.noContent().build();
     }
 
     // ============================================================

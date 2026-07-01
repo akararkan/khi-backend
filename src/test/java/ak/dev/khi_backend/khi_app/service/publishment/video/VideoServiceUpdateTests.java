@@ -87,6 +87,15 @@ class VideoServiceUpdateTests {
         verify(videoRepository, never()).save(any());
     }
 
+    @Test
+    void deleteIgnoresMissingVideo() {
+        when(videoRepository.findById(999L)).thenReturn(Optional.empty());
+
+        videoService.deleteVideo(999L);
+
+        verify(videoRepository, never()).delete(any());
+    }
+
     private Video videoWithExistingClip() {
         Video video = Video.builder()
                 .id(8L)

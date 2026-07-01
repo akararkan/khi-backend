@@ -194,7 +194,13 @@ public class WritingService {
     public void deleteWriting(Long id) {
         log.info("سڕینەوەی نووسراو id={}", id);
 
-        Writing writing = findOrThrow(id, "writing.not_found");
+        if (id == null) return;
+
+        Writing writing = writingRepository.findByIdWithDetails(id).orElse(null);
+        if (writing == null) {
+            log.debug("Writing delete ignored; id={} does not exist", id);
+            return;
+        }
 
         String seriesId  = writing.getSeriesId();
         String title     = getCombinedTitle(writing);

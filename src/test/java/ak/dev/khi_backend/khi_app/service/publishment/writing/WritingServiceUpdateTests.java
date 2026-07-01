@@ -69,4 +69,14 @@ class WritingServiceUpdateTests {
         assertThat(response.getCkbContent().getPageCount()).isEqualTo(120);
         verify(s3Service, never()).upload(any(byte[].class), any(), any());
     }
+
+    @Test
+    void deleteIgnoresMissingWriting() {
+        when(writingRepository.findByIdWithDetails(999L))
+                .thenReturn(Optional.empty());
+
+        writingService.deleteWriting(999L);
+
+        verify(writingRepository, never()).delete(any());
+    }
 }

@@ -422,8 +422,13 @@ public class ImageCollectionService {
     @CacheEvict(value = "imageCollections", allEntries = true)
     @Transactional
     public void delete(Long id) {
-        ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> Errors.imageNotFound(id));
+        if (id == null) return;
+
+        ImageCollection entity = imageCollectionRepository.findByIdWithGraph(id).orElse(null);
+        if (entity == null) {
+            log.debug("Image collection delete ignored; id={} does not exist", id);
+            return;
+        }
         createLog(entity.getId(), titleOf(entity), "DELETE",
                 "کۆمەڵەی وێنە سڕایەوە — جۆر=" + entity.getCollectionType());
         imageCollectionRepository.delete(entity);

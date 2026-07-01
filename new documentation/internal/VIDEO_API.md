@@ -354,7 +354,7 @@
 |-----------|------|----------|-------------|
 | `id` | long | **Yes** | ID of the video to delete |
 
-**Response `204 No Content`:** Empty body — deletion successful.
+**Response `204 No Content`:** Empty body. The operation also succeeds when the ID does not exist or was already deleted.
 
 ---
 

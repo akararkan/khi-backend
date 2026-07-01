@@ -116,6 +116,16 @@ class ImageCollectionServiceUpdateTests {
         verify(imageCollectionRepository, never()).save(any());
     }
 
+    @Test
+    void deleteIgnoresMissingCollection() {
+        when(imageCollectionRepository.findByIdWithGraph(999L))
+                .thenReturn(Optional.empty());
+
+        imageCollectionService.delete(999L);
+
+        verify(imageCollectionRepository, never()).delete(any());
+    }
+
     private ImageCollection collectionWithExistingItem() {
         ImageCollection collection = ImageCollection.builder()
                 .id(8L)

@@ -128,6 +128,16 @@ class SoundTrackServiceUpdateTests {
         });
     }
 
+    @Test
+    void deleteIgnoresMissingSoundTrack() {
+        when(soundTrackRepository.findByIdWithGraph(999L))
+                .thenReturn(Optional.empty());
+
+        soundTrackService.delete(999L);
+
+        verify(soundTrackRepository, never()).delete(any());
+    }
+
     private SoundTrack soundTrackWithExistingFile() {
         SoundTrack soundTrack = SoundTrack.builder()
                 .id(8L)

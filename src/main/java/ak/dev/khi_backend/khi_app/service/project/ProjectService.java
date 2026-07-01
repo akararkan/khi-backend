@@ -138,12 +138,18 @@ public class ProjectService {
     @CacheEvict(value = "projects", allEntries = true)
     @Transactional
     public void delete(Long projectId) {
+        if (projectId == null) return;
+
         String traceId = traceId();
         log.info("Delete project | id={} | traceId={}", projectId, traceId);
 
         try {
             tx().execute(status -> {
-                Project project = findOrThrow(projectId);
+                Project project = projectRepository.findById(projectId).orElse(null);
+                if (project == null) {
+                    log.debug("Project delete ignored; id={} does not exist", projectId);
+                    return null;
+                }
                 String  title   = safeTitle(project);
                 int logCount = projectLogRepository.deleteByProject(project);
                 log.debug("{} project audit logs deleted for id={}", logCount, projectId);
@@ -152,8 +158,7 @@ public class ProjectService {
                 return null;
             });
 
-        } catch (AppException ex) { throw ex; }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             log.error("Error deleting project | id={} | traceId={}", projectId, traceId, ex);
             throw Errors.projectDeleteFailed(projectId, traceId, ex);
         }

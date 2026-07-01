@@ -380,10 +380,7 @@
 
 **Alias:** `DELETE /api/v1/news/delete/{id}` — identical behavior, alternative path.
 
-**Response `200 OK`:**
-```json
-{ "success": true, "message": "News deleted successfully", "data": null }
-```
+**Response `204 No Content`:** Empty body. The operation also succeeds when the ID does not exist or was already deleted.
 
 ---
 
@@ -397,10 +394,7 @@
 [1, 2, 3, 42]
 ```
 
-**Response `200 OK`:**
-```json
-{ "success": true, "message": "News deleted successfully (bulk)", "data": null }
-```
+**Response `204 No Content`:** Empty body. Unknown and already-deleted IDs are ignored.
 
 ---
 
