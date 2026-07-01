@@ -22,6 +22,7 @@
 | `GET` | `/api/v1/sound-tracks/topics` | No | Public | Get SOUND topics for autocomplete |
 | `POST` | `/api/v1/sound-tracks` | Yes | `ADMIN` / `SUPER_ADMIN` | Create soundtrack (multipart) |
 | `PUT` | `/api/v1/sound-tracks/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Update soundtrack (multipart) |
+| `PATCH` | `/api/v1/sound-tracks/{id}/featured` | Yes | `ADMIN` | Set featured status and order |
 | `DELETE` | `/api/v1/sound-tracks/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete soundtrack |
 
 ---
@@ -46,6 +47,8 @@
     "content": [
       {
         "id": 7,
+        "featured": true,
+        "featuredOrder": 3,
         "soundType": "poem",
         "trackState": "SINGLE",
         "ckbCoverUrl": "https://cdn.khi.org/sound/cover.jpg",
@@ -373,6 +376,31 @@
 ```json
 { "success": true, "message": "SoundTrack deleted successfully", "data": null }
 ```
+
+---
+
+## `PATCH /api/v1/sound-tracks/{id}/featured` — Set Featured Status
+
+**Auth:** JWT required · Role: `ADMIN`
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `featured` | boolean | No | `true` to feature, `false` to unfeature; omitted defaults to `true` |
+| `featuredOrder` | integer | No | Global featured display order; lower values appear first |
+
+```json
+{
+  "featured": true,
+  "featuredOrder": 3
+}
+```
+
+Setting `featured` to `false` clears `featuredOrder`.
+
+**Response `204 No Content`:** Empty body.
 
 ---
 

@@ -40,6 +40,8 @@
     "content": [
       {
         "id": 42,
+        "featured": true,
+        "featuredOrder": 1,
         "coverUrl": "https://cdn.khi.org/news/cover.jpg",
         "coverMediaType": "IMAGE",
         "coverThumbnailUrl": null,
@@ -69,6 +71,8 @@
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | long | Unique news article identifier |
+| `featured` | boolean | Whether the article is featured |
+| `featuredOrder` | integer \| null | Global featured display order; lower values appear first |
 | `coverUrl` | string | Cover asset URL |
 | `coverMediaType` | enum | `IMAGE` \| `VIDEO` \| `AUDIO` |
 | `coverThumbnailUrl` | string | Poster/thumbnail for video or audio cover (may be null) |

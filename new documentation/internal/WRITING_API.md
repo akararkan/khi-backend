@@ -20,6 +20,7 @@
 | `GET` | `/api/v1/writings/topics` | No | Public | Get WRITING topics |
 | `POST` | `/api/v1/writings` | Yes | `ADMIN` / `SUPER_ADMIN` | Create a new writing/book (multipart) |
 | `PUT` | `/api/v1/writings/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Update a writing (multipart) |
+| `PATCH` | `/api/v1/writings/{id}/featured` | Yes | `ADMIN` | Set featured status and order |
 | `DELETE` | `/api/v1/writings/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete a writing |
 | `POST` | `/api/v1/writings/series/link` | Yes | `ADMIN` / `SUPER_ADMIN` | Link a book to a series |
 
@@ -45,6 +46,8 @@
     "content": [
       {
         "id": 15,
+        "featured": true,
+        "featuredOrder": 6,
         "ckbCoverUrl": "https://cdn.khi.org/books/ckb-cover.jpg",
         "kmrCoverUrl": "https://cdn.khi.org/books/kmr-cover.jpg",
         "hoverCoverUrl": null,
@@ -445,6 +448,31 @@
 ```
 
 **Response `200 OK`:** Updated writing object for `bookId` with series info populated.
+
+---
+
+## `PATCH /api/v1/writings/{id}/featured` — Set Featured Status
+
+**Auth:** JWT required · Role: `ADMIN`
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `featured` | boolean | No | `true` to feature, `false` to unfeature; omitted defaults to `true` |
+| `featuredOrder` | integer | No | Global featured display order; lower values appear first |
+
+```json
+{
+  "featured": true,
+  "featuredOrder": 6
+}
+```
+
+Setting `featured` to `false` clears `featuredOrder`.
+
+**Response `204 No Content`:** Empty body.
 
 ---
 

@@ -41,6 +41,8 @@
     "content": [
       {
         "id": 15,
+        "featured": true,
+        "featuredOrder": 6,
         "ckbCoverUrl": "https://cdn.khi.org/books/ckb-cover.jpg",
         "kmrCoverUrl": "https://cdn.khi.org/books/kmr-cover.jpg",
         "hoverCoverUrl": null,
@@ -90,6 +92,8 @@
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | long | Unique writing identifier |
+| `featured` | boolean | Whether the writing is featured |
+| `featuredOrder` | integer \| null | Global featured display order; lower values appear first |
 | `ckbCoverUrl` | string | Sorani cover image URL |
 | `kmrCoverUrl` | string | Kurmanji cover image URL (may be null) |
 | `hoverCoverUrl` | string | Hover-state cover image URL (may be null) |

@@ -43,6 +43,8 @@
     "content": [
       {
         "id": 7,
+        "featured": true,
+        "featuredOrder": 3,
         "soundType": "poem",
         "trackState": "SINGLE",
         "ckbCoverUrl": "https://cdn.khi.org/sound/cover.jpg",
@@ -88,6 +90,8 @@
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | long | Unique soundtrack identifier |
+| `featured` | boolean | Whether the soundtrack is featured |
+| `featuredOrder` | integer \| null | Global featured display order; lower values appear first |
 | `soundType` | string | Free-text type label (e.g. `poem`, `song`) |
 | `trackState` | enum | `SINGLE` (one file) or `MULTI` (album) |
 | `ckbCoverUrl` | string | Sorani cover image URL |

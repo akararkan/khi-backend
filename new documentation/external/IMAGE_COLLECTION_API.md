@@ -36,6 +36,8 @@
     "content": [
       {
         "id": 5,
+        "featured": true,
+        "featuredOrder": 5,
         "collectionType": "PHOTO_GALLERY",
         "ckbCoverUrl": "https://cdn.khi.org/covers/ckb.jpg",
         "kmrCoverUrl": "https://cdn.khi.org/covers/kmr.jpg",
@@ -91,6 +93,8 @@
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | long | Unique collection identifier |
+| `featured` | boolean | Whether the image collection is featured |
+| `featuredOrder` | integer \| null | Global featured display order; lower values appear first |
 | `collectionType` | enum | Collection category type |
 | `ckbCoverUrl` | string | Sorani cover image URL |
 | `kmrCoverUrl` | string | Kurmanji cover image URL (may be null) |

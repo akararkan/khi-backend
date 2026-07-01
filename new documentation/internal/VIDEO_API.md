@@ -17,6 +17,7 @@
 | `GET` | `/api/v1/videos/topics` | No | Public | Get VIDEO topics list |
 | `POST` | `/api/v1/videos` | Yes | `ADMIN` / `SUPER_ADMIN` | Create a new video (multipart) |
 | `PUT` | `/api/v1/videos/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Update a video (multipart) |
+| `PATCH` | `/api/v1/videos/{id}/featured` | Yes | `ADMIN` | Set featured status and order |
 | `DELETE` | `/api/v1/videos/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete a video |
 | `POST` | `/api/v1/videos/topics` | Yes | `ADMIN` / `SUPER_ADMIN` | Create a new VIDEO topic |
 | `DELETE` | `/api/v1/videos/topics/{topicId}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete a VIDEO topic |
@@ -40,6 +41,8 @@
   "content": [
     {
       "id": 3,
+      "featured": true,
+      "featuredOrder": 4,
       "videoType": "FILM",
       "albumOfMemories": false,
       "ckbCoverUrl": "https://cdn.khi.org/video/ckb-cover.jpg",
@@ -386,6 +389,31 @@
 | `topicId` | long | **Yes** | ID of the topic to delete |
 
 **Response `204 No Content`:** Empty body — deletion successful.
+
+---
+
+## `PATCH /api/v1/videos/{id}/featured` — Set Featured Status
+
+**Auth:** JWT required · Role: `ADMIN`
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `featured` | boolean | No | `true` to feature, `false` to unfeature; omitted defaults to `true` |
+| `featuredOrder` | integer | No | Global featured display order; lower values appear first |
+
+```json
+{
+  "featured": true,
+  "featuredOrder": 4
+}
+```
+
+Setting `featured` to `false` clears `featuredOrder`.
+
+**Response `204 No Content`:** Empty body.
 
 ---
 

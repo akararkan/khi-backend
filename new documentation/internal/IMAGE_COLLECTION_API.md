@@ -16,6 +16,7 @@
 | `POST` | `/api/v1/image-collections` | Yes | `ADMIN` / `SUPER_ADMIN` | Create collection with file uploads (multipart) |
 | `POST` | `/api/v1/image-collections/json` | Yes | `ADMIN` / `SUPER_ADMIN` | Create collection with URL-only sources (JSON) |
 | `PUT` | `/api/v1/image-collections/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Update collection (multipart) |
+| `PATCH` | `/api/v1/image-collections/{id}/featured` | Yes | `ADMIN` | Set featured status and order |
 | `DELETE` | `/api/v1/image-collections/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete collection |
 
 ---
@@ -40,6 +41,8 @@
     "content": [
       {
         "id": 5,
+        "featured": true,
+        "featuredOrder": 5,
         "collectionType": "PHOTO_GALLERY",
         "ckbCoverUrl": "https://cdn.khi.org/covers/ckb.jpg",
         "kmrCoverUrl": "https://cdn.khi.org/covers/kmr.jpg",
@@ -257,6 +260,31 @@
 ```json
 { "success": true, "message": "Image collection deleted successfully", "data": null }
 ```
+
+---
+
+## `PATCH /api/v1/image-collections/{id}/featured` — Set Featured Status
+
+**Auth:** JWT required · Role: `ADMIN`
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `featured` | boolean | No | `true` to feature, `false` to unfeature; omitted defaults to `true` |
+| `featuredOrder` | integer | No | Global featured display order; lower values appear first |
+
+```json
+{
+  "featured": true,
+  "featuredOrder": 5
+}
+```
+
+Setting `featured` to `false` clears `featuredOrder`.
+
+**Response `204 No Content`:** Empty body.
 
 ---
 

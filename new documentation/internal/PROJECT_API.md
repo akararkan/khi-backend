@@ -15,6 +15,7 @@
 | `GET` | `/api/v1/projects/search/keyword` | No | Public | Search projects by keyword |
 | `POST` | `/api/v1/projects/create` | Yes | `ADMIN` / `SUPER_ADMIN` | Create a new project |
 | `PUT` | `/api/v1/projects/update/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Update an existing project |
+| `PATCH` | `/api/v1/projects/{id}/featured` | Yes | `ADMIN` | Set featured status and order |
 | `DELETE` | `/api/v1/projects/delete/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete a project |
 
 ---
@@ -39,6 +40,8 @@
     "content": [
       {
         "id": 10,
+        "featured": true,
+        "featuredOrder": 2,
         "coverUrl": "https://cdn.khi.org/projects/cover.jpg",
         "coverMediaType": "IMAGE",
         "coverThumbnailUrl": null,
@@ -261,6 +264,31 @@
 ```json
 { "success": true, "message": "Project deleted successfully", "data": null }
 ```
+
+---
+
+## `PATCH /api/v1/projects/{id}/featured` — Set Featured Status
+
+**Auth:** JWT required · Role: `ADMIN`
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `featured` | boolean | No | `true` to feature, `false` to unfeature; omitted defaults to `true` |
+| `featuredOrder` | integer | No | Global featured display order; lower values appear first |
+
+```json
+{
+  "featured": true,
+  "featuredOrder": 2
+}
+```
+
+Setting `featured` to `false` clears `featuredOrder`.
+
+**Response `204 No Content`:** Empty body.
 
 ---
 

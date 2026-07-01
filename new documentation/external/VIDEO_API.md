@@ -35,6 +35,8 @@
   "content": [
     {
       "id": 3,
+      "featured": true,
+      "featuredOrder": 4,
       "videoType": "FILM",
       "albumOfMemories": false,
       "ckbCoverUrl": "https://cdn.khi.org/video/ckb-cover.jpg",
@@ -87,6 +89,8 @@
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | long | Unique video identifier |
+| `featured` | boolean | Whether the video is featured |
+| `featuredOrder` | integer \| null | Global featured display order; lower values appear first |
 | `videoType` | enum | `FILM` (single source) or `VIDEO_CLIP` (multiple clips) |
 | `albumOfMemories` | boolean | Whether this is tagged as album-of-memories |
 | `ckbCoverUrl` | string | Sorani cover image URL |

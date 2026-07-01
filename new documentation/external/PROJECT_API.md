@@ -36,6 +36,8 @@
     "content": [
       {
         "id": 10,
+        "featured": true,
+        "featuredOrder": 2,
         "coverUrl": "https://cdn.khi.org/projects/cover.jpg",
         "coverMediaType": "IMAGE",
         "coverThumbnailUrl": null,
@@ -76,6 +78,8 @@
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | long | Unique project identifier |
+| `featured` | boolean | Whether the project is featured |
+| `featuredOrder` | integer \| null | Global featured display order; lower values appear first |
 | `coverUrl` | string | Cover asset URL |
 | `coverMediaType` | enum | `IMAGE` \| `VIDEO` \| `AUDIO` |
 | `coverThumbnailUrl` | string | Thumbnail for video/audio cover (may be null) |

@@ -20,6 +20,7 @@
 | `POST` | `/api/v1/news` | Yes | `EMPLOYEE` / `ADMIN` / `SUPER_ADMIN` | Create a single news article |
 | `POST` | `/api/v1/news/bulk` | Yes | `EMPLOYEE` / `ADMIN` / `SUPER_ADMIN` | Create multiple news articles at once |
 | `PUT` | `/api/v1/news/{id}` | Yes | `EMPLOYEE` / `ADMIN` / `SUPER_ADMIN` | Update a news article |
+| `PATCH` | `/api/v1/news/{id}/featured` | Yes | `ADMIN` | Set featured status and order |
 | `DELETE` | `/api/v1/news/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete a news article |
 | `DELETE` | `/api/v1/news/delete/{id}` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete a news article (alias path) |
 | `DELETE` | `/api/v1/news/bulk` | Yes | `ADMIN` / `SUPER_ADMIN` | Delete multiple news articles at once |
@@ -46,6 +47,8 @@
     "content": [
       {
         "id": 42,
+        "featured": true,
+        "featuredOrder": 1,
         "coverUrl": "https://cdn.khi.org/news/cover.jpg",
         "coverMediaType": "IMAGE",
         "coverThumbnailUrl": null,
@@ -398,6 +401,31 @@
 ```json
 { "success": true, "message": "News deleted successfully (bulk)", "data": null }
 ```
+
+---
+
+## `PATCH /api/v1/news/{id}/featured` — Set Featured Status
+
+**Auth:** JWT required · Role: `ADMIN`
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `featured` | boolean | No | `true` to feature, `false` to unfeature; omitted defaults to `true` |
+| `featuredOrder` | integer | No | Global featured display order; lower values appear first |
+
+```json
+{
+  "featured": true,
+  "featuredOrder": 1
+}
+```
+
+Setting `featured` to `false` clears `featuredOrder`.
+
+**Response `204 No Content`:** Empty body.
 
 ---
 
