@@ -206,6 +206,17 @@ public class WritingService {
         String title     = getCombinedTitle(writing);
         Long   writingId = writing.getId();
 
+        // A writing can be referenced by both its audit history and child books.
+        // Detach those nullable relationships before issuing the hard delete so
+        // PostgreSQL does not reject it with a foreign-key conflict.
+        List<Writing> childBooks = new ArrayList<>(writing.getSeriesBooks());
+        childBooks.forEach(child -> child.setParentBook(null));
+        if (!childBooks.isEmpty()) {
+            writingRepository.saveAll(childBooks);
+            writingRepository.flush();
+        }
+        writingLogRepository.detachFromWriting(writingId);
+
         WritingLog deletionLog = WritingLog.builder()
                 .writing(null)
                 .writingId(writingId)

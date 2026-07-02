@@ -17,10 +17,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,5 +81,34 @@ class WritingServiceUpdateTests {
         writingService.deleteWriting(999L);
 
         verify(writingRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteDetachesAuditLogsAndChildBooksBeforeHardDelete() {
+        Writing child = Writing.builder().id(24L).build();
+        Writing writing = Writing.builder()
+                .id(23L)
+                .seriesId("series-23")
+                .seriesBooks(new ArrayList<>())
+                .build();
+        child.setParentBook(writing);
+        writing.getSeriesBooks().add(child);
+
+        when(writingRepository.findByIdWithDetails(23L))
+                .thenReturn(Optional.of(writing));
+        when(writingRepository.countBySeriesId("series-23")).thenReturn(1L);
+        when(writingRepository.findBySeriesIdOrderBySeriesOrderAsc("series-23"))
+                .thenReturn(List.of(child));
+
+        writingService.deleteWriting(23L);
+
+        assertThat(child.getParentBook()).isNull();
+        var order = inOrder(writingRepository, writingLogRepository);
+        order.verify(writingRepository).saveAll(List.of(child));
+        order.verify(writingRepository).flush();
+        order.verify(writingLogRepository).detachFromWriting(23L);
+        order.verify(writingLogRepository).saveAndFlush(any());
+        order.verify(writingRepository).delete(writing);
+        order.verify(writingRepository).flush();
     }
 }
