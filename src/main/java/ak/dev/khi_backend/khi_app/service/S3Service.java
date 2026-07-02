@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -15,6 +16,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.UUID;
 
@@ -22,6 +26,11 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class S3Service {
+
+    @FunctionalInterface
+    public interface InputStreamProvider {
+        InputStream open() throws IOException;
+    }
 
     private final S3Client s3Client;
 
@@ -86,6 +95,68 @@ public class S3Service {
         } catch (S3Exception e) {
             log.error("❌ S3 upload failed: {}", e.getMessage(), e);
             throw new BadRequestException("s3.upload.failed", "Failed to upload file to S3: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Stream a file to S3 without materializing the whole file in JVM memory.
+     * The provider may be called more than once when the AWS client retries.
+     */
+    public String upload(InputStreamProvider streamProvider, long contentLength,
+                         String originalFilename, String contentType) {
+        return upload(streamProvider, contentLength, originalFilename, contentType, null);
+    }
+
+    /**
+     * Stream a file to S3 with an explicit media type.
+     */
+    public String upload(InputStreamProvider streamProvider, long contentLength,
+                         String originalFilename, String contentType, ProjectMediaType mediaType) {
+        if (streamProvider == null || contentLength <= 0) {
+            throw new BadRequestException("media.invalid", "File is empty or null");
+        }
+
+        String resolvedContentType = contentType == null || contentType.isBlank()
+                ? "application/octet-stream"
+                : contentType;
+        String folder = mediaType != null ? getFolderForMediaType(mediaType) : detectFolder(resolvedContentType);
+        String key = generateKey(folder, originalFilename);
+
+        log.info("⬆️ Streaming to S3: bucket={}, folder={}, key={}, contentType={}, size={}",
+                bucket, folder, key, resolvedContentType, contentLength);
+
+        try {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(resolvedContentType)
+                    .contentLength(contentLength)
+                    .build();
+
+            RequestBody body = RequestBody.fromContentProvider(
+                    () -> {
+                        try {
+                            return streamProvider.open();
+                        } catch (IOException e) {
+                            throw new UncheckedIOException("Failed to open upload stream", e);
+                        }
+                    },
+                    contentLength,
+                    resolvedContentType
+            );
+            s3Client.putObject(request, body);
+
+            String publicUrl = getPublicUrl(key);
+            log.info("✅ File uploaded successfully: {}", publicUrl);
+            return publicUrl;
+        } catch (UncheckedIOException e) {
+            log.error("❌ Could not read file for S3 upload: {}", e.getMessage(), e);
+            throw new BadRequestException("s3.upload.failed",
+                    "Failed to read uploaded file: " + e.getMessage());
+        } catch (S3Exception | SdkClientException e) {
+            log.error("❌ S3 streaming upload failed: {}", e.getMessage(), e);
+            throw new BadRequestException("s3.upload.failed",
+                    "Failed to upload file to S3: " + e.getMessage());
         }
     }
 

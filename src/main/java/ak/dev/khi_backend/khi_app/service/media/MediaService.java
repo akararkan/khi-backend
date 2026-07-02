@@ -45,10 +45,10 @@ public class MediaService {
         ProjectMediaType mediaType = resolveMediaType(type);
 
         String fileUrl = mediaType != null
-                ? s3Service.upload(file.getBytes(), file.getOriginalFilename(),
-                file.getContentType(), mediaType)
-                : s3Service.upload(file.getBytes(), file.getOriginalFilename(),
-                file.getContentType());
+                ? s3Service.upload(file::getInputStream, file.getSize(),
+                file.getOriginalFilename(), file.getContentType(), mediaType)
+                : s3Service.upload(file::getInputStream, file.getSize(),
+                file.getOriginalFilename(), file.getContentType());
 
         log.info("Upload successful: {}", fileUrl);
 
