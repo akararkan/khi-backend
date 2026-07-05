@@ -133,12 +133,12 @@ public class SiteContentService {
                 + imageCollectionRepository.countByFeaturedTrue();
     }
 
-    // Reads the admin-configurable limit from SiteSettings. Falls back to 5 if no row exists.
+    // Reads the admin-configurable limit from SiteSettings.
     private int getMaxFeaturedSlides() {
         return siteSettingsRepository.findFirstByOrderByIdAsc()
                 .map(SiteSettings::getMaxFeaturedSlides)
                 .filter(limit -> limit > 0)
-                .orElse(7);
+                .orElse(SiteSettings.DEFAULT_MAX_FEATURED_SLIDES);
     }
 
     // --- Site settings (admin) -----------------------------------------------------------
@@ -151,7 +151,7 @@ public class SiteContentService {
                         .maxFeaturedSlides(s.getMaxFeaturedSlides())
                         .build())
                 .orElseGet(() -> SiteSettingsResponse.builder()
-                        .maxFeaturedSlides(5)
+                        .maxFeaturedSlides(SiteSettings.DEFAULT_MAX_FEATURED_SLIDES)
                         .build());
     }
 

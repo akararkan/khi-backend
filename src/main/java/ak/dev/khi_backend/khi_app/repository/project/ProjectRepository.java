@@ -79,5 +79,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     List<Project> findByFeaturedTrueOrderByFeaturedOrderAscIdDesc();
 
+    Page<Project> findByFeaturedTrue(Pageable pageable);
+
     long countByFeaturedTrue();
 }

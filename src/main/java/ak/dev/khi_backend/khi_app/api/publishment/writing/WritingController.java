@@ -97,6 +97,15 @@ public class WritingController {
         return ResponseEntity.ok(ApiResponse.success(result, "Writings fetched successfully"));
     }
 
+    @GetMapping("/featured")
+    public ResponseEntity<ApiResponse<Page<Response>>> getFeatured(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                writingService.getFeatured(page, size),
+                "Featured writings fetched successfully"));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Response>> getById(@PathVariable Long id) {
         log.info("GET /api/v1/writings/{}", id);

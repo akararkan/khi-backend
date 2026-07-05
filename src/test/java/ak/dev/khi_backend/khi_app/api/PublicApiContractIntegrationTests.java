@@ -59,6 +59,47 @@ class PublicApiContractIntegrationTests {
     }
 
     @Test
+    void perResourceFeaturedRoutesReturnPagesInsteadOfFallingThroughToIdRoutes() throws Exception {
+        String[] envelopedRoutes = {
+                "/api/v1/news/featured",
+                "/api/v1/services/featured",
+                "/api/v1/projects/featured",
+                "/api/v1/image-collections/featured",
+                "/api/v1/sound-tracks/featured",
+                "/api/v1/writings/featured"
+        };
+
+        for (String route : envelopedRoutes) {
+            mockMvc.perform(get(route).param("page", "0").param("size", "20"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content").isArray());
+        }
+
+        mockMvc.perform(get("/api/v1/videos/featured")
+                        .param("page", "0").param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
+    void numericResourceLookupsStillUseIdRoutes() throws Exception {
+        String[] numericRoutes = {
+                "/api/v1/news/999999",
+                "/api/v1/services/999999",
+                "/api/v1/projects/999999",
+                "/api/v1/videos/999999",
+                "/api/v1/image-collections/999999",
+                "/api/v1/sound-tracks/999999",
+                "/api/v1/writings/999999"
+        };
+
+        for (String route : numericRoutes) {
+            mockMvc.perform(get(route))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
     void visitorsCanSubmitContactMessages() throws Exception {
         mockMvc.perform(post("/api/v1/contact/messages")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -108,6 +108,15 @@ public class ProjectController {
         );
     }
 
+    @GetMapping(value = "/featured", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Page<ProjectResponse>>> getFeatured(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                projectService.getFeatured(page, size),
+                "Featured projects fetched successfully"));
+    }
+
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ProjectResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(

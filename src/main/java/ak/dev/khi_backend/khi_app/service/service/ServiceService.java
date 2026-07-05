@@ -76,6 +76,19 @@ public class ServiceService {
         );
     }
 
+    /**
+     * Services do not participate in the curated featured-content model.
+     * Keep the dashboard's generic per-resource endpoint stable by returning
+     * an empty page instead of routing the literal "featured" to /{id}.
+     */
+    public Page<ServiceResponse> getFeatured(int page, int size) {
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100)
+        );
+        return Page.empty(pageable);
+    }
+
     @Cacheable(value = "services", key = "'all:p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
     public Page<ServiceResponse> getAll(int page, int size) {

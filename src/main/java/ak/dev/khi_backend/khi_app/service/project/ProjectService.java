@@ -187,6 +187,12 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
+    public Page<ProjectResponse> getFeatured(int page, int size) {
+        Pageable pageable = featuredPageable(page, size);
+        return projectRepository.findByFeaturedTrue(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public ProjectResponse getByIdResponse(Long projectId) {
         return toResponse(findOrThrow(projectId));
     }
@@ -502,6 +508,15 @@ public class ProjectService {
                 .keywordsKmr(keysKmr)
                 .createdAt(createdAt)
                 .build();
+    }
+
+    private Pageable featuredPageable(int page, int size) {
+        return PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "featuredOrder")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
+        );
     }
 
     // ============================================================

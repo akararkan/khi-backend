@@ -334,7 +334,12 @@ public interface WritingRepository extends JpaRepository<Writing, Long> {
     @Query("select w from Writing w left join fetch w.topic where w.featured = true order by w.featuredOrder asc, w.id desc")
     List<Writing> findFeaturedWithTopic();
 
+    @Query(
+            value = "select w from Writing w left join fetch w.topic where w.featured = true",
+            countQuery = "select count(w) from Writing w where w.featured = true"
+    )
+    Page<Writing> findFeaturedWithTopic(Pageable pageable);
+
     long countByFeaturedTrue();
 
 }
-

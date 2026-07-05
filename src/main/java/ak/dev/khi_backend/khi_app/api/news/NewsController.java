@@ -79,6 +79,15 @@ public class NewsController {
         return ResponseEntity.ok(ApiResponse.success(result, "News fetched successfully"));
     }
 
+    @GetMapping("/featured")
+    public ResponseEntity<ApiResponse<Page<NewsDto>>> getFeatured(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                newsService.getFeatured(page, size),
+                "Featured news fetched successfully"));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<NewsDto>> getNewsById(@PathVariable Long id) {
         log.info("GET /api/v1/news/{}", id);

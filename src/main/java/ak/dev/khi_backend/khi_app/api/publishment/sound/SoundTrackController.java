@@ -211,6 +211,15 @@ public class SoundTrackController {
                 "SoundTracks fetched successfully"));
     }
 
+    @GetMapping(value = "/featured", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Page<Response>>> getFeatured(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                soundTrackService.getFeatured(page, size),
+                "Featured sound tracks fetched successfully"));
+    }
+
     // =========================================================================
     // GET BY ID
     // =========================================================================

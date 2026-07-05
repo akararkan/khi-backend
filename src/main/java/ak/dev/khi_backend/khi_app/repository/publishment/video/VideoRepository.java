@@ -258,8 +258,14 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
 
     // NEW — used by SiteContentService.getFeatured(). Same join as above, scoped to featured
     // records and ordered by featuredOrder instead of recency.
-    @Query("select w from Writing w left join fetch w.topic where w.featured = true order by w.featuredOrder asc, w.id desc")
+    @Query("select v from Video v left join fetch v.topic where v.featured = true order by v.featuredOrder asc, v.id desc")
     List<Video> findFeaturedWithTopic();
+
+    @Query(
+            value = "select v from Video v left join fetch v.topic where v.featured = true",
+            countQuery = "select count(v) from Video v where v.featured = true"
+    )
+    Page<Video> findFeaturedWithTopic(Pageable pageable);
 
     long countByFeaturedTrue();
 

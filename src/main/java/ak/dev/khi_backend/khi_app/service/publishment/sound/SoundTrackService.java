@@ -292,6 +292,12 @@ public class SoundTrackService {
         return hydratePage(soundTrackRepository.findAllIds(PageRequest.of(page, size)));
     }
 
+    @Transactional(readOnly = true)
+    public Page<Response> getFeatured(int page, int size) {
+        Pageable pageable = featuredPageable(page, size);
+        return soundTrackRepository.findByFeaturedTrue(pageable).map(this::toResponse);
+    }
+
     @Cacheable(value = "soundTracks",
             key = "'state:' + #state.name() + ':p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
@@ -1113,6 +1119,15 @@ public class SoundTrackService {
                 .attachments(attachResponses)
                 .createdAt(s.getCreatedAt()).updatedAt(s.getUpdatedAt())
                 .build();
+    }
+
+    private Pageable featuredPageable(int page, int size) {
+        return PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "featuredOrder")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
+        );
     }
 
     private FileResponse toFileResponse(SoundTrackFile f) {

@@ -206,6 +206,12 @@ public class VideoService {
     }
 
     @Transactional(readOnly = true)
+    public Page<VideoDTO> getFeatured(int page, int size) {
+        return videoRepository.findFeaturedWithTopic(buildFeaturedPageable(page, size))
+                .map(VideoMapper::toDTO);
+    }
+
+    @Transactional(readOnly = true)
     public Page<VideoDTO> getVideoListing(VideoType videoType, Boolean albumOfMemories,
                                           Long topicId, int page, int size) {
         Pageable pageable = buildPageable(page, size);
@@ -700,6 +706,15 @@ public class VideoService {
 
     private Pageable buildPageable(int page, int size) {
         return PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), DEFAULT_SORT);
+    }
+
+    private Pageable buildFeaturedPageable(int page, int size) {
+        return PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "featuredOrder")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
+        );
     }
 
     /**

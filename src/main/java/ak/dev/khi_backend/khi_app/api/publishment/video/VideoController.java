@@ -86,6 +86,13 @@ public class VideoController {
                 videoType, albumOfMemories, topicId, page, size));
     }
 
+    @GetMapping("/featured")
+    public ResponseEntity<Page<VideoDTO>> getFeatured(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(videoService.getFeatured(page, size));
+    }
+
     // 3) GET BY ID
     @GetMapping("/{id}")
     public ResponseEntity<VideoDTO> getVideoById(@PathVariable Long id) {

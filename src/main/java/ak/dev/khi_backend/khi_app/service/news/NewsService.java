@@ -132,6 +132,12 @@ public class NewsService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public Page<NewsDto> getFeatured(int page, int size) {
+        Pageable pageable = featuredPageable(page, size);
+        return newsRepository.findByFeaturedTrue(pageable).map(this::toDto);
+    }
+
     @Cacheable(value = "news",
             key = "'tag:' + #tag.toLowerCase() + ':lang:' + #language + ':p' + #page + ':s' + #size")
     @Transactional(readOnly = true)
@@ -582,6 +588,15 @@ public class NewsService {
                 .build());
 
         return dto;
+    }
+
+    private Pageable featuredPageable(int page, int size) {
+        return PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "featuredOrder")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
+        );
     }
 
     private void createAuditLog(News news, String action, String note) {

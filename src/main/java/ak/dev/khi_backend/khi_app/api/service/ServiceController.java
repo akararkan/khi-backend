@@ -89,6 +89,15 @@ public class ServiceController {
                 serviceService.getAll(page, size), "All services fetched successfully"));
     }
 
+    @GetMapping("/featured")
+    public ResponseEntity<ApiResponse<Page<ServiceResponse>>> getFeatured(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                serviceService.getFeatured(page, size),
+                "Featured services fetched successfully"));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ServiceResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(

@@ -18,8 +18,7 @@ import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -241,6 +240,17 @@ public class WritingService {
     @Transactional(readOnly = true)
     public Page<Response> getAllWritings(Pageable pageable) {
         return writingRepository.findAllWithTopic(pageable).map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Response> getFeatured(int page, int size) {
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "featuredOrder")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
+        );
+        return writingRepository.findFeaturedWithTopic(pageable).map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)

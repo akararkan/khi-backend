@@ -255,6 +255,12 @@ public class ImageCollectionService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public Page<Response> getFeatured(int page, int size) {
+        Pageable pageable = featuredPageable(page, size);
+        return imageCollectionRepository.findByFeaturedTrue(pageable).map(this::toResponse);
+    }
+
     // =========================================================================
     // FILTER BY TYPE — Paginated + Cached
     // =========================================================================
@@ -1015,6 +1021,15 @@ public class ImageCollectionService {
         b.imageAlbum(items);
 
         return b.build();
+    }
+
+    private Pageable featuredPageable(int page, int size) {
+        return PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "featuredOrder")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
+        );
     }
 
     // =========================================================================
