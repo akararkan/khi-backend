@@ -48,6 +48,7 @@ public class NewsService {
     private final TransactionTemplate       transactionTemplate;
     private final TiptapHtmlProcessor       tiptapHtmlProcessor;
 
+
     // ============================================================
     // CREATE
     // ============================================================
@@ -653,4 +654,6 @@ public class NewsService {
         String t = MDC.get("traceId");
         return (t != null && !t.isBlank()) ? t : UUID.randomUUID().toString();
     }
+
+
 }

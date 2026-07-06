@@ -199,4 +199,6 @@ public interface NewsRepository extends JpaRepository<News, Long> {
 
     long countByFeaturedTrue();
 
+
+
 }
