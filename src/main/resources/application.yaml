@@ -82,6 +82,11 @@ spring:
       cache-null-values: false
       use-key-prefix: true
       key-prefix: "khi:"
+  web:
+    error:
+      include-binding-errors: always
+      include-message: always
+      include-stacktrace: never
 
 
 # ===============================
@@ -146,11 +151,6 @@ aws:
 server:
   forward-headers-strategy: framework
   port: 8080
-  error:
-    include-message: always
-    include-binding-errors: always
-    include-stacktrace: never
-
   tomcat:
     max-swallow-size: 1GB
     max-http-form-post-size: 1GB

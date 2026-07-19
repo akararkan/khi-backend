@@ -199,6 +199,48 @@ public class SoundTrackController {
                 ApiResponse.success(updated, "SoundTrack updated successfully"));
     }
 
+    @PostMapping(
+            value = "/sound-reklam-video",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<SoundReklamVideoResponse>> createSoundReklamVideo(
+            @RequestPart("videoFile") MultipartFile videoFile
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+                soundTrackService.createSoundReklamVideo(videoFile),
+                "Sound reklam video created successfully"
+        ));
+    }
+
+    @GetMapping(value = "/sound-reklam-video", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<SoundReklamVideoResponse>> getSoundReklamVideo() {
+        return ResponseEntity.ok(ApiResponse.success(
+                soundTrackService.getSoundReklamVideo(),
+                "Sound reklam video fetched successfully"
+        ));
+    }
+
+    @PatchMapping(
+            value = "/sound-reklam-video",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<SoundReklamVideoResponse>> updateSoundReklamVideo(
+            @RequestPart("videoFile") MultipartFile videoFile
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                soundTrackService.updateSoundReklamVideo(videoFile),
+                "Sound reklam video updated successfully"
+        ));
+    }
+
+    @DeleteMapping(value = "/sound-reklam-video", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Void> deleteSoundReklamVideo() {
+        soundTrackService.deleteSoundReklamVideo();
+        return ResponseEntity.noContent().build();
+    }
+
     // =========================================================================
     // GET ALL
     // =========================================================================

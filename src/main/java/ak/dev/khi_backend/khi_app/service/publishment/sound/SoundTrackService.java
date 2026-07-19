@@ -4,9 +4,9 @@ import ak.dev.khi_backend.khi_app.dto.publishment.sound.SoundTrackDtos.*;
 import ak.dev.khi_backend.khi_app.enums.Language;
 import ak.dev.khi_backend.khi_app.enums.publishment.AttachmentType;
 import ak.dev.khi_backend.khi_app.enums.publishment.TrackState;
-import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
 import ak.dev.khi_backend.khi_app.exceptions.Errors;
 import ak.dev.khi_backend.khi_app.model.publishment.sound.*;
+import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundReklamVideoRepository;
 import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackLogRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.sound.SoundTrackRepository;
@@ -33,7 +33,12 @@ public class SoundTrackService {
 
     private static final String TOPIC_ENTITY_TYPE = "SOUND";
 
+    private static final String SOUND_REKLAM_VIDEO_NOT_FOUND = "sound.reklamVideo.not_found";
+
+    private static final String SOUND_REKLAM_VIDEO_ALREADY_EXISTS = "sound.reklamVideo.already_exists";
+
     private final SoundTrackRepository       soundTrackRepository;
+    private final SoundReklamVideoRepository soundReklamVideoRepository;
     private final SoundTrackLogRepository    soundTrackLogRepository;
     private final PublishmentTopicRepository topicRepository;
     private final S3Service                  s3Service;
@@ -367,6 +372,73 @@ public class SoundTrackService {
     public Response getById(Long id) {
         return toResponse(soundTrackRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> Errors.soundNotFound(id)));
+    }
+
+    @CacheEvict(value = "soundTracks", allEntries = true)
+    @Transactional
+    public SoundReklamVideoResponse createSoundReklamVideo(MultipartFile videoFile) {
+        validatePromoVideoFile(videoFile);
+
+        if (soundReklamVideoRepository.findTopByOrderByIdAsc().isPresent()) {
+            throw Errors.soundValidation(SOUND_REKLAM_VIDEO_ALREADY_EXISTS, Map.of());
+        }
+
+        try {
+            SoundReklamVideo created = soundReklamVideoRepository.save(
+                    SoundReklamVideo.builder()
+                            .videoUrl(uploadFile(videoFile))
+                            .sizeBytes(videoFile.getSize())
+                            .mimeType(trimOrNull(videoFile.getContentType()))
+                            .build()
+            );
+
+            return toSoundReklamVideoResponse(created);
+        } catch (IOException e) {
+            throw Errors.soundStorageFailed("sound.media_upload_failed",
+                    Map.of("reason", "کێشە لە ناردنی فایل: " + e.getMessage()), e);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public SoundReklamVideoResponse getSoundReklamVideo() {
+        return toSoundReklamVideoResponse(findSoundReklamVideoOrThrow());
+    }
+
+    @CacheEvict(value = "soundTracks", allEntries = true)
+    @Transactional
+    public SoundReklamVideoResponse updateSoundReklamVideo(MultipartFile videoFile) {
+        validatePromoVideoFile(videoFile);
+
+        SoundReklamVideo reklamVideo = findSoundReklamVideoOrThrow();
+        String previousVideoUrl = reklamVideo.getVideoUrl();
+
+        try {
+            reklamVideo.setVideoUrl(uploadFile(videoFile));
+            reklamVideo.setSizeBytes(videoFile.getSize());
+            reklamVideo.setMimeType(trimOrNull(videoFile.getContentType()));
+
+            SoundReklamVideo saved = soundReklamVideoRepository.save(reklamVideo);
+            if (!isBlank(previousVideoUrl)) {
+                s3Service.deleteFile(previousVideoUrl);
+            }
+
+            return toSoundReklamVideoResponse(saved);
+        } catch (IOException e) {
+            throw Errors.soundStorageFailed("sound.media_upload_failed",
+                    Map.of("reason", "کێشە لە ناردنی فایل: " + e.getMessage()), e);
+        }
+    }
+
+    @CacheEvict(value = "soundTracks", allEntries = true)
+    @Transactional
+    public void deleteSoundReklamVideo() {
+        SoundReklamVideo reklamVideo = findSoundReklamVideoOrThrow();
+        String videoUrl = reklamVideo.getVideoUrl();
+
+        soundReklamVideoRepository.delete(reklamVideo);
+        if (!isBlank(videoUrl)) {
+            s3Service.deleteFile(videoUrl);
+        }
     }
 
     // =========================================================================
@@ -1160,6 +1232,17 @@ public class SoundTrackService {
                 .build();
     }
 
+    private SoundReklamVideoResponse toSoundReklamVideoResponse(SoundReklamVideo reklamVideo) {
+        return SoundReklamVideoResponse.builder()
+                .id(reklamVideo.getId())
+                .videoUrl(reklamVideo.getVideoUrl())
+                .sizeBytes(reklamVideo.getSizeBytes())
+                .mimeType(reklamVideo.getMimeType())
+                .createdAt(reklamVideo.getCreatedAt())
+                .updatedAt(reklamVideo.getUpdatedAt())
+                .build();
+    }
+
     private LanguageContentDto toContentDto(SoundTrackContent c) {
         if (c == null) return null;
         return LanguageContentDto.builder()
@@ -1202,6 +1285,27 @@ public class SoundTrackService {
     private int nonEmptyFileCount(List<MultipartFile> files) {
         return files == null ? 0
                 : (int) files.stream().filter(this::hasFile).count();
+    }
+
+    private void validatePromoVideoFile(MultipartFile videoFile) {
+        if (!hasFile(videoFile)) {
+            throw Errors.soundValidation("error.validation", Map.of(
+                    "field", "videoFile",
+                    "message", "ڤیدیۆ پێویستە"
+            ));
+        }
+        String contentType = trimOrNull(videoFile.getContentType());
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("video/")) {
+            throw Errors.soundValidation("error.validation", Map.of(
+                    "field", "videoFile",
+                    "message", "فایلی نێردراو دەبێت ڤیدیۆ بێت"
+            ));
+        }
+    }
+
+    private SoundReklamVideo findSoundReklamVideoOrThrow() {
+        return soundReklamVideoRepository.findTopByOrderByIdAsc()
+                .orElseThrow(() -> Errors.notFound(SOUND_REKLAM_VIDEO_NOT_FOUND, Map.of()));
     }
 
     private String uploadFile(MultipartFile f) throws IOException {

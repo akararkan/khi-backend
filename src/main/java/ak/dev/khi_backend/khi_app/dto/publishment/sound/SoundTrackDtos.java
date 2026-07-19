@@ -416,6 +416,22 @@ public final class SoundTrackDtos {
     }
 
     // =========================================================================
+    // SOUND REKLAM VIDEO RESPONSE
+    // =========================================================================
+
+    @Getter @Setter
+    @NoArgsConstructor @AllArgsConstructor
+    @Builder
+    public static class SoundReklamVideoResponse {
+        private Long id;
+        private String videoUrl;
+        private long sizeBytes;
+        private String mimeType;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
+    }
+
+    // =========================================================================
     // SOUNDTRACK RESPONSE
     // =========================================================================
 
