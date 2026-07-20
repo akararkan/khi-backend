@@ -6,6 +6,8 @@ import ak.dev.khi_backend.khi_app.model.publishment.video.VideoType;
 import ak.dev.khi_backend.khi_app.service.publishment.video.VideoService;
 import ak.dev.khi_backend.khi_app.service.site.SiteContentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,10 +20,42 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+/**
+ * VideoController — REST API for Video publishments.
+ *
+ * ─── Multipart upload strategy ────────────────────────────────────────────────
+ *
+ *  Every write endpoint (POST / PUT) consumes multipart/form-data with the
+ *  following named parts:
+ *
+ *   data          (required) — JSON VideoDTO serialised as a string
+ *   ckbCoverImage (optional) — cover image for the CKB (Sorani) dialect
+ *   kmrCoverImage (optional) — cover image for the KMR (Kurmanji) dialect
+ *   hoverImage    (optional) — hover/thumbnail cover image
+ *   videoFiles    (optional) — one or more video files:
+ *
+ *      FILM type       → videoFiles[0] is the single film file;
+ *                        it sets sourceUrl, clears externalUrl / embedUrl.
+ *      VIDEO_CLIP type → videoFiles[i] maps to videoClipItems[i] by index.
+ *                        Each uploaded file sets that clip's url and clears
+ *                        its externalUrl / embedUrl.
+ *
+ *  Uploaded files take priority over any URL already present in the JSON.
+ *  Omit a videoFiles slot (or send no videoFiles at all) to keep the existing
+ *  URL for that clip / source on update, or to supply a URL via the JSON data
+ *  part instead.
+ *
+ * ─── Topic handling ────────────────────────────────────────────────────────────
+ *  Topics are shared across videos.  You can:
+ *    - Assign an existing topic by ID  → set "topicId" in the JSON
+ *    - Create and assign in one step   → set "newTopic": { nameCkb, nameKmr }
+ *    - Remove the topic on update      → set "clearTopic": true
+ *  Dedicated CRUD for topics: GET/POST/DELETE /api/v1/videos/topics
+ */
 @RestController
 @RequestMapping("/api/v1/videos")
 @RequiredArgsConstructor
-@Tag(name = "Videos", description = "Bilingual videos with multipart uploads and co-located topic CRUD")
+@Tag(name = "Videos", description = "Bilingual video publishments — FILM and VIDEO_CLIP types with direct multipart file upload")
 public class VideoController {
 
     private final VideoService videoService;
@@ -29,7 +63,7 @@ public class VideoController {
 
     private final SiteContentService siteContentService;
 
-    // Featured Patch
+    @Operation(summary = "Mark / unmark a video as featured (ADMIN only)")
     @PatchMapping("/{id}/featured")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> setFeatured(
@@ -39,41 +73,64 @@ public class VideoController {
         return ResponseEntity.noContent().build();
     }
 
-    // 1) ADD
+    @Operation(
+        summary = "Create a new video (FILM or VIDEO_CLIP)",
+        description = """
+            Multipart request. Required part: `data` (JSON VideoDTO).
+            Optional file parts:
+            - `ckbCoverImage` / `kmrCoverImage` / `hoverImage` — cover images uploaded directly.
+            - `videoFiles` — video files uploaded directly (repeat the part for each file):
+                - FILM: `videoFiles[0]` becomes sourceUrl.
+                - VIDEO_CLIP: `videoFiles[i]` maps to `videoClipItems[i]` by index.
+            Files take priority over any URL in the JSON `data` part.
+            """
+    )
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<VideoDTO> addVideo(
-            @RequestPart("data") String dtoJson,
+            @Parameter(description = "JSON-serialised VideoDTO") @RequestPart("data") String dtoJson,
 
-            @RequestPart(value = "ckbCoverImage", required = false) MultipartFile ckbCoverImage,
-            @RequestPart(value = "kmrCoverImage", required = false) MultipartFile kmrCoverImage,
-            @RequestPart(value = "hoverImage", required = false) MultipartFile hoverImage,
+            @Parameter(description = "Cover image — CKB dialect") @RequestPart(value = "ckbCoverImage", required = false) MultipartFile ckbCoverImage,
+            @Parameter(description = "Cover image — KMR dialect") @RequestPart(value = "kmrCoverImage", required = false) MultipartFile kmrCoverImage,
+            @Parameter(description = "Hover/thumbnail cover image") @RequestPart(value = "hoverImage", required = false) MultipartFile hoverImage,
 
-            @RequestPart(value = "videoFile", required = false) MultipartFile videoFile
+            @Parameter(description = "Video file(s). FILM: index 0 = film file. VIDEO_CLIP: index i = clip i.")
+            @RequestPart(value = "videoFiles", required = false) List<MultipartFile> videoFiles
     ) throws Exception {
         VideoDTO dto = objectMapper.readValue(dtoJson, VideoDTO.class);
-        VideoDTO created = videoService.addVideo(dto, ckbCoverImage, kmrCoverImage, hoverImage, videoFile);
+        VideoDTO created = videoService.addVideo(dto, ckbCoverImage, kmrCoverImage, hoverImage, videoFiles);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    // ✅ Topics (from service directly)
+    @Operation(summary = "List all video topics")
     @GetMapping("/topics")
     public ResponseEntity<List<VideoDTO.TopicView>> getVideoTopics() {
         return ResponseEntity.ok(videoService.getTopics());
     }
 
+    @Operation(summary = "Create a video topic")
     @PostMapping("/topics")
     public ResponseEntity<VideoDTO.TopicView> createVideoTopic(@RequestParam(required = false) String nameCkb,
                                                                @RequestParam(required = false) String nameKmr) {
         return ResponseEntity.status(HttpStatus.CREATED).body(videoService.createTopic(nameCkb, nameKmr));
     }
 
+    @Operation(summary = "Delete a video topic (un-links all videos first)")
     @DeleteMapping("/topics/{topicId}")
     public ResponseEntity<Void> deleteVideoTopic(@PathVariable Long topicId) {
         videoService.deleteTopic(topicId);
         return ResponseEntity.noContent().build();
     }
 
-    // 2) GET ALL (paged)
+    @Operation(
+        summary = "List / filter videos (paged)",
+        description = """
+            Filter params (all optional, combinable):
+            - `videoType`  = FILM | VIDEO_CLIP
+            - `memories`   = true | false  (only meaningful when videoType=VIDEO_CLIP)
+            - `topicId`    = filter by topic FK
+            - `page` / `size` for pagination (max size 100)
+            """
+    )
     @GetMapping
     public ResponseEntity<Page<VideoDTO>> getAllVideos(
             @RequestParam(required = false) VideoType videoType,
@@ -86,6 +143,7 @@ public class VideoController {
                 videoType, albumOfMemories, topicId, page, size));
     }
 
+    @Operation(summary = "List featured videos ordered by featuredOrder ASC")
     @GetMapping("/featured")
     public ResponseEntity<Page<VideoDTO>> getFeatured(
             @RequestParam(defaultValue = "0") int page,
@@ -93,13 +151,13 @@ public class VideoController {
         return ResponseEntity.ok(videoService.getFeatured(page, size));
     }
 
-    // 3) GET BY ID
+    @Operation(summary = "Get a single video by ID (full detail with clip items)")
     @GetMapping("/{id}")
     public ResponseEntity<VideoDTO> getVideoById(@PathVariable Long id) {
         return ResponseEntity.ok(videoService.getVideoById(id));
     }
 
-    // 4) SEARCH BY TAG (paged)
+    @Operation(summary = "Search videos by tag (CKB or KMR, partial match, paged)")
     @GetMapping("/search/tag")
     public ResponseEntity<Page<VideoDTO>> searchByTag(
             @RequestParam("value") String value,
@@ -109,7 +167,7 @@ public class VideoController {
         return ResponseEntity.ok(videoService.searchByTag(value, page, size));
     }
 
-    // 5) SEARCH BY KEYWORD (paged)
+    @Operation(summary = "Search videos by keyword across titles, descriptions, directors, and keyword collections (paged)")
     @GetMapping("/search/keyword")
     public ResponseEntity<Page<VideoDTO>> searchByKeyword(
             @RequestParam("value") String value,
@@ -119,24 +177,34 @@ public class VideoController {
         return ResponseEntity.ok(videoService.searchByKeyword(value, page, size));
     }
 
-    // 6) UPDATE
+    @Operation(
+        summary = "Update an existing video",
+        description = """
+            Partial update — null fields in the JSON are ignored (not cleared).
+            Same multipart rules as POST:
+            - `videoFiles[i]` replaces clip i's source; omit to keep the existing source.
+            - On VIDEO_CLIP updates, each clip item in the JSON must carry its persisted `id`.
+            - To remove the topic: set `clearTopic: true` in the JSON.
+            """
+    )
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<VideoDTO> updateVideo(
             @PathVariable Long id,
-            @RequestPart("data") String dtoJson,
+            @Parameter(description = "JSON-serialised VideoDTO") @RequestPart("data") String dtoJson,
 
-            @RequestPart(value = "ckbCoverImage", required = false) MultipartFile ckbCoverImage,
-            @RequestPart(value = "kmrCoverImage", required = false) MultipartFile kmrCoverImage,
-            @RequestPart(value = "hoverImage", required = false) MultipartFile hoverImage,
+            @Parameter(description = "Replacement cover image — CKB dialect") @RequestPart(value = "ckbCoverImage", required = false) MultipartFile ckbCoverImage,
+            @Parameter(description = "Replacement cover image — KMR dialect") @RequestPart(value = "kmrCoverImage", required = false) MultipartFile kmrCoverImage,
+            @Parameter(description = "Replacement hover/thumbnail cover image") @RequestPart(value = "hoverImage", required = false) MultipartFile hoverImage,
 
-            @RequestPart(value = "videoFile", required = false) MultipartFile videoFile
+            @Parameter(description = "Replacement video file(s). FILM: index 0 = film. VIDEO_CLIP: index i = clip i. Omit to keep existing source.")
+            @RequestPart(value = "videoFiles", required = false) List<MultipartFile> videoFiles
     ) throws Exception {
         VideoDTO dto = objectMapper.readValue(dtoJson, VideoDTO.class);
-        VideoDTO updated = videoService.updateVideo(id, dto, ckbCoverImage, kmrCoverImage, hoverImage, videoFile);
+        VideoDTO updated = videoService.updateVideo(id, dto, ckbCoverImage, kmrCoverImage, hoverImage, videoFiles);
         return ResponseEntity.ok(updated);
     }
 
-    // 7) DELETE
+    @Operation(summary = "Delete a video (idempotent — missing ID is a no-op)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteVideo(@PathVariable Long id) {
         videoService.deleteVideo(id);

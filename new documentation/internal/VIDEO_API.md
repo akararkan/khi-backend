@@ -2,7 +2,7 @@
 
 **Base URL:** `/api/v1/videos`
 **Platform:** Spring Boot 3 · JWT · Bilingual (CKB / KMR) · Multipart · Paginated
-**Note:** Write endpoints use multipart/form-data. Upload cover images or video file as separate parts alongside the serialized JSON `data` part.
+**Note:** Write endpoints use multipart/form-data. Upload cover images and video files as separate named parts alongside the JSON `data` part. Repeat the `videoFiles` part once per clip for VIDEO_CLIP type.
 
 ---
 
@@ -32,6 +32,9 @@
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `videoType` | enum | — | Filter by `FILM` or `VIDEO_CLIP` |
+| `memories` | boolean | — | Filter VIDEO_CLIP by album-of-memories flag |
+| `topicId` | long | — | Filter by topic ID |
 | `page` | int | `0` | Page index (0-based) |
 | `size` | int | `10` | Items per page |
 
@@ -191,7 +194,13 @@
 | `ckbCoverImage` | file | No | Sorani cover image — overrides `ckbCoverUrl` in data |
 | `kmrCoverImage` | file | No | Kurmanji cover image — overrides `kmrCoverUrl` in data |
 | `hoverImage` | file | No | Hover-state image — overrides `hoverCoverUrl` in data |
-| `videoFile` | file | No | Video binary (FILM type only) — overrides `sourceUrl` in data |
+| `videoFiles` | file (repeat) | No | Video file(s) uploaded directly. **FILM:** `videoFiles[0]` sets `sourceUrl`. **VIDEO_CLIP:** `videoFiles[i]` sets `url` of `videoClipItems[i]` (zero-based index). Repeat this part once per clip. Uploaded files take priority over any URL in the JSON. |
+
+> **Upload approaches for video files:**
+>
+> **Approach A — Pre-upload then URL (existing):** Upload to `POST /api/v1/media/upload` first, then set `sourceUrl` / `videoClipItems[].url` in the JSON `data` part.
+>
+> **Approach B — Direct inline (new):** Send video files as `videoFiles` parts in the same request. No `url` field needed in the JSON for those clips/film. Index maps: `videoFiles[0]` → clip 0, `videoFiles[1]` → clip 1, etc.
 
 **`data` JSON Fields:**
 
@@ -332,7 +341,7 @@
 |-----------|------|----------|-------------|
 | `id` | long | **Yes** | ID of the video to update |
 
-**Form Parts:** Same as `POST /`. Uses the same `VideoDTO` in `data`.
+**Form Parts:** Same as `POST /`. `videoFiles[i]` replaces clip i's source file; omit `videoFiles` entirely to keep existing clip sources unchanged.
 
 **Extra field in `data`:**
 
@@ -425,4 +434,6 @@ Setting `featured` to `false` clears `featuredOrder`.
 | `401 Unauthorized` | JWT token is missing or invalid |
 | `403 Forbidden` | Authenticated user does not have `ADMIN` or `SUPER_ADMIN` role |
 | `404 Not Found` | Video or topic not found with the given ID |
+| `400 Bad Request` | Clip item `id` does not belong to this video (`video.clip.id.invalid`) |
+| `400 Bad Request` | Duplicate clip item `id` in the same request (`video.clip.id.duplicate`) |
 | `500 Internal Server Error` | Unexpected server-side failure or file upload error |

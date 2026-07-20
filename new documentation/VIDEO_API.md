@@ -244,9 +244,11 @@ Create a new video. The JSON payload goes in the `data` part. Cover images and a
 | `ckbCoverImage` | File (image/*) | No | Sorani cover image. Uploaded to S3; URL set on the video |
 | `kmrCoverImage` | File (image/*) | No | Kurmanji cover image |
 | `hoverImage` | File (image/*) | No | Hover overlay image |
-| `videoFile` | File (video/*) | No | Video binary file. Relevant for `FILM` type. Sets `sourceUrl` after upload |
+| `videoFiles` | File (video/*, repeat) | No | Video file(s) uploaded directly alongside the JSON. **FILM:** `videoFiles[0]` → `sourceUrl`. **VIDEO_CLIP:** `videoFiles[i]` → `videoClipItems[i].url` (zero-based index). Repeat this part once per clip. Uploaded files override any URL in the JSON `data` part. Omit to supply URLs in the JSON instead. |
 
 > ℹ️ All covers are **optional**. The service does not enforce any cover-required rule on create — videos can be saved with zero cover images and added later.
+
+> ℹ️ **Two approaches for video files:** (A) Pre-upload via `POST /api/v1/media/upload` and set `sourceUrl` / `videoClipItems[].url` in the JSON — still fully supported. (B) Send files directly as `videoFiles` parts in this same request — no URL needed in the JSON for those clips. Index `i` of `videoFiles` maps to index `i` of `videoClipItems`.
 
 ---
 
@@ -377,6 +379,8 @@ Create a new video. The JSON payload goes in the `data` part. Cover images and a
 }
 ```
 
+> ℹ️ The `url` fields above use Approach A (pre-uploaded URLs). With Approach B, omit `url` / `externalUrl` / `embedUrl` from each clip item and send the files as `videoFiles[0]`, `videoFiles[1]`, etc. parts instead.
+
 ---
 
 ### `data` JSON Part — VIDEO_CLIP Type (Inline Topic Creation)
@@ -438,7 +442,7 @@ curl -X POST https://api.khi.iq/api/v1/videos \
   -F "ckbCoverImage=@ckb-cover.jpg;type=image/jpeg" \
   -F "kmrCoverImage=@kmr-cover.jpg;type=image/jpeg" \
   -F "hoverImage=@hover.jpg;type=image/jpeg" \
-  -F "videoFile=@documentary.mp4;type=video/mp4"
+  -F "videoFiles=@documentary.mp4;type=video/mp4"
 ```
 
 ---
@@ -518,7 +522,7 @@ curl -X POST https://api.khi.iq/api/v1/videos \
 
 ### Form Parts
 
-Same as `POST /` — `data`, `ckbCoverImage`, `kmrCoverImage`, `hoverImage`, `videoFile`. All parts except `data` are optional.
+Same as `POST /` — `data`, `ckbCoverImage`, `kmrCoverImage`, `hoverImage`, `videoFiles`. All parts except `data` are optional. Supply `videoFiles[i]` to replace clip i's source; omit `videoFiles` entirely to keep all existing clip sources.
 
 ### Update Semantics
 
@@ -641,6 +645,9 @@ Returns a paginated list of all videos. Default page size is `10`. Each item inc
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
+| `videoType` | `VideoType` | — | Filter by video type: `FILM` \| `VIDEO_CLIP` |
+| `memories` | boolean | — | Filter `VIDEO_CLIP` by album-of-memories flag (only meaningful when `videoType=VIDEO_CLIP`) |
+| `topicId` | Long | — | Filter by topic FK ID |
 | `page` | int | `0` | Zero-based page index |
 | `size` | int | `10` | Items per page |
 
@@ -994,7 +1001,7 @@ Used in `videoClipItems` on both request and response. **At least one of `url`, 
 | Field | Type | Request | Response | Description |
 | --- | --- | --- | --- | --- |
 | `id` | Long | — | ✅ | DB primary key |
-| `url` / `externalUrl` / `embedUrl` | String | One required | ✅ | Clip source URLs |
+| `url` / `externalUrl` / `embedUrl` | String | At least one required **unless** a file is uploaded via the corresponding `videoFiles[i]` multipart part — the uploaded file sets `url` automatically. | ✅ | Clip source URLs |
 | `clipNumber` | Integer | Optional | ✅ | Sequence order. Collection ordered `ASC` |
 | `durationSeconds` | Integer | Optional | ✅ | Clip duration in seconds |
 | `resolution` | String | Optional | ✅ | e.g. `"1080p"` |
@@ -1069,6 +1076,8 @@ Internal audit log shape. Not currently exposed via a public endpoint.
 | `video.clip.source.required` | A `VIDEO_CLIP` clip item has none of `url` / `externalUrl` / `embedUrl` |
 | `video.topic.names.required` | `POST /topics` (or `newTopic`) with both names blank |
 | `topic.type.mismatch` | `topicId` provided but topic is not a `VIDEO` topic |
+| `video.clip.id.invalid` | On `PUT /{id}`, a clip item DTO carries an `id` that does not belong to this video |
+| `video.clip.id.duplicate` | On `PUT /{id}`, the same clip item `id` appears more than once in `videoClipItems` |
 
 > ℹ️ The keys `video.cover.ckb.required`, `video.cover.kmr.required`, and `video.cover.hover.required` are **mentioned in the service JavaDoc** but **not enforced** by the current code — all covers are optional on create and update. Treat the JavaDoc references as historical/planning notes only.
 
@@ -1116,6 +1125,7 @@ Internal audit log shape. Not currently exposed via a public endpoint.
 | Endpoint (path) | Old version | New version | Change |
 | --- | --- | --- | --- |
 | `POST /` | Multipart create | Multipart create | ⚪ Unchanged |
+| `POST /` and `PUT /{id}` | `videoFile` — single file part | `videoFiles` — list of files; `videoFiles[i]` maps to clip i for VIDEO_CLIP, `videoFiles[0]` for FILM | 🟢 Extended |
 | `PUT /{id}` | Multipart update | Multipart update — **partial-merge** semantics formalized | 🟡 Behaviour clarified |
 | `GET /` | Paginated list | Paginated list (`Page<VideoDTO>`, **no ApiResponse**) | 🟡 Wrapper clarified |
 | `GET /{id}` | Get by id | Get by id (returns `VideoDTO` directly) | ⚪ Unchanged |
@@ -1167,6 +1177,8 @@ Internal audit log shape. Not currently exposed via a public endpoint.
 | — | `video.topic.names.required` | 🟢 **Added** — `POST /topics` with both names blank |
 | — | `topic.type.mismatch` | 🟢 **Added** — `topicId` points to a non-VIDEO topic |
 | — | `video.cover.ckb.required` / `video.cover.kmr.required` / `video.cover.hover.required` | 🟡 **Mentioned in JavaDoc only** — not actually thrown by the current service. Covers remain optional on create and update |
+| — | `video.clip.id.invalid` | 🟢 **Added** — clip item `id` not found on the video being updated |
+| — | `video.clip.id.duplicate` | 🟢 **Added** — same clip item `id` used twice in one update request |
 
 ### E) Caching & performance
 
@@ -1190,7 +1202,7 @@ The "no `ApiResponse` wrapper" is a Video-specific quirk and is preserved as-is.
 ### G) Summary
 
 - 🟡 **Changed:** `ckbContent.description` and `kmrContent.description` are now **Tiptap HTML**, processed by `TiptapHtmlProcessor` on save; `video.not.found` was renamed to `video.not_found`; `VideoClipItemDTO` URL requirement is now enforced (was documented as soft "should").
-- 🟢 **Added:** comprehensive DB-index documentation across `videos`, `video_clip_items`, and `video_logs`; new error keys `video.dto.required`, `video.id.required`, `video.clip.source.required`, `video.topic.names.required`, `topic.type.mismatch`; entity helper methods (`addClipItem`, `removeClipItem`, `isVideoClipAlbumOfMemories()`); explicit documentation that `@ElementCollection` fields are `EAGER` with `@BatchSize(25)`.
+- 🟢 **Added:** comprehensive DB-index documentation across `videos`, `video_clip_items`, and `video_logs`; new error keys `video.dto.required`, `video.id.required`, `video.clip.source.required`, `video.topic.names.required`, `topic.type.mismatch`; entity helper methods (`addClipItem`, `removeClipItem`, `isVideoClipAlbumOfMemories()`); explicit documentation that `@ElementCollection` fields are `EAGER` with `@BatchSize(25)`; `videoFiles` list part replacing the old single `videoFile` part — VIDEO_CLIP now supports direct multi-file upload where `videoFiles[i]` maps to `videoClipItems[i]` by index; new error keys `video.clip.id.invalid` and `video.clip.id.duplicate` for clip identity validation on update.
 - 🔴 **Removed:** the dedicated `video.topic.delete.not.found`, `video.tag.value.required`, and `video.keyword.value.required` keys — the controller now relies on framework validation / generic `NotFoundException` for these cases.
 - 🟡 **Documented but not enforced:** `video.cover.ckb.required`, `video.cover.kmr.required`, `video.cover.hover.required` appear in the service JavaDoc but are **not actually thrown** by the code. Covers remain optional on create and update.
 - 🚧 **Caching absent:** unlike other publishment modules, the Video service has no `@Cacheable` / `@CacheEvict` annotations — every read hits the DB. Worth flagging if you want to align with News / Image / SoundTrack performance behaviour.

@@ -30,22 +30,31 @@ import java.util.stream.Collectors;
 /**
  * سێرڤیسی ڤیدیۆ - بەڕێوەبردنی فیلم و کلیپە ڤیدیۆییەکان
  *
- * لیستی هەڵە کوردیەکان کە بەکاردێن:
+ * ─── ناردنی فایلی ڤیدیۆ ────────────────────────────────────────────────────────
  *
- * ١. "video.dto.required" = "زانیاری ڤیدیۆ پێویستە: DTO ناتوانرێت بەتاڵە بێت" (Bad Request)
- * ٢. "video.type.required" = "جۆری ڤیدیۆ پێویستە: دەبێت جۆر دیاری بکرێت (FILM یان CLIP)" (Bad Request)
- * ٣. "video.id.required" = "ئایدیی ڤیدیۆ پێویستە" (Bad Request)
- * ٤. "video.not_found" = "ڤیدیۆکە نەدۆزرایەوە: ئایدییەکە بوونی نییە لە سیستەم" (Not Found)
- * ٥. "video.cover.ckb.required" = "وێنەی بەرگی کوردیی ناوەندی پێویستە" (Bad Request)
- * ٦. "video.cover.kmr.required" = "وێنەی بەرگی کوردیی باکووری پێویستە" (Bad Request)
- * ٧. "video.cover.hover.required" = "وێنەی هاڤەر (hover) پێویستە" (Bad Request)
- * ٨. "video.clip.source.required" = "سەرچاوەی کلیپ پێویستە: هەر کلیپێک دەبێت لینکی ڕاستەقینە یان دەرەکی یان ئێمبێد هەبێت" (Bad Request)
- * ٩. "topic.not_found" = "بابەت نەدۆزرایەوە" (Not Found)
- * ١٠. "topic.type.mismatch" = "جۆری بابەت هەڵەیە: بابەتەکە بۆ VIDEO نییە" (Bad Request)
- * ١١. "video.topic.names.required" = "ناوی بابەت پێویستە: دەبێت لانیکەم ناوێکی کوردی بنووسرێت" (Bad Request)
- * ١٢. "search.keyword.required" = "کلیلەووشەی گەڕان پێویستە" (Bad Request)
- * ١٣. "search.tag.required" = "تاگی گەڕان پێویستە" (Bad Request)
- * ١٤. "media.upload.failed" = "شکستی ناردنی فایل: کێشە لە ناردنی فایل بۆ S3" (Bad Request)
+ *  FILM type:
+ *    videoFiles[0]  → sourceUrl دەنێت بۆ ڤیدیۆکە (فایل لەسەر URL پێشەکییە)
+ *
+ *  VIDEO_CLIP type:
+ *    videoFiles[i]  → url دەنێت بۆ videoClipItems[i] بەپێی ئینگزەس
+ *    هەر فایلێک کە بنێردرێت externalUrl و embedUrl ی کلیپەکە بەتاڵ دەکاتەوە
+ *    ئەگەر فایل نەبێت بۆ ئینگزەسێک، پێویستە url/externalUrl/embedUrl لە JSON بێت
+ *
+ * ─── لیستی هەڵەکان ─────────────────────────────────────────────────────────────
+ *
+ *  ١.  video.dto.required         DTO بەتاڵە (Bad Request)
+ *  ٢.  video.type.required        جۆری ڤیدیۆ نەدراوە (Bad Request)
+ *  ٣.  video.id.required          ئایدی پێویستە (Bad Request)
+ *  ٤.  video.not_found            ڤیدیۆکە نەدۆزرایەوە (Not Found)
+ *  ٥.  video.clip.source.required کلیپ بێ سەرچاوەیە (Bad Request)
+ *  ٦.  video.clip.id.invalid      ئایدیی کلیپ لە ئەم ڤیدیۆیەدا نییە (Bad Request)
+ *  ٧.  video.clip.id.duplicate    ئایدیی کلیپ دووبارە هاتووە (Bad Request)
+ *  ٨.  topic.not_found            بابەت نەدۆزرایەوە (Not Found)
+ *  ٩.  topic.type.mismatch        بابەت بۆ VIDEO نییە (Bad Request)
+ *  ١٠. video.topic.names.required ناوی بابەت پێویستە (Bad Request)
+ *  ١١. search.keyword.required    کلیلەووشەی گەڕان پێویستە (Bad Request)
+ *  ١٢. search.tag.required        تاگی گەڕان پێویستە (Bad Request)
+ *  ١٣. media.upload.failed        شکستی ناردنی فایل بۆ S3 (Bad Request)
  */
 @Slf4j
 @Service
@@ -127,13 +136,18 @@ public class VideoService {
     /**
      * دروستکردنی ڤیدیۆی نوێ
      *
-     * @throws BadRequestException - "زانیاری ڤیدیۆ پێویستە"
-     * @throws BadRequestException - "جۆری ڤیدیۆ پێویستە"
-     * @throws BadRequestException - "وێنەی بەرگی کوردیی ناوەندی پێویستە"
-     * @throws BadRequestException - "وێنەی بەرگی کوردیی باکووری پێویستە"
-     * @throws BadRequestException - "وێنەی هاڤەر پێویستە"
-     * @throws BadRequestException - "سەرچاوەی کلیپ پێویستە"
-     * @throws BadRequestException - "شکستی ناردنی فایل"
+     * @param dto          زانیاری ڤیدیۆ (JSON)
+     * @param ckbCoverImage وێنەی بەرگی CKB (ئارەزوومەندانە)
+     * @param kmrCoverImage وێنەی بەرگی KMR (ئارەزوومەندانە)
+     * @param hoverImage   وێنەی هاڤەر (ئارەزوومەندانە)
+     * @param videoFiles   لیستی فایلەکانی ڤیدیۆ:
+     *                       FILM       → videoFiles[0] = فایلی فیلم
+     *                       VIDEO_CLIP → videoFiles[i] = فایلی کلیپی i
+     *
+     * @throws BadRequestException video.dto.required      — DTO بەتاڵە
+     * @throws BadRequestException video.type.required     — جۆری ڤیدیۆ نەدراوە
+     * @throws BadRequestException video.clip.source.required — کلیپ بێ سەرچاوەیە
+     * @throws BadRequestException media.upload.failed     — شکستی ناردنی فایل
      */
     @Transactional
     public VideoDTO addVideo(
@@ -141,7 +155,7 @@ public class VideoService {
             MultipartFile ckbCoverImage,
             MultipartFile kmrCoverImage,
             MultipartFile hoverImage,
-            MultipartFile videoFile
+            List<MultipartFile> videoFiles
     ) {
         requireDto(dto);
 
@@ -171,14 +185,14 @@ public class VideoService {
         enforceAlbumRule(video, dto);
 
         if (video.getVideoType() == VideoType.FILM) {
-            applyVideoSource(video, dto, videoFile);
+            applyVideoSource(video, dto, videoFiles);
 
             if (video.getVideoClipItems() != null) {
                 video.getVideoClipItems().clear();
             }
         } else {
             clearFilmSourceFields(video);
-            buildAndAttachClipItems(video, dto);
+            buildAndAttachClipItems(video, dto, videoFiles);
         }
 
         processTiptapHtml(video);
@@ -268,10 +282,25 @@ public class VideoService {
     /**
      * نوێکردنەوەی زانیاری ڤیدیۆ
      *
-     * @throws BadRequestException    - "زانیاری ڤیدیۆ پێویستە"
-     * @throws BadRequestException    - "ئایدیی ڤیدیۆ پێویستە"
-     * @throws NotFoundException      - "ڤیدیۆکە نەدۆزرایەوە"
-     * @throws BadRequestException    - "شکستی ناردنی فایل"
+     * نووسینەوەی بەشی: فیێلدی null لە DTO بەرپرسایەتی نییە (نابێت بگۆڕدرێت).
+     *
+     * @param id           ئایدیی ڤیدیۆی ئاماژەکراو
+     * @param dto          زانیاری نوێ (JSON)
+     * @param ckbCoverImage وێنەی بەرگی CKB — ئەگەر بنێردرێت جێگای کۆنەکەی دەگرێت
+     * @param kmrCoverImage وێنەی بەرگی KMR — ئەگەر بنێردرێت جێگای کۆنەکەی دەگرێت
+     * @param hoverImage   وێنەی هاڤەر — ئەگەر بنێردرێت جێگای کۆنەکەی دەگرێت
+     * @param videoFiles   لیستی فایلەکانی ڤیدیۆ بۆ جێگرتن:
+     *                       FILM       → videoFiles[0] جێگای sourceUrl دەگرێت
+     *                       VIDEO_CLIP → videoFiles[i] جێگای url ی کلیپی i دەگرێت;
+     *                                   ئەگەر null بێت، سەرچاوەی کۆنی کلیپەکە دەمێنێتەوە
+     *
+     * @throws BadRequestException video.dto.required         — DTO بەتاڵە
+     * @throws BadRequestException video.id.required          — ئایدی نەدراوە
+     * @throws NotFoundException   video.not_found            — ڤیدیۆکە نەدۆزرایەوە
+     * @throws BadRequestException video.clip.source.required — کلیپ بێ سەرچاوەیە
+     * @throws BadRequestException video.clip.id.invalid      — ئایدیی کلیپ هەڵەیە
+     * @throws BadRequestException video.clip.id.duplicate    — ئایدیی کلیپ دووبارە
+     * @throws BadRequestException media.upload.failed        — شکستی ناردنی فایل
      */
     @Transactional
     public VideoDTO updateVideo(
@@ -280,7 +309,7 @@ public class VideoService {
             MultipartFile ckbCoverImage,
             MultipartFile kmrCoverImage,
             MultipartFile hoverImage,
-            MultipartFile videoFile
+            List<MultipartFile> videoFiles
     ) {
         requireDto(dto);
 
@@ -317,12 +346,12 @@ public class VideoService {
 
         if (video.getVideoType() == VideoType.FILM) {
             clearClipItems(video);
-            applyVideoSourceForUpdate(video, dto, videoFile);
+            applyVideoSourceForUpdate(video, dto, videoFiles);
         } else {
             clearFilmSourceFields(video);
             if (dto.getVideoClipItems() != null) {
                 List<VideoClipItem> mergedClips = mergeClipItems(
-                        video, dto.getVideoClipItems());
+                        video, dto.getVideoClipItems(), videoFiles);
                 clearClipItems(video);
                 video.getVideoClipItems().addAll(mergedClips);
             }
@@ -440,25 +469,40 @@ public class VideoService {
     // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * دروستکردن و لکاندنی مادەکانی کلیپ
+     * دروستکردن و لکاندنی مادەکانی کلیپ (بۆ CREATE)
      *
-     * @throws BadRequestException - "سەرچاوەی کلیپ پێویستە"
+     * بۆ هەر کلیپێک (ئینگزەسی i):
+     *   ١. ئەگەر videoFiles[i] هەبێت → فایل بۆ S3 دەنێردرێت، url دەبێتە سەرچاوە
+     *   ٢. ئەگەر نەبێت → دەبێت url/externalUrl/embedUrl لە JSON بێت
+     *
+     * @throws BadRequestException video.clip.source.required — کلیپ بێ سەرچاوەیە
      */
-    private void buildAndAttachClipItems(Video video, VideoDTO dto) {
+    private void buildAndAttachClipItems(Video video, VideoDTO dto, List<MultipartFile> videoFiles) {
         if (dto == null || dto.getVideoClipItems() == null || dto.getVideoClipItems().isEmpty()) return;
 
-        for (VideoDTO.VideoClipItemDTO clipDto : dto.getVideoClipItems()) {
+        List<VideoDTO.VideoClipItemDTO> clipDtos = dto.getVideoClipItems();
+        for (int i = 0; i < clipDtos.size(); i++) {
+            VideoDTO.VideoClipItemDTO clipDto = clipDtos.get(i);
             if (clipDto == null) continue;
-            if (isBlank(clipDto.getUrl()) && isBlank(clipDto.getExternalUrl()) && isBlank(clipDto.getEmbedUrl())) {
-                // هەڵە: هەر کلیپێک دەبێت لانیکەم یەک سەرچاوەی هەبێت
+
+            // If a file was uploaded for this index, use it; otherwise fall back to URL fields.
+            MultipartFile file = (videoFiles != null && i < videoFiles.size()) ? videoFiles.get(i) : null;
+            String resolvedUrl = (file != null && !file.isEmpty()) ? uploadToS3(file) : null;
+
+            boolean hasUploadedFile = resolvedUrl != null;
+            if (!hasUploadedFile
+                    && isBlank(clipDto.getUrl())
+                    && isBlank(clipDto.getExternalUrl())
+                    && isBlank(clipDto.getEmbedUrl())) {
                 throw new BadRequestException("video.clip.source.required",
-                        Map.of("message", "هەر کلیپێک پێویستی بە لینکی ڕاستەقینە یان دەرەکی یان ئێمبێد هەیە"));
+                        Map.of("field", "videoClipItems[" + i + "]",
+                               "message", "هەر کلیپێک پێویستی بە لینکی ڕاستەقینە یان دەرەکی یان ئێمبێد هەیە"));
             }
 
             VideoClipItem item = VideoClipItem.builder()
-                    .url(trimOrNull(clipDto.getUrl()))
-                    .externalUrl(trimOrNull(clipDto.getExternalUrl()))
-                    .embedUrl(trimOrNull(clipDto.getEmbedUrl()))
+                    .url(hasUploadedFile ? resolvedUrl : trimOrNull(clipDto.getUrl()))
+                    .externalUrl(hasUploadedFile ? null : trimOrNull(clipDto.getExternalUrl()))
+                    .embedUrl(hasUploadedFile ? null : trimOrNull(clipDto.getEmbedUrl()))
                     .clipNumber(clipDto.getClipNumber())
                     .durationSeconds(clipDto.getDurationSeconds())
                     .resolution(trimOrNull(clipDto.getResolution()))
@@ -502,9 +546,21 @@ public class VideoService {
         }
     }
 
+    /**
+     * نوێکردنەوەی مادەکانی کلیپ بە بەکارهێنانی ئینگزەس (بۆ UPDATE)
+     *
+     * بۆ هەر کلیپێک (ئینگزەسی i):
+     *   ١. ئەگەر videoFiles[i] هەبێت → فایل بۆ S3 دەنێردرێت، url دەگۆڕدرێت
+     *   ٢. ئەگەر نەبێت + کلیپ لە JSON سەرچاوەی هەبێت → url/externalUrl/embedUrl دەگۆڕدرێت
+     *   ٣. ئەگەر هیچیان نەبێت → سەرچاوەی کۆنی کلیپەکە دەمێنێتەوە
+     *
+     * @throws BadRequestException video.clip.id.invalid   — ئایدیی کلیپ هەڵەیە
+     * @throws BadRequestException video.clip.id.duplicate — ئایدیی کلیپ دووبارە
+     */
     private List<VideoClipItem> mergeClipItems(
             Video video,
-            List<VideoDTO.VideoClipItemDTO> clipDtos
+            List<VideoDTO.VideoClipItemDTO> clipDtos,
+            List<MultipartFile> videoFiles
     ) {
         Map<Long, VideoClipItem> existingById = video.getVideoClipItems().stream()
                 .filter(Objects::nonNull)
@@ -529,11 +585,18 @@ public class VideoService {
                 item.setVideo(video);
             }
 
-            if (hasClipSource(dto)) {
+            // If a video file was uploaded for this index, it takes priority over URL fields.
+            MultipartFile file = (videoFiles != null && i < videoFiles.size()) ? videoFiles.get(i) : null;
+            if (file != null && !file.isEmpty()) {
+                item.setUrl(uploadToS3(file));
+                item.setExternalUrl(null);
+                item.setEmbedUrl(null);
+            } else if (hasClipSource(dto)) {
                 item.setUrl(trimOrNull(dto.getUrl()));
                 item.setExternalUrl(trimOrNull(dto.getExternalUrl()));
                 item.setEmbedUrl(trimOrNull(dto.getEmbedUrl()));
             }
+
             if (dto.getClipNumber() != null) item.setClipNumber(dto.getClipNumber());
             if (dto.getDurationSeconds() != null) item.setDurationSeconds(dto.getDurationSeconds());
             if (dto.getResolution() != null) item.setResolution(trimOrNull(dto.getResolution()));
@@ -598,7 +661,8 @@ public class VideoService {
     // یاریدەدەرەکانی سەرچاوە و وێنەی بەرگ
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private void applyVideoSource(Video video, VideoDTO dto, MultipartFile videoFile) {
+    private void applyVideoSource(Video video, VideoDTO dto, List<MultipartFile> videoFiles) {
+        MultipartFile videoFile = (videoFiles != null && !videoFiles.isEmpty()) ? videoFiles.get(0) : null;
         if (videoFile != null && !videoFile.isEmpty()) {
             video.setSourceUrl(uploadToS3(videoFile));
             video.setSourceExternalUrl(null);
@@ -617,7 +681,8 @@ public class VideoService {
         }
     }
 
-    private void applyVideoSourceForUpdate(Video video, VideoDTO dto, MultipartFile videoFile) {
+    private void applyVideoSourceForUpdate(Video video, VideoDTO dto, List<MultipartFile> videoFiles) {
+        MultipartFile videoFile = (videoFiles != null && !videoFiles.isEmpty()) ? videoFiles.get(0) : null;
         if (videoFile != null && !videoFile.isEmpty()) {
             video.setSourceUrl(uploadToS3(videoFile));
             video.setSourceExternalUrl(null);

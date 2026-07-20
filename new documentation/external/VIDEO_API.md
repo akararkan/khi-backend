@@ -26,6 +26,9 @@
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `videoType` | enum | — | Filter by type: `FILM` or `VIDEO_CLIP` |
+| `memories` | boolean | — | Filter VIDEO_CLIP by album-of-memories flag (only meaningful when `videoType=VIDEO_CLIP`) |
+| `topicId` | long | — | Filter by topic ID |
 | `page` | int | `0` | Page index (0-based) |
 | `size` | int | `10` | Items per page |
 
@@ -111,7 +114,7 @@
 | `sourceEmbedUrl` | string | Embed/iframe URL (FILM only, may be null) |
 | `videoClipItems` | array | Clip list (VIDEO_CLIP only, null for FILM) |
 | `videoClipItems[].clipNumber` | int | Clip sequence number |
-| `videoClipItems[].url` | string | Clip URL |
+| `videoClipItems[].url` | string | Direct clip URL (set automatically when clip file uploaded via `videoFiles` part — see write endpoints) |
 | `videoClipItems[].durationSeconds` | int | Clip duration |
 | `videoClipItems[].titleCkb` | string | Clip title (Sorani) |
 | `videoClipItems[].titleKmr` | string | Clip title (Kurmanji) |
