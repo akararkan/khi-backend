@@ -5,6 +5,7 @@ import ak.dev.khi_backend.khi_app.exceptions.BadRequestException;
 import ak.dev.khi_backend.khi_app.exceptions.NotFoundException;
 import ak.dev.khi_backend.khi_app.model.service.ServiceAuditLog;
 import ak.dev.khi_backend.khi_app.model.service.ServiceContent;
+import ak.dev.khi_backend.khi_app.model.service.ServiceMedia;
 import ak.dev.khi_backend.khi_app.repository.service.ServiceAuditLogRepository;
 import ak.dev.khi_backend.khi_app.repository.service.ServiceRepository;
 import ak.dev.khi_backend.khi_app.service.media.TiptapHtmlProcessor;
@@ -47,7 +48,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ServiceService {
 
-    private static final Set<String>    ALLOWED_LANG_CODES = Set.of("CKB", "KMR");
+    private static final Set<String>    ALLOWED_LANG_CODES   = Set.of("CKB", "KMR");
+    private static final Set<String>    ALLOWED_LAYOUT_TYPES = Set.of("MEDIA_HERO", "FEATURE_GRID", "DEFAULT");
+    private static final Set<String>    ALLOWED_MEDIA_TYPES  = Set.of("IMAGE", "VIDEO");
+    /** Slug-like: lowercase/uppercase alphanumerics separated by single hyphens. */
+    private static final java.util.regex.Pattern NAV_ANCHOR_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$");
+    /** Video file extensions auto-detected as VIDEO slots. */
+    private static final Set<String>    VIDEO_EXTENSIONS =
+            Set.of(".mp4", ".webm", ".mov", ".m4v", ".ogv", ".ogg");
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -202,16 +211,21 @@ public class ServiceService {
 
         validateContents(request.getContents());
 
+        String navAnchorId = normalizeNavAnchorId(request.getNavAnchorId());
+        validateNavAnchorUnique(navAnchorId, null);
+
         ak.dev.khi_backend.khi_app.model.service.Service service =
                 ak.dev.khi_backend.khi_app.model.service.Service.builder()
                         .serviceType(trimRequired(request.getServiceType(), "serviceType"))
                         .location(trimOrNull(request.getLocation()))
                         .active(true)
                         .publishedAt(parseDateTime(request.getPublishedAt()))
-                        .layoutType(trimOrNull(request.getLayoutType()))
+                        .sortOrder(request.getSortOrder())
+                        .layoutType(normalizeLayoutType(request.getLayoutType()))
                         .heroVideoUrl(trimOrNull(request.getHeroVideoUrl()))
                         .heroPosterUrl(trimOrNull(request.getHeroPosterUrl()))
-                        .navAnchorId(trimOrNull(request.getNavAnchorId()))
+                        .navAnchorId(navAnchorId)
+                        .galleryMedia(cleanGalleryMedia(request.getGalleryMedia()))
                         .featureImageUrls(cleanStrings(request.getFeatureImageUrls()))
                         .thumbnailUrls(cleanStrings(request.getThumbnailUrls()))
                         .partnerIds(cleanIds(request.getPartnerIds()))
@@ -249,13 +263,19 @@ public class ServiceService {
 
         validateContents(request.getContents());
 
+        String navAnchorId = normalizeNavAnchorId(request.getNavAnchorId());
+        validateNavAnchorUnique(navAnchorId, id);
+
         service.setServiceType(trimRequired(request.getServiceType(), "serviceType"));
         service.setLocation(trimOrNull(request.getLocation()));
         service.setPublishedAt(parseDateTime(request.getPublishedAt()));
-        service.setLayoutType(trimOrNull(request.getLayoutType()));
+        service.setSortOrder(request.getSortOrder());
+        service.setLayoutType(normalizeLayoutType(request.getLayoutType()));
         service.setHeroVideoUrl(trimOrNull(request.getHeroVideoUrl()));
         service.setHeroPosterUrl(trimOrNull(request.getHeroPosterUrl()));
-        service.setNavAnchorId(trimOrNull(request.getNavAnchorId()));
+        service.setNavAnchorId(navAnchorId);
+        service.getGalleryMedia().clear();
+        service.getGalleryMedia().addAll(cleanGalleryMedia(request.getGalleryMedia()));
         service.getFeatureImageUrls().clear();
         service.getFeatureImageUrls().addAll(cleanStrings(request.getFeatureImageUrls()));
         service.getThumbnailUrls().clear();
@@ -478,6 +498,84 @@ public class ServiceService {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    /**
+     * Normalise the ordered gallery: drop null/blank-URL slots, de-duplicate by
+     * URL (first wins, preserving order), validate/auto-detect the slot type.
+     */
+    private List<ServiceMedia> cleanGalleryMedia(List<MediaItem> items) {
+        if (items == null) return new ArrayList<>();
+        List<ServiceMedia> out = new ArrayList<>();
+        Set<String> seenUrls = new LinkedHashSet<>();
+        for (MediaItem item : items) {
+            if (item == null) continue;
+            String url = trimOrNull(item.getUrl());
+            if (url == null) continue;                 // skip empty-URL slots
+            if (!seenUrls.add(url)) continue;          // skip duplicate URLs
+
+            String type = item.getType() == null ? "" : item.getType().trim().toUpperCase();
+            if (type.isEmpty()) {
+                type = looksLikeVideo(url) ? "VIDEO" : "IMAGE";   // auto-detect
+            } else if (!ALLOWED_MEDIA_TYPES.contains(type)) {
+                throw new BadRequestException("service.media.type.unsupported",
+                        Map.of("type", item.getType(), "allowed", ALLOWED_MEDIA_TYPES));
+            }
+
+            out.add(ServiceMedia.builder()
+                    .type(type)
+                    .url(url)
+                    .posterUrl(trimOrNull(item.getPosterUrl()))
+                    .alt(trimOrNull(item.getAlt()))
+                    .build());
+        }
+        return out;
+    }
+
+    private boolean looksLikeVideo(String url) {
+        String u = url.toLowerCase();
+        int q = u.indexOf('?');            // strip query string before extension test
+        if (q >= 0) u = u.substring(0, q);
+        for (String ext : VIDEO_EXTENSIONS) {
+            if (u.endsWith(ext)) return true;
+        }
+        return false;
+    }
+
+    /** Uppercase + validate layoutType against the allowed enum, or null. */
+    private String normalizeLayoutType(String raw) {
+        String value = trimOrNull(raw);
+        if (value == null) return null;
+        String upper = value.toUpperCase();
+        if (!ALLOWED_LAYOUT_TYPES.contains(upper)) {
+            throw new BadRequestException("service.layoutType.unsupported",
+                    Map.of("layoutType", raw, "allowed", ALLOWED_LAYOUT_TYPES));
+        }
+        return upper;
+    }
+
+    /** Trim + validate slug shape, or null when not provided. */
+    private String normalizeNavAnchorId(String raw) {
+        String value = trimOrNull(raw);
+        if (value == null) return null;
+        if (!NAV_ANCHOR_PATTERN.matcher(value).matches()) {
+            throw new BadRequestException("service.navAnchorId.invalid",
+                    Map.of("navAnchorId", raw,
+                            "expected", "slug-like, e.g. recording-studio"));
+        }
+        return value;
+    }
+
+    /** Enforce global uniqueness of navAnchorId (case-insensitive). */
+    private void validateNavAnchorUnique(String navAnchorId, Long selfId) {
+        if (navAnchorId == null) return;
+        boolean taken = (selfId == null)
+                ? serviceRepository.existsByNavAnchorIdIgnoreCase(navAnchorId)
+                : serviceRepository.existsByNavAnchorIdIgnoreCaseAndIdNot(navAnchorId, selfId);
+        if (taken) {
+            throw new BadRequestException("service.navAnchorId.duplicate",
+                    Map.of("navAnchorId", navAnchorId));
+        }
+    }
+
     // =========================================================================
     // PRIVATE — Audit Logging
     // =========================================================================
@@ -524,14 +622,20 @@ public class ServiceService {
                 .active(service.isActive())
                 .publishedAt(service.getPublishedAt() != null
                         ? service.getPublishedAt().format(FORMATTER) : null)
+                .sortOrder(service.getSortOrder())
                 .layoutType(service.getLayoutType())
                 .heroVideoUrl(service.getHeroVideoUrl())
                 .heroPosterUrl(service.getHeroPosterUrl())
                 .navAnchorId(service.getNavAnchorId())
+                .galleryMedia(service.getGalleryMedia().stream()
+                        .map(this::toMediaItem)
+                        .collect(Collectors.toList()))
                 .featureImageUrls(new ArrayList<>(service.getFeatureImageUrls()))
                 .thumbnailUrls(new ArrayList<>(service.getThumbnailUrls()))
                 .partnerIds(new ArrayList<>(service.getPartnerIds()))
                 .contents(service.getContents().stream()
+                        .sorted(Comparator.comparing(ServiceContent::getLanguageCode,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(this::toContentResponse)
                         .collect(Collectors.toList()))
                 .createdAt(service.getCreatedAt() != null
@@ -547,6 +651,15 @@ public class ServiceService {
                 .languageCode(c.getLanguageCode())
                 .title(c.getTitle())
                 .description(c.getDescription())
+                .build();
+    }
+
+    private MediaItem toMediaItem(ServiceMedia m) {
+        return MediaItem.builder()
+                .type(m.getType())
+                .url(m.getUrl())
+                .posterUrl(m.getPosterUrl())
+                .alt(m.getAlt())
                 .build();
     }
 }

@@ -35,11 +35,19 @@ public class ServiceDTOs {
          * Format: "yyyy-MM-dd HH:mm:ss"   Null = draft / unpublished.
          */
         private String publishedAt;
+        /** Explicit nav / scroll order for the public page — lower first. Null sorts last. */
+        private Integer sortOrder;
+        /** Layout hint: "MEDIA_HERO" | "FEATURE_GRID" | "DEFAULT". */
         private String layoutType;
         private String heroVideoUrl;
         private String heroPosterUrl;
+        /** Optional slug for #anchor links. Slug-like and unique when provided. */
         private String navAnchorId;
+        /** RECOMMENDED ordered gallery — each slot IMAGE or VIDEO. */
+        private List<MediaItem> galleryMedia;
+        /** Legacy gallery fallback (used only when galleryMedia is empty). */
         private List<String> featureImageUrls;
+        /** Legacy gallery fallback (used only when galleryMedia is empty). */
         private List<String> thumbnailUrls;
         private List<Long> partnerIds;
         /**
@@ -47,6 +55,24 @@ public class ServiceDTOs {
          * Each entry must have a languageCode ("CKB" | "KMR") and a title.
          */
         private List<ServiceContentRequest> contents;
+    }
+
+    // ─── Gallery Media Slot ───────────────────────────────────────────────────
+
+    /**
+     * One ordered gallery slot. Shared by request and response.
+     * Each slot is independently an IMAGE or a VIDEO.
+     */
+    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class MediaItem {
+        /** "IMAGE" or "VIDEO". Optional on input — auto-detected from the URL when omitted. */
+        private String type;
+        /** Image URL, or video file URL. Required when a slot is present. */
+        private String url;
+        /** Poster/thumbnail frame — recommended for VIDEO slots. */
+        private String posterUrl;
+        /** Optional alt / accessibility text. */
+        private String alt;
     }
 
     // ─── Bilingual Service Content ────────────────────────────────────────────
@@ -74,10 +100,12 @@ public class ServiceDTOs {
         private String location;
         private boolean active;
         private String publishedAt;
+        private Integer sortOrder;
         private String layoutType;
         private String heroVideoUrl;
         private String heroPosterUrl;
         private String navAnchorId;
+        private List<MediaItem> galleryMedia;
         private List<String> featureImageUrls;
         private List<String> thumbnailUrls;
         private List<Long> partnerIds;

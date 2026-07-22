@@ -63,7 +63,16 @@ public class VideoDTO {
     private VideoContentDTO ckbContent;
     private VideoContentDTO kmrContent;
 
-    // ─── Single Video Source (FILM only) ──────────────────────────────────────
+    // ─── Video Sources (FILM only) ────────────────────────────────────────────
+
+    /**
+     * All FILM sources, in order. Every uploaded video file appears here and
+     * exactly one carries {@code main: true}. On input you may send URL-based
+     * sources here; uploaded `videoFiles` are matched by index and take priority.
+     */
+    private List<VideoSourceDTO> videoSources;
+
+    /** MAIN source mirror (backward compatible) — equals the `main` entry of {@link #videoSources}. */
     private String sourceUrl;
     private String sourceExternalUrl;
     private String sourceEmbedUrl;
@@ -151,6 +160,21 @@ public class VideoDTO {
         private String titleKmr;
         private String descriptionCkb;
         private String descriptionKmr;
+    }
+
+    /**
+     * One FILM video source. On the response, `main: true` marks the primary
+     * file (the first one added by default). `durationSeconds`/`label` are optional.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class VideoSourceDTO {
+        private String url;
+        private String externalUrl;
+        private String embedUrl;
+        private Boolean main;
+        private String label;
+        private Integer durationSeconds;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

@@ -8,6 +8,7 @@ import ak.dev.khi_backend.khi_app.model.publishment.topic.PublishmentTopic;
 import ak.dev.khi_backend.khi_app.model.publishment.video.Video;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoClipItem;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoLog;
+import ak.dev.khi_backend.khi_app.model.publishment.video.VideoSourceFile;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoType;
 import ak.dev.khi_backend.khi_app.repository.publishment.topic.PublishmentTopicRepository;
 import ak.dev.khi_backend.khi_app.repository.publishment.video.VideoLogRepository;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -458,6 +460,7 @@ public class VideoService {
         video.setSourceUrl(null);
         video.setSourceExternalUrl(null);
         video.setSourceEmbedUrl(null);
+        if (video.getVideoSources() != null) video.getVideoSources().clear();
     }
 
     private void clearClipItems(Video video) {
@@ -661,41 +664,132 @@ public class VideoService {
     // یاریدەدەرەکانی سەرچاوە و وێنەی بەرگ
     // ═══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * FILM sources on CREATE. Every uploaded file is kept (not just the first).
+     * The list order is display order; exactly one source is flagged {@code main}
+     * (the first added by default, or whichever the DTO marks). The main source
+     * is mirrored onto the legacy sourceUrl/External/Embed columns.
+     */
     private void applyVideoSource(Video video, VideoDTO dto, List<MultipartFile> videoFiles) {
-        MultipartFile videoFile = (videoFiles != null && !videoFiles.isEmpty()) ? videoFiles.get(0) : null;
-        if (videoFile != null && !videoFile.isEmpty()) {
-            video.setSourceUrl(uploadToS3(videoFile));
-            video.setSourceExternalUrl(null);
-            video.setSourceEmbedUrl(null);
-            return;
+        List<VideoSourceFile> sources = buildFilmSources(dto, videoFiles);
+        replaceVideoSources(video, sources);
+    }
+
+    /**
+     * FILM sources on UPDATE. Partial-update friendly: sources are only rebuilt
+     * when the request signals intent — a real file was uploaded, {@code videoSources}
+     * was supplied, or a legacy source field was provided. Otherwise the existing
+     * sources (and the mirror) are left untouched.
+     */
+    private void applyVideoSourceForUpdate(Video video, VideoDTO dto, List<MultipartFile> videoFiles) {
+        boolean hasUploadedFile = videoFiles != null
+                && videoFiles.stream().anyMatch(f -> f != null && !f.isEmpty());
+        boolean suppliesSources = dto != null && dto.getVideoSources() != null;
+        boolean touchesLegacy = dto != null && (dto.getSourceUrl() != null
+                || dto.getSourceExternalUrl() != null
+                || dto.getSourceEmbedUrl() != null);
+
+        if (!hasUploadedFile && !suppliesSources && !touchesLegacy) return;
+
+        List<VideoSourceFile> sources = buildFilmSources(dto, videoFiles);
+        replaceVideoSources(video, sources);
+    }
+
+    private void replaceVideoSources(Video video, List<VideoSourceFile> sources) {
+        if (video.getVideoSources() == null) {
+            video.setVideoSources(new ArrayList<>());
+        }
+        video.getVideoSources().clear();
+        video.getVideoSources().addAll(sources);
+        syncMainSourceMirror(video);
+    }
+
+    /**
+     * Assemble the ordered FILM source list from the JSON DTO and uploaded files.
+     *
+     *  1. Seed from {@code dto.videoSources} (URL/external/embed based), or from the
+     *     legacy single {@code sourceUrl/External/Embed} when that's all that's given.
+     *  2. Uploaded {@code videoFiles[i]} take priority: they overwrite source i's url
+     *     (clearing its external/embed), or are appended when there are more files.
+     *  3. Blank sources (no url + no external + no embed) are dropped.
+     *  4. Exactly one source is flagged main — the DTO's chosen one, else the first.
+     */
+    private List<VideoSourceFile> buildFilmSources(VideoDTO dto, List<MultipartFile> videoFiles) {
+        List<VideoSourceFile> sources = new ArrayList<>();
+
+        if (dto != null && dto.getVideoSources() != null && !dto.getVideoSources().isEmpty()) {
+            for (VideoDTO.VideoSourceDTO s : dto.getVideoSources()) {
+                if (s == null) continue;
+                sources.add(VideoSourceFile.builder()
+                        .url(trimOrNull(s.getUrl()))
+                        .externalUrl(trimOrNull(s.getExternalUrl()))
+                        .embedUrl(trimOrNull(s.getEmbedUrl()))
+                        .label(trimOrNull(s.getLabel()))
+                        .durationSeconds(s.getDurationSeconds())
+                        .main(Boolean.TRUE.equals(s.getMain()))
+                        .build());
+            }
+        } else if (dto != null && (!isBlank(dto.getSourceUrl())
+                || !isBlank(dto.getSourceExternalUrl())
+                || !isBlank(dto.getSourceEmbedUrl()))) {
+            sources.add(VideoSourceFile.builder()
+                    .url(trimOrNull(dto.getSourceUrl()))
+                    .externalUrl(trimOrNull(dto.getSourceExternalUrl()))
+                    .embedUrl(trimOrNull(dto.getSourceEmbedUrl()))
+                    .main(true)
+                    .build());
         }
 
-        String url = dto != null ? trimOrNull(dto.getSourceUrl()) : null;
-        String ext = dto != null ? trimOrNull(dto.getSourceExternalUrl()) : null;
-        String emb = dto != null ? trimOrNull(dto.getSourceEmbedUrl()) : null;
+        // Uploaded files win by index; extra files are appended as new sources.
+        if (videoFiles != null) {
+            for (int i = 0; i < videoFiles.size(); i++) {
+                MultipartFile file = videoFiles.get(i);
+                if (file == null || file.isEmpty()) continue;
+                String url = uploadToS3(file);
+                if (i < sources.size()) {
+                    VideoSourceFile s = sources.get(i);
+                    s.setUrl(url);
+                    s.setExternalUrl(null);
+                    s.setEmbedUrl(null);
+                } else {
+                    sources.add(VideoSourceFile.builder().url(url).main(false).build());
+                }
+            }
+        }
 
-        if (!isBlank(url) || !isBlank(ext) || !isBlank(emb)) {
-            video.setSourceUrl(url);
-            video.setSourceExternalUrl(ext);
-            video.setSourceEmbedUrl(emb);
+        sources.removeIf(s -> isBlank(s.getUrl())
+                && isBlank(s.getExternalUrl())
+                && isBlank(s.getEmbedUrl()));
+
+        normalizeMainFlag(sources);
+        return sources;
+    }
+
+    /** Ensure exactly one source is main: the first flagged one, else index 0. */
+    private void normalizeMainFlag(List<VideoSourceFile> sources) {
+        if (sources.isEmpty()) return;
+        int mainIdx = -1;
+        for (int i = 0; i < sources.size(); i++) {
+            if (sources.get(i).isMain()) { mainIdx = i; break; }
+        }
+        if (mainIdx < 0) mainIdx = 0;   // "the first video added" is main by default
+        for (int i = 0; i < sources.size(); i++) {
+            sources.get(i).setMain(i == mainIdx);
         }
     }
 
-    private void applyVideoSourceForUpdate(Video video, VideoDTO dto, List<MultipartFile> videoFiles) {
-        MultipartFile videoFile = (videoFiles != null && !videoFiles.isEmpty()) ? videoFiles.get(0) : null;
-        if (videoFile != null && !videoFile.isEmpty()) {
-            video.setSourceUrl(uploadToS3(videoFile));
+    /** Mirror the main source onto the legacy sourceUrl/External/Embed columns. */
+    private void syncMainSourceMirror(Video video) {
+        VideoSourceFile main = video.getMainSource();
+        if (main == null) {
+            video.setSourceUrl(null);
             video.setSourceExternalUrl(null);
             video.setSourceEmbedUrl(null);
-            return;
+        } else {
+            video.setSourceUrl(main.getUrl());
+            video.setSourceExternalUrl(main.getExternalUrl());
+            video.setSourceEmbedUrl(main.getEmbedUrl());
         }
-
-        boolean touched = dto != null && (dto.getSourceUrl() != null || dto.getSourceExternalUrl() != null || dto.getSourceEmbedUrl() != null);
-        if (!touched) return;
-
-        video.setSourceUrl(trimOrNull(dto.getSourceUrl()));
-        video.setSourceExternalUrl(trimOrNull(dto.getSourceExternalUrl()));
-        video.setSourceEmbedUrl(trimOrNull(dto.getSourceEmbedUrl()));
     }
 
     /**

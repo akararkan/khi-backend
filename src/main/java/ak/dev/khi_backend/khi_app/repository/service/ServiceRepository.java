@@ -20,15 +20,16 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
 
     /**
      * GET ALL — Phase 1.  All services (admin view, includes inactive).
-     * Hits idx_service_published_at index directly.
+     * Ordered by explicit sortOrder first (nulls last), then recency.
      */
-    @Query("SELECT s.id FROM Service s ORDER BY s.publishedAt DESC, s.createdAt DESC")
+    @Query("SELECT s.id FROM Service s ORDER BY COALESCE(s.sortOrder, 2147483647) ASC, s.publishedAt DESC, s.createdAt DESC")
     Page<Long> findAllIds(Pageable pageable);
 
     /**
      * GET ALL ACTIVE — Phase 1.  Only active services (public view).
+     * Ordered by explicit sortOrder first (nulls last), then recency.
      */
-    @Query("SELECT s.id FROM Service s WHERE s.active = true ORDER BY s.publishedAt DESC, s.createdAt DESC")
+    @Query("SELECT s.id FROM Service s WHERE s.active = true ORDER BY COALESCE(s.sortOrder, 2147483647) ASC, s.publishedAt DESC, s.createdAt DESC")
     Page<Long> findActiveIds(Pageable pageable);
 
     /**
@@ -38,7 +39,7 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
             SELECT s.id FROM Service s
             WHERE s.active = true
               AND lower(s.serviceType) = lower(:serviceType)
-            ORDER BY s.publishedAt DESC, s.createdAt DESC
+            ORDER BY COALESCE(s.sortOrder, 2147483647) ASC, s.publishedAt DESC, s.createdAt DESC
             """)
     Page<Long> findActiveIdsByType(@Param("serviceType") String serviceType, Pageable pageable);
 
@@ -48,7 +49,7 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
     @Query("""
             SELECT s.id FROM Service s
             WHERE lower(s.serviceType) = lower(:serviceType)
-            ORDER BY s.publishedAt DESC, s.createdAt DESC
+            ORDER BY COALESCE(s.sortOrder, 2147483647) ASC, s.publishedAt DESC, s.createdAt DESC
             """)
     Page<Long> findIdsByType(@Param("serviceType") String serviceType, Pageable pageable);
 
@@ -125,6 +126,16 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
     /** Distinct service types currently in the DB. */
     @Query("SELECT DISTINCT s.serviceType FROM Service s ORDER BY s.serviceType")
     List<String> findDistinctServiceTypes();
+
+    // =========================================================================
+    // NAV ANCHOR UNIQUENESS
+    // =========================================================================
+
+    /** True when any service already uses this navAnchorId (case-insensitive). */
+    boolean existsByNavAnchorIdIgnoreCase(String navAnchorId);
+
+    /** True when another service (id != given) already uses this navAnchorId. */
+    boolean existsByNavAnchorIdIgnoreCaseAndIdNot(String navAnchorId, Long id);
 }
 
 

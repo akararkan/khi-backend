@@ -3,6 +3,17 @@
 **Base URL:** `/api/v1/videos`
 **Platform:** Spring Boot 3 · No Auth Required · Bilingual (CKB / KMR) · Paginated
 **Note:** Read-only public endpoints. All video/image URLs point to S3/CDN or external streaming services.
+**Updated:** 2026-07-22 — FILM videos now expose **multiple sources** via `videoSources[]`.
+
+---
+
+## 🔄 Changes in this revision
+
+| Change | Detail |
+|--------|--------|
+| **New `videoSources[]` (FILM)** | A FILM can now carry **several video files**. Every uploaded file is returned here, in order, and exactly one has **`main: true`** (the first added, unless the admin marked another). Previously only the first uploaded file was kept and the rest were lost. |
+| **`sourceUrl` is the main mirror** | `sourceUrl` / `sourceExternalUrl` / `sourceEmbedUrl` still work and now always equal the `main: true` entry of `videoSources[]`. Existing players need no change; new players should render from `videoSources[]`. |
+| **Backfill for old records** | Films created before this change return a one-item `videoSources[]` synthesized from the legacy `sourceUrl` (with `main: true`), so the field is always present when a FILM has a source. |
 
 ---
 
@@ -63,6 +74,11 @@
         "director": "Ehmed Kerîm",
         "producer": "KHI Production"
       },
+      "videoSources": [
+        { "url": "https://cdn.khi.org/videos/kurdistan.mp4", "main": true, "label": "Part 1" },
+        { "url": "https://cdn.khi.org/videos/kurdistan-part2.mp4", "main": false, "label": "Part 2" },
+        { "url": "https://cdn.khi.org/videos/kurdistan-part3.mp4", "main": false, "label": "Part 3" }
+      ],
       "sourceUrl": "https://cdn.khi.org/videos/kurdistan.mp4",
       "sourceExternalUrl": null,
       "sourceEmbedUrl": null,
@@ -109,9 +125,16 @@
 | `ckbContent.director` | string | Director name |
 | `ckbContent.producer` | string | Producer name |
 | `kmrContent` | object | Same structure as `ckbContent` for Kurmanji (may be null) |
-| `sourceUrl` | string | Direct video URL (FILM only, may be null) |
-| `sourceExternalUrl` | string | External streaming URL (FILM only, may be null) |
-| `sourceEmbedUrl` | string | Embed/iframe URL (FILM only, may be null) |
+| `videoSources` | array | **All FILM sources, in order** (FILM only; null for VIDEO_CLIP). Present whenever a FILM has at least one source |
+| `videoSources[].url` | string | Direct video file URL (may be null if external/embed only) |
+| `videoSources[].externalUrl` | string | External streaming URL for this source (may be null) |
+| `videoSources[].embedUrl` | string | Embed/iframe URL for this source (may be null) |
+| `videoSources[].main` | boolean | **`true` for the primary source** — exactly one per film |
+| `videoSources[].label` | string | Optional friendly label (e.g. `Part 1`, `1080p`) — may be null |
+| `videoSources[].durationSeconds` | int | Optional per-source runtime — may be null |
+| `sourceUrl` | string | **Main** source direct URL — mirrors the `main:true` entry (FILM only, may be null) |
+| `sourceExternalUrl` | string | Main source external URL (FILM only, may be null) |
+| `sourceEmbedUrl` | string | Main source embed URL (FILM only, may be null) |
 | `videoClipItems` | array | Clip list (VIDEO_CLIP only, null for FILM) |
 | `videoClipItems[].clipNumber` | int | Clip sequence number |
 | `videoClipItems[].url` | string | Direct clip URL (set automatically when clip file uploaded via `videoFiles` part — see write endpoints) |

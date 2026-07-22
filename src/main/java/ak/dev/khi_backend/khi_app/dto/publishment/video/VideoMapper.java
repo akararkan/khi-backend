@@ -7,6 +7,7 @@ import ak.dev.khi_backend.khi_app.model.publishment.video.VideoContent;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoLog;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoCastMember;
 import ak.dev.khi_backend.khi_app.model.publishment.video.VideoHighlightClip;
+import ak.dev.khi_backend.khi_app.model.publishment.video.VideoSourceFile;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -196,7 +197,38 @@ public final class VideoMapper {
             );
         }
 
+        // Video sources (FILM type). Fall back to the legacy single-source columns
+        // so films created before this field existed still return a sources array.
+        if (video.getVideoSources() != null && !video.getVideoSources().isEmpty()) {
+            dto.setVideoSources(
+                    video.getVideoSources().stream()
+                            .map(VideoMapper::toSourceDTO)
+                            .collect(Collectors.toList())
+            );
+        } else if (!isBlank(video.getSourceUrl())
+                || !isBlank(video.getSourceExternalUrl())
+                || !isBlank(video.getSourceEmbedUrl())) {
+            dto.setVideoSources(List.of(VideoDTO.VideoSourceDTO.builder()
+                    .url(video.getSourceUrl())
+                    .externalUrl(video.getSourceExternalUrl())
+                    .embedUrl(video.getSourceEmbedUrl())
+                    .main(true)
+                    .build()));
+        }
+
         return dto;
+    }
+
+    private static VideoDTO.VideoSourceDTO toSourceDTO(VideoSourceFile s) {
+        if (s == null) return null;
+        return VideoDTO.VideoSourceDTO.builder()
+                .url(s.getUrl())
+                .externalUrl(s.getExternalUrl())
+                .embedUrl(s.getEmbedUrl())
+                .main(s.isMain())
+                .label(s.getLabel())
+                .durationSeconds(s.getDurationSeconds())
+                .build();
     }
 
     private static List<VideoCastMember> toCastEntities(List<VideoDTO.CastMemberDTO> values) {

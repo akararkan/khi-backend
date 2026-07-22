@@ -34,8 +34,12 @@ import java.util.List;
  *   hoverImage    (optional) — hover/thumbnail cover image
  *   videoFiles    (optional) — one or more video files:
  *
- *      FILM type       → videoFiles[0] is the single film file;
- *                        it sets sourceUrl, clears externalUrl / embedUrl.
+ *      FILM type       → EVERY uploaded file is kept as a source in
+ *                        `videoSources[]`. videoFiles[i] maps to videoSources[i]
+ *                        by index; extra files are appended. The first source is
+ *                        `main: true` by default (or whichever `videoSources[i]`
+ *                        carries `main: true`). The main source is mirrored onto
+ *                        the legacy sourceUrl / sourceExternalUrl / sourceEmbedUrl.
  *      VIDEO_CLIP type → videoFiles[i] maps to videoClipItems[i] by index.
  *                        Each uploaded file sets that clip's url and clears
  *                        its externalUrl / embedUrl.
@@ -80,7 +84,7 @@ public class VideoController {
             Optional file parts:
             - `ckbCoverImage` / `kmrCoverImage` / `hoverImage` — cover images uploaded directly.
             - `videoFiles` — video files uploaded directly (repeat the part for each file):
-                - FILM: `videoFiles[0]` becomes sourceUrl.
+                - FILM: EVERY file is stored in `videoSources[]`; the first is `main: true`.
                 - VIDEO_CLIP: `videoFiles[i]` maps to `videoClipItems[i]` by index.
             Files take priority over any URL in the JSON `data` part.
             """
@@ -93,7 +97,7 @@ public class VideoController {
             @Parameter(description = "Cover image — KMR dialect") @RequestPart(value = "kmrCoverImage", required = false) MultipartFile kmrCoverImage,
             @Parameter(description = "Hover/thumbnail cover image") @RequestPart(value = "hoverImage", required = false) MultipartFile hoverImage,
 
-            @Parameter(description = "Video file(s). FILM: index 0 = film file. VIDEO_CLIP: index i = clip i.")
+            @Parameter(description = "Video file(s). FILM: every file is stored in videoSources[]; first is main. VIDEO_CLIP: index i = clip i.")
             @RequestPart(value = "videoFiles", required = false) List<MultipartFile> videoFiles
     ) throws Exception {
         VideoDTO dto = objectMapper.readValue(dtoJson, VideoDTO.class);
@@ -182,6 +186,8 @@ public class VideoController {
         description = """
             Partial update — null fields in the JSON are ignored (not cleared).
             Same multipart rules as POST:
+            - FILM: uploading `videoFiles` (or sending `videoSources`) rebuilds the
+              whole source list; omit both to keep the existing sources untouched.
             - `videoFiles[i]` replaces clip i's source; omit to keep the existing source.
             - On VIDEO_CLIP updates, each clip item in the JSON must carry its persisted `id`.
             - To remove the topic: set `clearTopic: true` in the JSON.
@@ -196,7 +202,7 @@ public class VideoController {
             @Parameter(description = "Replacement cover image — KMR dialect") @RequestPart(value = "kmrCoverImage", required = false) MultipartFile kmrCoverImage,
             @Parameter(description = "Replacement hover/thumbnail cover image") @RequestPart(value = "hoverImage", required = false) MultipartFile hoverImage,
 
-            @Parameter(description = "Replacement video file(s). FILM: index 0 = film. VIDEO_CLIP: index i = clip i. Omit to keep existing source.")
+            @Parameter(description = "Replacement video file(s). FILM: rebuilds videoSources[] (first is main). VIDEO_CLIP: index i = clip i. Omit to keep existing sources.")
             @RequestPart(value = "videoFiles", required = false) List<MultipartFile> videoFiles
     ) throws Exception {
         VideoDTO dto = objectMapper.readValue(dtoJson, VideoDTO.class);

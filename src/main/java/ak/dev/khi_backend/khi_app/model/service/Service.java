@@ -45,7 +45,8 @@ import java.util.List;
         indexes = {
                 @Index(name = "idx_service_type",   columnList = "service_type"),
                 @Index(name = "idx_service_active", columnList = "active"),
-                @Index(name = "idx_service_published_at", columnList = "published_at")
+                @Index(name = "idx_service_published_at", columnList = "published_at"),
+                @Index(name = "idx_service_sort_order", columnList = "sort_order")
         }
 )
 @Data
@@ -87,6 +88,13 @@ public class Service {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
+    /**
+     * Explicit nav / scroll order for the public Services page — lower first.
+     * Null sorts last (falls back to publishedAt DESC, then createdAt DESC).
+     */
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
     @Column(name = "layout_type", length = 80)
     private String layoutType;
     @Column(name = "hero_video_url", columnDefinition = "TEXT")
@@ -96,6 +104,18 @@ public class Service {
     @Column(name = "nav_anchor_id", length = 160)
     private String navAnchorId;
 
+    /**
+     * RECOMMENDED gallery — ordered slots, each independently IMAGE or VIDEO.
+     * List order is display order; any slot may be a video.
+     */
+    @ElementCollection
+    @CollectionTable(name = "service_gallery_media", joinColumns = @JoinColumn(name = "service_id"))
+    @OrderColumn(name = "display_order")
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<ServiceMedia> galleryMedia = new ArrayList<>();
+
+    /** Legacy gallery fallback — used only when {@link #galleryMedia} is empty. */
     @ElementCollection
     @CollectionTable(name = "service_feature_images", joinColumns = @JoinColumn(name = "service_id"))
     @Column(name = "image_url", columnDefinition = "TEXT")

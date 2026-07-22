@@ -2,7 +2,30 @@
 
 **Base URL:** `/api/v1/videos`
 **Platform:** Spring Boot 3 · JWT · Bilingual (CKB / KMR) · Multipart · Paginated
-**Note:** Write endpoints use multipart/form-data. Upload cover images and video files as separate named parts alongside the JSON `data` part. Repeat the `videoFiles` part once per clip for VIDEO_CLIP type.
+**Note:** Write endpoints use multipart/form-data. Upload cover images and video files as separate named parts alongside the JSON `data` part. Repeat the `videoFiles` part once per file.
+**Updated:** 2026-07-22 — FILM videos now keep **all** uploaded files via `videoSources[]` (one `main`).
+
+---
+
+## 🔄 Changes in this revision — FILM multiple sources
+
+**Problem fixed.** For a `FILM`, only `videoFiles[0]` was ever saved (as `sourceUrl`); any additional
+uploaded files were silently discarded. Uploading 3 films kept only 1.
+
+**What changed:**
+
+| Area | Before | Now |
+|------|--------|-----|
+| FILM upload | `videoFiles[0]` → `sourceUrl`; files `[1..]` dropped | **Every** `videoFiles[i]` is stored as an ordered entry in **`videoSources[]`** |
+| Main source | implicit single `sourceUrl` | Exactly one `videoSources[].main = true` — the **first added** by default, or the entry you mark `main:true` |
+| Backward compatibility | — | `sourceUrl` / `sourceExternalUrl` / `sourceEmbedUrl` still returned; they **mirror the `main` source** |
+| Old records | — | Films saved before this change return a 1-item `videoSources[]` synthesized from `sourceUrl` |
+| Update semantics | uploading a file replaced the single source | Uploading `videoFiles` **or** sending `videoSources` in `data` **rebuilds** the whole list; omit both to keep existing sources |
+
+> **Storage:** a new `video_source_files` table (auto-created by Hibernate `ddl-auto: update`).
+> New DB columns per row: `url`, `external_url`, `embed_url`, `is_main`, `label`, `duration_seconds`, `display_order`.
+> **Note on the record you shared (id 36):** it was created under the old code, so only the one saved
+> file exists in the DB. Re-run the update with all 3 `videoFiles` to populate `videoSources[]`.
 
 ---
 
@@ -69,6 +92,10 @@
         "director": "Ehmed Kerîm",
         "producer": "KHI Production"
       },
+      "videoSources": [
+        { "url": "https://cdn.khi.org/videos/kurdistan.mp4",      "main": true,  "label": "بەشی ١" },
+        { "url": "https://cdn.khi.org/videos/kurdistan-part2.mp4", "main": false, "label": "بەشی ٢" }
+      ],
       "sourceUrl": "https://cdn.khi.org/videos/kurdistan.mp4",
       "sourceExternalUrl": null,
       "sourceEmbedUrl": null,
@@ -194,13 +221,15 @@
 | `ckbCoverImage` | file | No | Sorani cover image — overrides `ckbCoverUrl` in data |
 | `kmrCoverImage` | file | No | Kurmanji cover image — overrides `kmrCoverUrl` in data |
 | `hoverImage` | file | No | Hover-state image — overrides `hoverCoverUrl` in data |
-| `videoFiles` | file (repeat) | No | Video file(s) uploaded directly. **FILM:** `videoFiles[0]` sets `sourceUrl`. **VIDEO_CLIP:** `videoFiles[i]` sets `url` of `videoClipItems[i]` (zero-based index). Repeat this part once per clip. Uploaded files take priority over any URL in the JSON. |
+| `videoFiles` | file (repeat) | No | Video file(s) uploaded directly. **FILM:** **every** `videoFiles[i]` becomes an entry in `videoSources[]`; the first is `main` unless `data.videoSources[i].main=true` marks another. **VIDEO_CLIP:** `videoFiles[i]` sets `url` of `videoClipItems[i]` (zero-based index). Repeat this part once per file. Uploaded files take priority over any URL in the JSON. |
 
 > **Upload approaches for video files:**
 >
-> **Approach A — Pre-upload then URL (existing):** Upload to `POST /api/v1/media/upload` first, then set `sourceUrl` / `videoClipItems[].url` in the JSON `data` part.
+> **Approach A — Pre-upload then URL (existing):** Upload to `POST /api/v1/media/upload` first, then set `videoSources[].url` (FILM) / `videoClipItems[].url` (clip) in the JSON `data` part.
 >
-> **Approach B — Direct inline (new):** Send video files as `videoFiles` parts in the same request. No `url` field needed in the JSON for those clips/film. Index maps: `videoFiles[0]` → clip 0, `videoFiles[1]` → clip 1, etc.
+> **Approach B — Direct inline:** Send video files as `videoFiles` parts in the same request. No `url` field needed in the JSON. Index maps: for FILM `videoFiles[i]` → `videoSources[i]`; for VIDEO_CLIP `videoFiles[i]` → `videoClipItems[i]`.
+>
+> **Mixing:** For FILM you may combine — send `data.videoSources` with external/embed entries and upload files for the file-backed slots by index; extra files beyond the list are appended.
 
 **`data` JSON Fields:**
 
@@ -221,9 +250,16 @@
 | `ckbContent.director` | string | No | Director name (Sorani) |
 | `ckbContent.producer` | string | No | Producer name (Sorani) |
 | `kmrContent` | object | No | Same fields as `ckbContent` for Kurmanji |
-| `sourceUrl` | string | No | Direct video URL (FILM only) — used when no `videoFile` uploaded |
-| `sourceExternalUrl` | string | No | External streaming URL (FILM only, e.g. YouTube) |
-| `sourceEmbedUrl` | string | No | Embed/iframe URL (FILM only) |
+| `videoSources` | array | No | **FILM only** — ordered list of sources. Each entry may be file-backed (matched to a `videoFiles` upload by index) or URL-based. Omit to use only uploaded files or the legacy `sourceUrl` |
+| `videoSources[].url` | string | No | Direct file URL for this source |
+| `videoSources[].externalUrl` | string | No | External streaming URL for this source |
+| `videoSources[].embedUrl` | string | No | Embed/iframe URL for this source |
+| `videoSources[].main` | boolean | No | Mark this entry as the primary source. If none marked, the first entry is main |
+| `videoSources[].label` | string | No | Optional friendly label (e.g. `Part 1`, `1080p`) |
+| `videoSources[].durationSeconds` | int | No | Optional per-source runtime |
+| `sourceUrl` | string | No | **Legacy FILM single source.** Still accepted; becomes the sole `main` source when `videoSources`/`videoFiles` are absent. On responses it mirrors the `main` entry |
+| `sourceExternalUrl` | string | No | Legacy external streaming URL (FILM only, e.g. YouTube) |
+| `sourceEmbedUrl` | string | No | Legacy embed/iframe URL (FILM only) |
 | `videoClipItems` | array | No | List of clip items (VIDEO_CLIP type only) |
 | `videoClipItems[].url` | string | No | Direct clip URL |
 | `videoClipItems[].externalUrl` | string | No | External clip URL |
@@ -247,7 +283,7 @@
 | `keywordsCkb` | array | No | Keyword strings in Sorani |
 | `keywordsKmr` | array | No | Keyword strings in Kurmanji |
 
-**`data` JSON Example (FILM):**
+**`data` JSON Example (FILM with 3 sources — Approach A, URLs already uploaded):**
 ```json
 {
   "contentLanguages": ["CKB", "KMR"],
@@ -268,7 +304,11 @@
     "director": "Ehmed Kerîm",
     "producer": "KHI Production"
   },
-  "sourceUrl": "https://cdn.khi.org/videos/kurdistan.mp4",
+  "videoSources": [
+    { "url": "https://cdn.khi.org/videos/kurdistan.mp4",       "main": true,  "label": "بەشی ١" },
+    { "url": "https://cdn.khi.org/videos/kurdistan-part2.mp4",  "main": false, "label": "بەشی ٢" },
+    { "url": "https://cdn.khi.org/videos/kurdistan-part3.mp4",  "main": false, "label": "بەشی ٣" }
+  ],
   "fileFormat": "mp4",
   "durationSeconds": 5400,
   "publishmentDate": "2026-06-12",
@@ -280,6 +320,21 @@
   "keywordsKmr": ["Dîrok"]
 }
 ```
+
+> **Approach B (upload 3 files directly).** Send a minimal `data` (no `videoSources`) plus three
+> `videoFiles` parts — the first uploaded file becomes `main`:
+>
+> ```bash
+> curl -X POST https://<host>/api/v1/videos \
+>   -H "Authorization: Bearer <JWT>" \
+>   -F 'data={"contentLanguages":["CKB"],"videoType":"FILM","ckbContent":{"title":"فیلمی کوردستان"}};type=application/json' \
+>   -F 'videoFiles=@part1.mp4' \
+>   -F 'videoFiles=@part2.mp4' \
+>   -F 'videoFiles=@part3.mp4'
+> ```
+>
+> To make a different file main, send a matching `data.videoSources` with `main:true` on that index
+> (e.g. index 1) — files are matched to entries by position.
 
 **`data` JSON Example (VIDEO_CLIP):**
 ```json
@@ -310,6 +365,11 @@
   "contentLanguages": ["CKB", "KMR"],
   "ckbContent": { "title": "فیلمی کوردستان", "description": "دۆکیومێنتاری کوردستان", "director": "ئەحمەد کریم", "producer": "KHI پڕۆداکشن", "location": "هەولێر" },
   "kmrContent": { "title": "Filma Kurdistanê", "description": "Belgefîlma Kurdistanê", "director": "Ehmed Kerîm", "producer": "KHI Production", "location": "Hewlêr" },
+  "videoSources": [
+    { "url": "https://cdn.khi.org/videos/kurdistan.mp4",      "externalUrl": null, "embedUrl": null, "main": true,  "label": "بەشی ١" },
+    { "url": "https://cdn.khi.org/videos/kurdistan-part2.mp4", "externalUrl": null, "embedUrl": null, "main": false, "label": "بەشی ٢" },
+    { "url": "https://cdn.khi.org/videos/kurdistan-part3.mp4", "externalUrl": null, "embedUrl": null, "main": false, "label": "بەشی ٣" }
+  ],
   "sourceUrl": "https://cdn.khi.org/videos/kurdistan.mp4",
   "sourceExternalUrl": null,
   "sourceEmbedUrl": null,
@@ -341,7 +401,9 @@
 |-----------|------|----------|-------------|
 | `id` | long | **Yes** | ID of the video to update |
 
-**Form Parts:** Same as `POST /`. `videoFiles[i]` replaces clip i's source file; omit `videoFiles` entirely to keep existing clip sources unchanged.
+**Form Parts:** Same as `POST /`.
+- **FILM:** uploading any `videoFiles` **or** sending `videoSources` in `data` **rebuilds** the full source list (first uploaded file is `main` unless marked otherwise). Omit both to keep the existing sources untouched.
+- **VIDEO_CLIP:** `videoFiles[i]` replaces clip i's source file; omit `videoFiles` entirely to keep existing clip sources unchanged.
 
 **Extra field in `data`:**
 

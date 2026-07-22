@@ -137,15 +137,29 @@ public class Video {
     // ─── Single Video Source (FILM type only) ─────────────────────────────────
     // For VIDEO_CLIP type, the source lives on each VideoClipItem instead.
 
-    /** Direct hosted file URL (S3 / CDN) — used for FILM type. */
+    /**
+     * All video sources for a FILM, in display order. Every uploaded file is
+     * kept here; exactly one entry is flagged {@code main}. The main source is
+     * mirrored onto {@link #sourceUrl} / {@link #sourceExternalUrl} /
+     * {@link #sourceEmbedUrl} below for backward compatibility.
+     * Empty / unused for VIDEO_CLIP type.
+     */
+    @Builder.Default
+    @BatchSize(size = 25)
+    @ElementCollection
+    @CollectionTable(name = "video_source_files", joinColumns = @JoinColumn(name = "video_id"))
+    @OrderColumn(name = "display_order")
+    private List<VideoSourceFile> videoSources = new ArrayList<>();
+
+    /** Direct hosted file URL (S3 / CDN) — the MAIN source, mirrored for FILM type. */
     @Column(name = "source_url", columnDefinition = "TEXT")
     private String sourceUrl;
 
-    /** External page link (YouTube watch, Vimeo …) — used for FILM type. */
+    /** External page link (YouTube watch, Vimeo …) — MAIN source mirror, FILM type. */
     @Column(name = "source_external_url", columnDefinition = "TEXT")
     private String sourceExternalUrl;
 
-    /** Embeddable iframe URL — used for FILM type. */
+    /** Embeddable iframe URL — MAIN source mirror, FILM type. */
     @Column(name = "source_embed_url", columnDefinition = "TEXT")
     private String sourceEmbedUrl;
 
@@ -274,5 +288,17 @@ public class Video {
     /** Convenience check: true only when VIDEO_CLIP and flagged as album of memories. */
     public boolean isVideoClipAlbumOfMemories() {
         return videoType == VideoType.VIDEO_CLIP && albumOfMemories;
+    }
+
+    /**
+     * The main FILM source: the entry flagged {@code main}, or the first source
+     * when none is flagged, or {@code null} when there are no sources.
+     */
+    public VideoSourceFile getMainSource() {
+        if (videoSources == null || videoSources.isEmpty()) return null;
+        return videoSources.stream()
+                .filter(VideoSourceFile::isMain)
+                .findFirst()
+                .orElse(videoSources.get(0));
     }
 }
