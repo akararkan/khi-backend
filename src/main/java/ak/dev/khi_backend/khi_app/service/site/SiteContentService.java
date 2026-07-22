@@ -37,6 +37,13 @@ public class SiteContentService {
     private static final Set<String> SUBMISSION_STATUSES =
             Set.of("NEW", "PENDING", "IN_REVIEW", "APPROVED", "COMPLETED", "REJECTED", "CLOSED");
 
+    /** Allowed archive material types (spec §3). */
+    private static final Set<String> ARCHIVE_MATERIAL_TYPES =
+            Set.of("PHOTOGRAPH", "MANUSCRIPT", "DOCUMENT", "AUDIO", "VIDEO", "OTHER");
+
+    /** Allowed financial donation currencies (spec §5). */
+    private static final Set<String> DONATION_CURRENCIES = Set.of("IQD", "USD");
+
     private final TeamMemberRepository teamRepository;
     private final PartnerRepository partnerRepository;
     private final ContactMessageRepository contactMessageRepository;
@@ -638,10 +645,10 @@ public class SiteContentService {
         ensureFinancialDonationsEnabled();
         FinancialDonation donation = FinancialDonation.builder()
                 .donorName(request.getDonorName().trim())
-                .email(request.getEmail().trim())
+                .email(orEmpty(request.getEmail()))
                 .phone(trimToNull(request.getPhone()))
                 .amount(request.getAmount())
-                .currency(request.getCurrency().trim().toUpperCase(Locale.ROOT))
+                .currency(validateCurrency(request.getCurrency()))
                 .paymentMethod(request.getPaymentMethod().trim())
                 .transactionReference(trimToNull(request.getTransactionReference()))
                 .message(trimToNull(request.getMessage()))
@@ -655,11 +662,11 @@ public class SiteContentService {
         ensureArchiveDonationsEnabled();
         ArchiveDonation donation = ArchiveDonation.builder()
                 .donorName(request.getDonorName().trim())
-                .email(request.getEmail().trim())
+                .email(orEmpty(request.getEmail()))
                 .phone(trimToNull(request.getPhone()))
-                .materialType(request.getMaterialType().trim())
-                .title(request.getTitle().trim())
-                .description(request.getDescription())
+                .materialType(validateMaterialType(request.getMaterialType()))
+                .title(orEmpty(request.getTitle()))
+                .description(orEmpty(request.getDescription()))
                 .estimatedDate(trimToNull(request.getEstimatedDate()))
                 .attachmentUrl(trimToNull(request.getAttachmentUrl()))
                 .status("PENDING")
@@ -799,10 +806,33 @@ public class SiteContentService {
         return normalized;
     }
 
+    private String validateMaterialType(String materialType) {
+        String normalized = materialType.trim().toUpperCase(Locale.ROOT);
+        if (!ARCHIVE_MATERIAL_TYPES.contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported materialType: " + materialType
+                    + " (allowed: " + ARCHIVE_MATERIAL_TYPES + ")");
+        }
+        return normalized;
+    }
+
+    private String validateCurrency(String currency) {
+        String normalized = currency.trim().toUpperCase(Locale.ROOT);
+        if (!DONATION_CURRENCIES.contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported currency: " + currency
+                    + " (allowed: " + DONATION_CURRENCIES + ")");
+        }
+        return normalized;
+    }
+
     private String trimToNull(String value) {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /** Null-safe for NOT NULL columns whose value is optional at the API level. */
+    private String orEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private EntityNotFoundException notFound(String resource, Long id) {

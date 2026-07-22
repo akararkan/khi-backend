@@ -229,7 +229,8 @@ public final class SiteContentDtos {
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class FinancialDonationRequest {
         @NotBlank private String donorName;
-        @NotBlank @Email private String email;
+        /** Optional — the site submits an empty string today. {@code @Email} allows null/blank. */
+        @Email private String email;
         private String phone;
         @NotNull @DecimalMin("0.01") private BigDecimal amount;
         @NotBlank private String currency;
@@ -256,11 +257,14 @@ public final class SiteContentDtos {
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class ArchiveDonationRequest {
         @NotBlank private String donorName;
-        @NotBlank @Email private String email;
+        /** Optional — the site submits an empty string today. {@code @Email} allows null/blank. */
+        @Email private String email;
         private String phone;
         @NotBlank private String materialType;
-        @NotBlank private String title;
-        @NotBlank @Size(max = 10000) private String description;
+        /** Optional display/credit name ("Register name" on the form). */
+        @Size(max = 500) private String title;
+        /** Optional free-text note / brief history. */
+        @Size(max = 10000) private String description;
         private String estimatedDate;
         private String attachmentUrl;
     }
